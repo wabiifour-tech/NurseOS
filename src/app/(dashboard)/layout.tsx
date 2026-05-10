@@ -31,6 +31,8 @@ import {
   HelpCircle,
   ChevronDown,
 } from "lucide-react"
+import { useAuthStore } from "@/lib/auth-store"
+import Link from "next/link"
 
 function OnlineStatus() {
   const [isOnline, setIsOnline] = React.useState(true)
@@ -72,6 +74,16 @@ function OnlineStatus() {
 }
 
 function DashboardHeader() {
+  const { user, logout } = useAuthStore()
+  const firstName = user?.firstName || "Nurse"
+  const lastName = user?.lastName || ""
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+
+  const handleSignOut = () => {
+    logout()
+    window.location.href = "/login"
+  }
+
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
       <SidebarTrigger className="-ml-1 size-8" />
@@ -130,20 +142,6 @@ function DashboardHeader() {
               </span>
               <span className="text-[10px] text-muted-foreground">28 min ago</span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1 py-2.5">
-              <span className="text-sm font-medium">Shift Update</span>
-              <span className="text-xs text-muted-foreground">
-                Night shift handover notes available
-              </span>
-              <span className="text-[10px] text-muted-foreground">1 hr ago</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1 py-2.5">
-              <span className="text-sm font-medium">CPD Deadline</span>
-              <span className="text-xs text-muted-foreground">
-                2 CPD credits due by end of month
-              </span>
-              <span className="text-[10px] text-muted-foreground">3 hrs ago</span>
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-center justify-center text-emerald-600 font-medium">
               View all notifications
@@ -156,28 +154,29 @@ function DashboardHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2 h-8">
               <Avatar className="size-7 border border-emerald-500/30">
-                <AvatarImage src="" alt="Nurse Adaora" />
                 <AvatarFallback className="bg-emerald-500/20 text-emerald-700 text-[10px] font-semibold">
-                  AN
+                  {initials || "NU"}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden sm:inline text-sm font-medium">Adaora</span>
+              <span className="hidden sm:inline text-sm font-medium">{firstName}</span>
               <ChevronDown className="size-3 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium leading-none">Nurse Adaora Nwosu</p>
+                <p className="text-sm font-medium leading-none">{firstName} {lastName}</p>
                 <p className="text-xs text-muted-foreground leading-none">
-                  RN, BSN — Ward 3
+                  {user?.role || "Nurse"} — NurseOS
                 </p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 size-4" />
-              My Profile
+            <DropdownMenuItem asChild>
+              <Link href="/nurseid/profile">
+                <User className="mr-2 size-4" />
+                My Profile
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Settings className="mr-2 size-4" />
@@ -188,7 +187,7 @@ function DashboardHeader() {
               Help & Support
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive">
+            <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
               <LogOut className="mr-2 size-4" />
               Sign Out
             </DropdownMenuItem>

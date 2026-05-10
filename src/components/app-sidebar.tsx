@@ -63,6 +63,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuthStore } from "@/lib/auth-store"
 
 interface NavItem {
   title: string
@@ -186,6 +187,15 @@ function NavSectionGroup({ section, pathname }: { section: NavSection; pathname:
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const { user, logout } = useAuthStore()
+  const firstName = user?.firstName || "Nurse"
+  const lastName = user?.lastName || ""
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+
+  const handleSignOut = () => {
+    logout()
+    window.location.href = "/login"
+  }
 
   return (
     <Sidebar
@@ -289,14 +299,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
-              asChild
               tooltip="Sign Out"
               className="text-slate-400 hover:bg-red-500/10 hover:text-red-400"
+              onClick={handleSignOut}
             >
-              <Link href="/login">
-                <LogOut className="size-4" />
-                <span>Sign Out</span>
-              </Link>
+              <LogOut className="size-4" />
+              <span>Sign Out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -304,14 +312,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* User Profile Mini */}
         <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-800/50 p-2.5 border border-slate-700/50">
           <Avatar className="size-8 border border-emerald-500/30">
-            <AvatarImage src="" alt="Nurse Adaora" />
             <AvatarFallback className="bg-emerald-500/20 text-emerald-300 text-xs font-semibold">
-              AN
+              {initials || "NU"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-200 truncate">Nurse Adaora</p>
-            <p className="text-[10px] text-slate-400 truncate">RN, BSN — Ward 3</p>
+            <p className="text-sm font-medium text-slate-200 truncate">{firstName} {lastName}</p>
+            <p className="text-[10px] text-slate-400 truncate">{user?.role || "Nurse"} — NurseOS</p>
           </div>
         </div>
       </SidebarFooter>

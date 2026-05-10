@@ -38,6 +38,7 @@ import {
   Area,
   AreaChart,
 } from "recharts"
+import { useAuthStore } from "@/lib/auth-store"
 
 /* ───── Data ───── */
 const statCards = [
@@ -272,13 +273,16 @@ function StatCard({ stat }: { stat: typeof statCards[number] }) {
 
 /* ───── Main Page ───── */
 export default function DashboardPage() {
+  const { user } = useAuthStore()
+  const firstName = user?.firstName || "Nurse"
+
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-            Welcome back, Nurse Adaora
+            Welcome back, {firstName}
           </h1>
           <p className="text-muted-foreground mt-1">
             Here&apos;s what&apos;s happening in your care environment today.

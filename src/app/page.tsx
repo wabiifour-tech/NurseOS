@@ -76,12 +76,12 @@ const modules = [
 ];
 
 const stats = [
-  { value: "10,000+", label: "Registered Nurses", icon: Users },
-  { value: "50+", label: "Facilities Onboarded", icon: Building2 },
   { value: "5", label: "Integrated Modules", icon: Activity },
-  { value: "24/7", label: "Care Support", icon: Shield },
-  { value: "3+", label: "Countries Active", icon: Globe },
-  { value: "99.9%", label: "Platform Uptime", icon: Zap },
+  { value: "7,000+", label: "Patients Served (RUHC HMS)", icon: Users },
+  { value: "1", label: "Nurse-Led Founder", icon: Heart },
+  { value: "24/7", label: "Designed for Round-the-Clock Care", icon: Shield },
+  { value: "100%", label: "Nurse-First Design", icon: Zap },
+  { value: "NG", label: "Starting Market", icon: Globe },
 ];
 
 const pricingTiers = [
@@ -338,7 +338,7 @@ export default function LandingPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.8 }}
           >
-            <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> HIPAA Compliant</span>
+            <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> HIPAA Aligned</span>
             <span className="text-emerald-600">•</span>
             <span className="flex items-center gap-1.5"><Zap className="w-4 h-4" /> Offline-First</span>
             <span className="text-emerald-600">•</span>
@@ -543,7 +543,7 @@ export default function LandingPage() {
               Ready to Transform Nursing Care?
             </h2>
             <p className="text-lg text-emerald-200/80 mb-8 max-w-2xl mx-auto">
-              Join thousands of nurses across Africa who are building the future of healthcare.
+              Be the first to shape the future of nursing care in Africa.
               Start free today — no credit card required.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -601,8 +601,7 @@ export default function LandingPage() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="/about" className="hover:text-foreground transition-colors">About</Link></li>
                 <li><Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Blog</a></li>
+                <li><Link href="/features" className="hover:text-foreground transition-colors">Features</Link></li>
               </ul>
             </div>
             <div>
@@ -622,10 +621,10 @@ export default function LandingPage() {
             </p>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs text-muted-foreground">
-                <Star className="w-3 h-3 mr-1" /> NMCN Certified
+                <Shield className="w-3 h-3 mr-1" /> HIPAA Aligned
               </Badge>
               <Badge variant="outline" className="text-xs text-muted-foreground">
-                <Shield className="w-3 h-3 mr-1" /> HIPAA Aligned
+                <Heart className="w-3 h-3 mr-1" /> Nurse-Led
               </Badge>
             </div>
           </div>
