@@ -209,7 +209,7 @@ export default function AnalyticsDashboardPage() {
         name: d.name,
         value: d.percentage,
         fill: ["#10b981", "#14b8a6", "#059669", "#0d9488", "#047857", "#a7f3d0"][
-          data.topDiagnoses!.indexOf(d) % 6
+          (data.topDiagnoses?.indexOf(d) ?? 0) % 6
         ],
       }))
     : fallbackDiagnosisData

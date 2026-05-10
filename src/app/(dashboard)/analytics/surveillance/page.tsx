@@ -250,9 +250,9 @@ export default function SurveillancePage() {
               <LineChart data={diseaseTrendData.malaria.map((m, i) => ({
                 month: m.month,
                 Malaria: m.cases,
-                Cholera: diseaseTrendData.cholera[i].cases,
-                "Lassa Fever": diseaseTrendData.lassa[i].cases,
-                "COVID-19": diseaseTrendData.covid[i].cases,
+                Cholera: diseaseTrendData.cholera[i]?.cases ?? 0,
+                "Lassa Fever": diseaseTrendData.lassa[i]?.cases ?? 0,
+                "COVID-19": diseaseTrendData.covid[i]?.cases ?? 0,
               }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#94a3b8" />

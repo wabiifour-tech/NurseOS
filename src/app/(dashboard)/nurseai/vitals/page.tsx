@@ -296,8 +296,12 @@ export default function VitalsPage() {
         setVitalsLoading(true)
         fetchVitals()
       } else {
-        const data = await res.json()
-        toast.error(data.error || 'Failed to record vitals')
+        try {
+          const data = await res.json()
+          toast.error(data.error || 'Failed to record vitals')
+        } catch {
+          toast.error('Failed to record vitals')
+        }
       }
     } catch {
       toast.error('Network error. Please try again.')

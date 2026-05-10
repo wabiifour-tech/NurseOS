@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Mail,
@@ -62,6 +63,7 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
+  const router = useRouter();
 
   const {
     register,
@@ -110,8 +112,12 @@ export default function RegisterPage() {
 
       toast.success("Account created! Welcome to NurseOS.");
 
-      // Redirect to dashboard after successful registration
-      window.location.href = "/dashboard";
+      // Use router.push for client-side navigation (preserves Zustand state)
+      // Small delay to ensure Zustand persist has flushed to localStorage
+      setTimeout(() => {
+        router.push("/dashboard");
+        router.refresh();
+      }, 100);
     } catch (error) {
       console.error("Registration error:", error);
       toast.error("Unable to connect to the server. Please check your connection and try again.");

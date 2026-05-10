@@ -131,11 +131,11 @@ export default function ChartingPage() {
     setGeneratedNote('')
     setAiConfidence(0)
 
-    // Animate confidence
-    const confidenceTarget = 85 + Math.floor(Math.random() * 13)
+    // Animate confidence (deterministic values to avoid Math.random() SSR/hydration issues)
+    const confidenceTarget = 91
     let currentConfidence = 0
     const confidenceInterval = setInterval(() => {
-      currentConfidence += Math.floor(Math.random() * 15) + 5
+      currentConfidence += 11
       if (currentConfidence >= confidenceTarget) {
         currentConfidence = confidenceTarget
         clearInterval(confidenceInterval)

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import {
   Card,
@@ -93,6 +94,7 @@ interface NurseProfileData {
 
 export default function NurseProfilePage() {
   const { user, token } = useAuthStore()
+  const router = useRouter()
   const [profile, setProfile] = React.useState<NurseProfileData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [isEditing, setIsEditing] = React.useState(false)
@@ -251,7 +253,7 @@ export default function NurseProfilePage() {
             <p className="text-sm text-muted-foreground mb-4">
               We couldn&apos;t load your nurse profile. Please ensure you are logged in with a nurse account.
             </p>
-            <Button variant="outline" onClick={() => window.location.href = '/login'}>
+            <Button variant="outline" onClick={() => router.push('/login')}>
               Go to Login
             </Button>
           </CardContent>

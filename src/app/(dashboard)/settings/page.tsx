@@ -266,7 +266,7 @@ export default function SettingsPage() {
             {/* Avatar */}
             <div className="flex flex-col items-center gap-3">
               <Avatar className="size-20 border-2 border-emerald-500/30">
-                <AvatarImage src={user?.avatarUrl || ''} alt={`${firstName} ${lastName}`} />
+                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={`${firstName} ${lastName}`} />}
                 <AvatarFallback className="bg-emerald-500/20 text-emerald-700 text-xl font-bold">
                   {initials || 'NU'}
                 </AvatarFallback>

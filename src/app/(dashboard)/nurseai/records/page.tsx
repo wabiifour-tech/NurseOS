@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FileText, Search, Plus, Activity, UserCheck, LogOut, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function RecordsPage() {
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -138,7 +139,7 @@ export default function RecordsPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setDialogOpen(false)}>Save Record</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); toast.info('Record saving is coming soon — this feature is being developed.'); }}>Save Record</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

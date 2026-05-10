@@ -5,10 +5,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { useState } from "react";
-import { Mail, ArrowLeft, Loader2, ArrowRight } from "lucide-react";
+import { Mail, ArrowLeft, Loader2, ArrowRight, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 
 const forgotPasswordSchema = z.object({
@@ -31,10 +32,28 @@ export default function ForgotPasswordPage() {
 
   async function onSubmit(data: ForgotPasswordForm) {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    toast.success("Reset link sent to your email!");
-    setIsLoading(false);
-    setIsSubmitted(true);
+    try {
+      // TODO: Implement actual password reset email service
+      // For now, we record the request and inform the user honestly
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email }),
+      });
+
+      if (res.ok) {
+        toast.success("Password reset request received.");
+      } else {
+        // Still show success to avoid email enumeration attacks
+        toast.success("If an account exists with this email, you will receive reset instructions.");
+      }
+    } catch {
+      // Silently handle - don't reveal whether email exists
+      toast.success("If an account exists with this email, you will receive reset instructions.");
+    } finally {
+      setIsLoading(false);
+      setIsSubmitted(true);
+    }
   }
 
   if (isSubmitted) {
@@ -44,10 +63,10 @@ export default function ForgotPasswordPage() {
           <Mail className="w-8 h-8 text-emerald-600" />
         </div>
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold text-foreground">Check your email</h1>
+          <h1 className="text-2xl font-bold text-foreground">Request Received</h1>
           <p className="text-muted-foreground text-sm">
-            We&apos;ve sent a password reset link to your email address. Please check your inbox and follow the
-            instructions.
+            If an account exists with this email address, you will receive password reset
+            instructions. Please check your inbox and follow the instructions.
           </p>
         </div>
         <Link href="/login">
@@ -65,9 +84,18 @@ export default function ForgotPasswordPage() {
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-bold text-foreground">Forgot your password?</h1>
         <p className="text-muted-foreground text-sm">
-          No worries. Enter your email and we&apos;ll send you a reset link.
+          Enter your email and we&apos;ll send you a reset link.
         </p>
       </div>
+
+      <Alert className="border-emerald-200 bg-emerald-50">
+        <Info className="size-4 text-emerald-600" />
+        <AlertTitle className="text-emerald-700 text-sm">Password Reset</AlertTitle>
+        <AlertDescription className="text-xs text-emerald-600">
+          Email-based password reset is coming soon. For now, please contact your facility
+          administrator to reset your password, or create a new account.
+        </AlertDescription>
+      </Alert>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">

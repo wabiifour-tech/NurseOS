@@ -45,6 +45,7 @@ import {
   Settings,
   ChevronRight,
 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function ReportsPage() {
   const [generateTemplate, setGenerateTemplate] = React.useState("")
@@ -138,7 +139,7 @@ export default function ReportsPage() {
             </div>
             <DialogFooter>
               <Button variant="outline">Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => toast.info('Report generation is coming soon — this feature is being developed.')}>
                 <FileBarChart className="size-4" />
                 Generate Report
               </Button>

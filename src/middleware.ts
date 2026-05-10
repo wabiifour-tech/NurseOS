@@ -11,7 +11,10 @@ const publicRoutes = [
   '/pricing',
 ]
 
-// Routes that are always public (API routes, static files, etc.)
+// Auth routes - redirect to dashboard if already authenticated
+const authRoutes = ['/login', '/register', '/forgot-password']
+
+// Check if a path is public (doesn't require auth)
 const isPublicPath = (pathname: string): boolean => {
   if (publicRoutes.includes(pathname)) return true
   if (pathname.startsWith('/api/')) return true
@@ -20,10 +23,7 @@ const isPublicPath = (pathname: string): boolean => {
   return false
 }
 
-// Auth routes - redirect to dashboard if already authenticated
-const authRoutes = ['/login', '/register', '/forgot-password']
-
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Check for auth token in cookies

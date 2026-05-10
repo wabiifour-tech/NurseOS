@@ -94,8 +94,8 @@ export async function POST(request: NextRequest) {
       await db.nurseProfile.create({
         data: {
           userId: user.id,
-          licenseNumber: normalizedRole === 'STUDENT' ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}` : `NMCN/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
-          licenseIssuingBody: 'NMCN',
+          licenseNumber: normalizedRole === 'STUDENT' ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}` : `NR/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
+          licenseIssuingBody: 'Nursing Registration Board',
           licenseExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
           nursingCouncil: 'Nigeria',
           skills: '[]',

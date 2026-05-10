@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import { useAuthStore } from "@/lib/auth-store"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 function OnlineStatus() {
   const [isOnline, setIsOnline] = React.useState(true)
@@ -76,13 +77,14 @@ function OnlineStatus() {
 
 function DashboardHeader() {
   const { user, logout } = useAuthStore()
+  const router = useRouter()
   const firstName = user?.firstName || "Nurse"
   const lastName = user?.lastName || ""
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
 
   const handleSignOut = () => {
     logout()
-    window.location.href = "/login"
+    router.push("/login")
   }
 
   return (
@@ -153,13 +155,17 @@ function DashboardHeader() {
                 My Profile
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 size-4" />
-              Settings
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <Settings className="mr-2 size-4" />
+                Settings
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <HelpCircle className="mr-2 size-4" />
-              Help & Support
+            <DropdownMenuItem asChild>
+              <Link href="/help">
+                <HelpCircle className="mr-2 size-4" />
+                Help & Support
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
@@ -178,19 +184,30 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated } = useAuthStore()
+  const router = useRouter()
   const [hydrated, setHydrated] = React.useState(false)
 
   React.useEffect(() => {
-    setHydrated(true)
+    // Wait for Zustand persist to hydrate from localStorage
+    // useAuthStore.persist.hasHydrated() returns true once rehydration is complete
+    const checkHydration = () => {
+      if (useAuthStore.persist.hasHydrated()) {
+        setHydrated(true)
+      } else {
+        // Poll until hydration completes (Zustand persist hydrates async)
+        setTimeout(checkHydration, 50)
+      }
+    }
+    checkHydration()
   }, [])
 
   React.useEffect(() => {
-    // Only redirect after Zustand has hydrated from localStorage
+    // Only redirect after Zustand has fully hydrated from localStorage
     if (hydrated && !isAuthenticated) {
-      window.location.href = "/login"
+      router.push("/login")
     }
-  }, [hydrated, isAuthenticated])
+  }, [hydrated, isAuthenticated, router])
 
   // Don't render anything until hydration is complete
   if (!hydrated) {

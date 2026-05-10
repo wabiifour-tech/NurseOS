@@ -4,7 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, Suspense } from "react";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +20,13 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   const {
     register,
@@ -59,8 +63,12 @@ export default function LoginPage() {
 
       toast.success("Welcome back to NurseOS!");
 
-      // Redirect to dashboard after successful login
-      window.location.href = "/dashboard";
+      // Use router.push for client-side navigation (preserves Zustand state)
+      // Small delay to ensure Zustand persist has flushed to localStorage
+      setTimeout(() => {
+        router.push(callbackUrl);
+        router.refresh();
+      }, 100);
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Unable to connect to the server. Please check your connection and try again.");
@@ -145,5 +153,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

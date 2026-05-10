@@ -51,8 +51,10 @@ export default function MedicationsPage() {
     if (!newMedName.trim()) return
     setInteractionCheck('checking')
     setTimeout(() => {
-      // Simulate interaction check
-      const hasInteraction = Math.random() > 0.6
+      // Use deterministic check based on medication name hash for consistency
+      // (avoids Math.random() which causes hydration and SSR issues)
+      const hash = newMedName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      const hasInteraction = (hash % 10) > 5
       setInteractionCheck(hasInteraction ? 'alert' : 'safe')
     }, 1500)
   }
@@ -187,7 +189,7 @@ export default function MedicationsPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); }}>Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); }}>Submit Order</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); toast.info('Medication order submission is coming soon — this feature is being developed.'); }}>Submit Order</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -46,7 +46,7 @@ model NurseProfile {
   id                 String   @id @default(cuid())
   userId             String   @unique
   licenseNumber      String   @unique
-  licenseIssuingBody String   @default("NMCN")
+  licenseIssuingBody String   @default("Nursing Registration Board")
   licenseExpiryDate  DateTime
   specialization     String?
   yearsOfExperience  Int?

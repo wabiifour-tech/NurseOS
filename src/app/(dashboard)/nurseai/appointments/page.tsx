@@ -15,6 +15,7 @@ import {
   CalendarDays, List, Plus, Clock, CheckCircle, Loader2,
   UserX, CalendarCheck, Stethoscope, MapPin
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = React.useState<'list' | 'calendar'>('list')
@@ -176,7 +177,7 @@ export default function AppointmentsPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setDialogOpen(false)}>Schedule Appointment</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); toast.info('Appointment scheduling is coming soon — this feature is being developed.'); }}>Schedule Appointment</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
