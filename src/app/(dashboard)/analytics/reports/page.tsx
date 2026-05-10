@@ -1,10 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  reportTemplates,
-  generatedReports,
-} from "@/lib/analytics-data"
+import { useAuthStore } from "@/lib/auth-store"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,17 +23,8 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   FileBarChart,
   Plus,
-  Download,
   FileText,
   Calendar,
   Clock,
@@ -44,17 +32,152 @@ import {
   File,
   Settings,
   ChevronRight,
+  Loader2,
+  AlertTriangle,
+  Database,
 } from "lucide-react"
 import { toast } from "sonner"
 
+interface DashboardData {
+  overview: {
+    totalPatients: number
+    totalFacilities: number
+    totalNurses: number
+    activeEncounters: number
+    avgWaitTimeMin: number
+    bedOccupancyRate: number
+  }
+  generatedAt: string
+  isMockData: boolean
+}
+
+function EmptyState({ icon: Icon, title, description }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 text-center">
+      <div className="size-14 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+        <Icon className="size-7 text-slate-400" />
+      </div>
+      <h3 className="text-sm font-semibold text-slate-600 mb-1">{title}</h3>
+      <p className="text-xs text-muted-foreground max-w-sm">{description}</p>
+    </div>
+  )
+}
+
+function getNextDate(frequency: string): string {
+  const now = new Date()
+  if (frequency === "Monthly") {
+    return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" })
+  }
+  if (frequency === "Quarterly") {
+    const quarter = Math.floor(now.getMonth() / 3) + 1
+    const nextQuarterMonth = quarter * 3
+    return new Date(now.getFullYear(), nextQuarterMonth, 1).toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" })
+  }
+  return "N/A"
+}
+
 export default function ReportsPage() {
+  const token = useAuthStore((s) => s.token)
+  const [data, setData] = React.useState<DashboardData | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState(false)
   const [generateTemplate, setGenerateTemplate] = React.useState("")
   const [generateFormat, setGenerateFormat] = React.useState("pdf")
 
-  const formatIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-    PDF: FileText,
-    CSV: FileSpreadsheet,
+  React.useEffect(() => {
+    async function fetchReports() {
+      try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        }
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`
+        }
+        const res = await fetch("/api/nurseanalytics/dashboard", { headers })
+        if (!res.ok) throw new Error("Failed to fetch report data")
+        const d = await res.json()
+        setData(d)
+      } catch {
+        setError(true)
+        toast.error("Failed to load reports data. Please try again.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchReports()
+  }, [token])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading reports...</span>
+      </div>
+    )
   }
+
+  if (error && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+        <AlertTriangle className="size-10 text-red-400 mb-3" />
+        <h2 className="text-lg font-semibold text-slate-700 mb-1">Unable to Load Data</h2>
+        <p className="text-sm text-muted-foreground mb-4">There was a problem fetching reports data.</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  const overview = data?.overview || {
+    totalPatients: 0,
+    totalFacilities: 0,
+    totalNurses: 0,
+    activeEncounters: 0,
+    avgWaitTimeMin: 0,
+    bedOccupancyRate: 0,
+  }
+
+  const hasData = overview.totalPatients > 0 || overview.totalFacilities > 0
+
+  // Default report templates that are always available
+  const reportTemplates = [
+    {
+      id: "monthly-summary",
+      name: "Monthly Summary Report",
+      description: "Comprehensive overview of facility operations, patient metrics, and staffing",
+      frequency: "Monthly",
+      sections: ["Patient Volume", "Staffing", "Quality Metrics"],
+      lastGenerated: "Not yet generated",
+    },
+    {
+      id: "quarterly-performance",
+      name: "Quarterly Performance Report",
+      description: "Performance analysis across all departments with trend comparisons",
+      frequency: "Quarterly",
+      sections: ["Department Performance", "KPI Trends", "Budget Analysis"],
+      lastGenerated: "Not yet generated",
+    },
+    {
+      id: "staffing-report",
+      name: "Staffing & Scheduling Report",
+      description: "Nurse staffing levels, shift coverage, and workforce analytics",
+      frequency: "Weekly",
+      sections: ["Shift Coverage", "Overtime Analysis", "Leave Tracking"],
+      lastGenerated: "Not yet generated",
+    },
+    {
+      id: "disease-surveillance",
+      name: "Disease Surveillance Report",
+      description: "Outbreak monitoring, case tracking, and epidemiological analysis",
+      frequency: "Weekly",
+      sections: ["Active Alerts", "Case Trends", "Regional Data"],
+      lastGenerated: "Not yet generated",
+    },
+  ]
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -68,6 +191,11 @@ export default function ReportsPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Generate, schedule, and export facility reports
           </p>
+          {data?.isMockData && (
+            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 bg-amber-50 mt-2">
+              Showing sample data — reports will populate as the system is used
+            </Badge>
+          )}
         </div>
         <Dialog>
           <DialogTrigger asChild>
@@ -193,64 +321,15 @@ export default function ReportsPage() {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold">Generated Reports</CardTitle>
-            <Badge variant="secondary" className="text-xs">{generatedReports.length} reports</Badge>
+            <Badge variant="secondary" className="text-xs">0 reports</Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Report</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead>Period</TableHead>
-                <TableHead>Generated By</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Format</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {generatedReports.map(report => {
-                const FormatIcon = formatIcons[report.format] || File
-                return (
-                  <TableRow key={report.id} className="hover:bg-emerald-50/50">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="size-8 rounded bg-emerald-50 flex items-center justify-center shrink-0">
-                          <FormatIcon className="size-4 text-emerald-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{report.title}</p>
-                          <p className="text-[10px] text-muted-foreground">{report.size}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{report.template}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px]">{report.period}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{report.generatedBy}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{report.date}</TableCell>
-                    <TableCell>
-                      <Badge className={`text-[10px] ${
-                        report.format === "PDF"
-                          ? "bg-red-50 text-red-700 border-red-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      }`}>
-                        {report.format}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-emerald-600 hover:text-emerald-700">
-                        <Download className="size-3" />
-                        Download
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+          <EmptyState
+            icon={Database}
+            title="No Generated Reports Yet"
+            description="Reports will appear here once they are generated. Use the templates above to create your first report — data will populate as the system collects clinical and operational information."
+          />
         </CardContent>
       </Card>
 
@@ -290,17 +369,4 @@ export default function ReportsPage() {
       </Card>
     </div>
   )
-}
-
-function getNextDate(frequency: string): string {
-  const now = new Date()
-  if (frequency === "Monthly") {
-    return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" })
-  }
-  if (frequency === "Quarterly") {
-    const quarter = Math.floor(now.getMonth() / 3) + 1
-    const nextQuarterMonth = quarter * 3
-    return new Date(now.getFullYear(), nextQuarterMonth, 1).toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" })
-  }
-  return "N/A"
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { medicationOrders } from '@/lib/nurseai-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,32 +18,129 @@ import {
 import { toast } from 'sonner'
 import { useAuthStore } from '@/lib/auth-store'
 
+// ---- API Types ----
+interface ApiMedication {
+  id: string
+  patientId: string
+  recordId: string
+  medicationName: string
+  dosage: string
+  route: string
+  frequency: string
+  duration: string | null
+  startDate: string
+  endDate: string | null
+  status: 'PENDING' | 'VERIFIED' | 'ADMINISTERED' | 'HELD' | 'DISCONTINUED'
+  contraindications: string
+  drugInteractions: string | null
+  interactionAlerts: string | null
+  notes: string | null
+  createdAt: string
+  patient: {
+    id: string
+    patientId: string
+    user: { firstName: string; lastName: string; displayName: string | null }
+  }
+  verifiedBy: {
+    id: string
+    user: { firstName: string; lastName: string }
+  } | null
+}
+
+// ---- Helpers ----
+function getPatientName(med: ApiMedication): string {
+  if (med.patient.user.displayName) return med.patient.user.displayName
+  return `${med.patient.user.firstName} ${med.patient.user.lastName}`
+}
+
+function getPatientInitials(med: ApiMedication): string {
+  const name = getPatientName(med)
+  return name.split(' ').map(n => n[0]).join('')
+}
+
+function getVerifiedByName(med: ApiMedication): string {
+  if (!med.verifiedBy) return '—'
+  return `${med.verifiedBy.user.firstName} ${med.verifiedBy.user.lastName}`
+}
+
+function hasInteractionAlert(med: ApiMedication): boolean {
+  return !!med.interactionAlerts && med.interactionAlerts.trim().length > 0
+}
+
+function formatDisplayStatus(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
+}
+
+function formatDate(isoDate: string | null): string {
+  if (!isoDate) return '—'
+  try {
+    return new Date(isoDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  } catch {
+    return isoDate
+  }
+}
+
 export default function MedicationsPage() {
+  const { token } = useAuthStore()
+  const [medications, setMedications] = React.useState<ApiMedication[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('all')
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [newMedName, setNewMedName] = React.useState('')
   const [interactionCheck, setInteractionCheck] = React.useState<'idle' | 'checking' | 'safe' | 'alert'>('idle')
 
-  const totalOrders = medicationOrders.length
-  const pending = medicationOrders.filter(m => m.status === 'Pending').length
-  const administered = medicationOrders.filter(m => m.status === 'Administered').length
-  const interactionAlerts = medicationOrders.filter(m => m.interactionAlert).length
+  // Fetch medications from API
+  React.useEffect(() => {
+    async function fetchMedications() {
+      setLoading(true)
+      setError(null)
+      try {
+        const headers: HeadersInit = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const filteredMeds = medicationOrders.filter(m => {
-    const matchesSearch = m.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.medicationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.prescribedBy.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || m.status === statusFilter
+        const res = await fetch('/api/nurseai/medications', { headers })
+        if (!res.ok) {
+          throw new Error(`Failed to fetch medications (${res.status})`)
+        }
+        const data = await res.json()
+        setMedications(data.medications || [])
+      } catch (err) {
+        console.error('Error fetching medications:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load medications')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchMedications()
+  }, [token])
+
+  // Computed values
+  const totalOrders = medications.length
+  const pending = medications.filter(m => m.status === 'PENDING').length
+  const administered = medications.filter(m => m.status === 'ADMINISTERED').length
+  const alertCount = medications.filter(m => hasInteractionAlert(m)).length
+
+  const filteredMeds = medications.filter(m => {
+    const patientName = getPatientName(m).toLowerCase()
+    const medName = m.medicationName.toLowerCase()
+    const verifier = getVerifiedByName(m).toLowerCase()
+    const matchesSearch = patientName.includes(searchQuery.toLowerCase()) ||
+      medName.includes(searchQuery.toLowerCase()) ||
+      verifier.includes(searchQuery.toLowerCase())
+    const matchesStatus = statusFilter === 'all' || m.status === statusFilter.toUpperCase()
     return matchesSearch && matchesStatus
   })
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Pending': return 'bg-amber-50 text-amber-700 border-amber-200'
-      case 'Verified': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      case 'Administered': return 'bg-sky-50 text-sky-700 border-sky-200'
-      case 'Held': return 'bg-red-50 text-red-700 border-red-200'
+    switch (status.toUpperCase()) {
+      case 'PENDING': return 'bg-amber-50 text-amber-700 border-amber-200'
+      case 'VERIFIED': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'ADMINISTERED': return 'bg-sky-50 text-sky-700 border-sky-200'
+      case 'HELD': return 'bg-red-50 text-red-700 border-red-200'
+      case 'DISCONTINUED': return 'bg-slate-50 text-slate-600 border-slate-200'
       default: return 'bg-slate-50 text-slate-600 border-slate-200'
     }
   }
@@ -53,20 +149,85 @@ export default function MedicationsPage() {
     if (!newMedName.trim()) return
     setInteractionCheck('checking')
     setTimeout(() => {
-      // Use deterministic check based on medication name hash for consistency
-      // (avoids Math.random() which causes hydration and SSR issues)
       const hash = newMedName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
       const hasInteraction = (hash % 10) > 5
       setInteractionCheck(hasInteraction ? 'alert' : 'safe')
     }, 1500)
   }
 
+  const handleNewMedicationClick = () => {
+    setDialogOpen(true)
+    toast.info('Medication orders require an active medical record. Create a medical record for the patient first, then add medications from within the patient\'s record.')
+  }
+
   const stats = [
     { label: 'Total Orders', value: totalOrders, icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Pending Verification', value: pending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Administered Today', value: administered, icon: CheckCircle, color: 'text-sky-600', bg: 'bg-sky-50' },
-    { label: 'Interaction Alerts', value: interactionAlerts, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+    { label: 'Administered', value: administered, icon: CheckCircle, color: 'text-sky-600', bg: 'bg-sky-50' },
+    { label: 'Interaction Alerts', value: alertCount, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
   ]
+
+  // ---- Loading State ----
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Medications</h1>
+            <p className="text-sm text-muted-foreground">Manage medication orders and drug interactions</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <Card key={i} className="border-0 shadow-sm">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="size-10 rounded-lg bg-muted animate-pulse" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-6 w-12 bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-12 flex flex-col items-center justify-center">
+            <Loader2 className="size-8 text-emerald-600 animate-spin mb-3" />
+            <p className="text-sm text-muted-foreground">Loading medication orders...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ---- Error State ----
+  if (error) {
+    return (
+      <div className="p-4 md:p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Medications</h1>
+            <p className="text-sm text-muted-foreground">Manage medication orders and drug interactions</p>
+          </div>
+        </div>
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="size-4 text-red-600" />
+          <AlertTitle className="text-red-700 font-semibold">Failed to Load Medications</AlertTitle>
+          <AlertDescription className="text-sm text-red-600 mt-1">
+            {error}
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-3 border-red-300 text-red-700 hover:bg-red-100"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -78,7 +239,7 @@ export default function MedicationsPage() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+            <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={handleNewMedicationClick}>
               <Plus className="size-4" />
               New Medication Order
             </Button>
@@ -89,23 +250,13 @@ export default function MedicationsPage() {
               <DialogDescription>Enter medication details and check for drug interactions.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Patient</Label>
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="p001">Adaeze Okonkwo</SelectItem>
-                      <SelectItem value="p002">Chinedu Eze</SelectItem>
-                      <SelectItem value="p003">Fatima Abdullahi</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Prescriber</Label>
-                  <Input placeholder="e.g. Dr. Okafor" />
-                </div>
-              </div>
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertTriangle className="size-4 text-amber-600" />
+                <AlertTitle className="text-amber-700 text-sm">Medical Record Required</AlertTitle>
+                <AlertDescription className="text-xs text-amber-600">
+                  Medication orders require an active medical record. Create a medical record for the patient first, then add medications from within the patient&apos;s record.
+                </AlertDescription>
+              </Alert>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Medication Name</Label>
@@ -191,7 +342,7 @@ export default function MedicationsPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); }}>Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); toast.info('Medication order submission is coming soon — this feature is being developed.'); }}>Submit Order</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); toast.info('Medication orders require an active medical record. Create a medical record for the patient first, then add medications from within the patient\'s record.'); }}>Submit Order</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -215,17 +366,17 @@ export default function MedicationsPage() {
       </div>
 
       {/* Active Interaction Alerts */}
-      {interactionAlerts > 0 && (
+      {alertCount > 0 && (
         <Alert className="border-red-200 bg-red-50">
           <AlertTriangle className="size-4 text-red-600" />
           <AlertTitle className="text-red-700 font-semibold">Active Drug Interaction Alerts</AlertTitle>
           <AlertDescription className="text-sm text-red-600 mt-2">
-            <div className="space-y-2">
-              {medicationOrders.filter(m => m.interactionAlert).map(med => (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {medications.filter(m => hasInteractionAlert(m)).map(med => (
                 <div key={med.id} className="flex items-start gap-2 text-xs">
                   <div className="size-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
                   <div>
-                    <span className="font-medium">{med.patientName}</span> — <span className="font-semibold">{med.medicationName}</span>: {med.interactionDetail || 'Interaction detected — consult pharmacist for details'}
+                    <span className="font-medium">{getPatientName(med)}</span> — <span className="font-semibold">{med.medicationName}</span>: {med.interactionAlerts || 'Interaction detected — consult pharmacist for details'}
                   </div>
                 </div>
               ))}
@@ -241,7 +392,7 @@ export default function MedicationsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
-                placeholder="Search by medication, patient, or prescriber..."
+                placeholder="Search by medication, patient, or verifier..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -253,71 +404,131 @@ export default function MedicationsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Verified">Verified</SelectItem>
-                <SelectItem value="Administered">Administered</SelectItem>
-                <SelectItem value="Held">Held</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="VERIFIED">Verified</SelectItem>
+                <SelectItem value="ADMINISTERED">Administered</SelectItem>
+                <SelectItem value="HELD">Held</SelectItem>
+                <SelectItem value="DISCONTINUED">Discontinued</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </CardContent>
       </Card>
 
+      {/* Empty State */}
+      {medications.length === 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-12 flex flex-col items-center justify-center text-center">
+            <div className="size-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+              <Pill className="size-8 text-emerald-400" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">No Medication Orders Yet</h3>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Medication orders are created within a patient&apos;s medical record. Open a patient record to add medications.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Desktop Table */}
-      <Card className="border-0 shadow-sm hidden md:block">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-4">Patient</TableHead>
-                <TableHead>Medication</TableHead>
-                <TableHead>Dosage</TableHead>
-                <TableHead>Route</TableHead>
-                <TableHead>Frequency</TableHead>
-                <TableHead>Prescriber</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Alert</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredMeds.map(med => (
-                <TableRow key={med.id} className={med.interactionAlert ? 'bg-red-50/30' : ''}>
-                  <TableCell className="pl-4">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="size-7 border border-emerald-200">
-                        <AvatarFallback className="bg-emerald-50 text-emerald-700 text-[10px] font-medium">
-                          {med.patientName.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm font-medium">{med.patientName}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">{med.medicationName}</TableCell>
-                  <TableCell className="text-xs">{med.dosage}</TableCell>
-                  <TableCell className="text-xs">{med.route}</TableCell>
-                  <TableCell className="text-xs">{med.frequency}</TableCell>
-                  <TableCell className="text-xs">{med.prescribedBy}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{med.startDate} — {med.endDate}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`text-xs ${getStatusColor(med.status)}`}>
-                      {med.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {med.interactionAlert ? (
-                      <Badge className="bg-red-100 text-red-700 border-red-200 text-xs gap-1">
-                        <AlertTriangle className="size-3" />
-                        Alert
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
+      {medications.length > 0 && (
+        <Card className="border-0 shadow-sm hidden md:block">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">Patient</TableHead>
+                  <TableHead>Medication</TableHead>
+                  <TableHead>Dosage</TableHead>
+                  <TableHead>Route</TableHead>
+                  <TableHead>Frequency</TableHead>
+                  <TableHead>Verified By</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Alert</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredMeds.map(med => (
+                  <TableRow key={med.id} className={hasInteractionAlert(med) ? 'bg-red-50/30' : ''}>
+                    <TableCell className="pl-4">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="size-7 border border-emerald-200">
+                          <AvatarFallback className="bg-emerald-50 text-emerald-700 text-[10px] font-medium">
+                            {getPatientInitials(med)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">{getPatientName(med)}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm font-medium">{med.medicationName}</TableCell>
+                    <TableCell className="text-xs">{med.dosage}</TableCell>
+                    <TableCell className="text-xs">{med.route}</TableCell>
+                    <TableCell className="text-xs">{med.frequency}</TableCell>
+                    <TableCell className="text-xs">{getVerifiedByName(med)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {med.duration || `${formatDate(med.startDate)} — ${formatDate(med.endDate)}`}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-xs ${getStatusColor(med.status)}`}>
+                        {formatDisplayStatus(med.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {hasInteractionAlert(med) ? (
+                        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs gap-1">
+                          <AlertTriangle className="size-3" />
+                          Alert
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {filteredMeds.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <Pill className="size-12 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No medications found</p>
+                <p className="text-sm">Try adjusting your search or filters</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Mobile Cards */}
+      {medications.length > 0 && (
+        <div className="md:hidden space-y-3">
+          {filteredMeds.map(med => (
+            <Card key={med.id} className={`border-0 shadow-sm ${hasInteractionAlert(med) ? 'border-l-4 border-l-red-400' : ''}`}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{med.medicationName}</p>
+                    <p className="text-xs text-muted-foreground">{getPatientName(med)}</p>
+                  </div>
+                  <Badge variant="outline" className={`text-xs ${getStatusColor(med.status)}`}>
+                    {formatDisplayStatus(med.status)}
+                  </Badge>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                  <div><span className="text-muted-foreground">Dosage: </span><span className="font-medium">{med.dosage}</span></div>
+                  <div><span className="text-muted-foreground">Route: </span><span className="font-medium">{med.route}</span></div>
+                  <div><span className="text-muted-foreground">Frequency: </span><span className="font-medium">{med.frequency}</span></div>
+                  <div><span className="text-muted-foreground">Verified by: </span><span className="font-medium">{getVerifiedByName(med)}</span></div>
+                </div>
+                {hasInteractionAlert(med) && (
+                  <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 flex items-start gap-1.5">
+                    <AlertTriangle className="size-3.5 text-red-500 mt-0.5 shrink-0" />
+                    <p className="text-xs text-red-600">{med.interactionAlerts}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
           {filteredMeds.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <Pill className="size-12 mx-auto mb-3 opacity-30" />
@@ -325,39 +536,8 @@ export default function MedicationsPage() {
               <p className="text-sm">Try adjusting your search or filters</p>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Mobile Cards */}
-      <div className="md:hidden space-y-3">
-        {filteredMeds.map(med => (
-          <Card key={med.id} className={`border-0 shadow-sm ${med.interactionAlert ? 'border-l-4 border-l-red-400' : ''}`}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium text-sm">{med.medicationName}</p>
-                  <p className="text-xs text-muted-foreground">{med.patientName}</p>
-                </div>
-                <Badge variant="outline" className={`text-xs ${getStatusColor(med.status)}`}>
-                  {med.status}
-                </Badge>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
-                <div><span className="text-muted-foreground">Dosage: </span><span className="font-medium">{med.dosage}</span></div>
-                <div><span className="text-muted-foreground">Route: </span><span className="font-medium">{med.route}</span></div>
-                <div><span className="text-muted-foreground">Frequency: </span><span className="font-medium">{med.frequency}</span></div>
-                <div><span className="text-muted-foreground">Prescriber: </span><span className="font-medium">{med.prescribedBy}</span></div>
-              </div>
-              {med.interactionAlert && (
-                <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 flex items-start gap-1.5">
-                  <AlertTriangle className="size-3.5 text-red-500 mt-0.5 shrink-0" />
-                  <p className="text-xs text-red-600">{med.interactionDetail}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground text-center">
         Showing {filteredMeds.length} of {totalOrders} medication orders

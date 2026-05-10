@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 export async function PATCH(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const body = await request.json()
-    const { userId, firstName, lastName, phone, bio } = body
+    const { firstName, lastName, phone, bio } = body
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
-    }
+    // Use the authenticated user's ID from the session, not from the request body
+    const userId = authUser.id
 
     // Find the user
     const user = await db.user.findUnique({

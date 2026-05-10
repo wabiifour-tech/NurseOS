@@ -672,17 +672,20 @@ model CourseModule {
 }
 
 model Enrollment {
-  id              String    @id @default(cuid())
-  courseId        String
-  nurseId         String
-  enrolledAt      DateTime  @default(now())
-  completedAt     DateTime?
-  progressPercent Int       @default(0)
-  currentModuleId String?
-  lastAccessedAt  DateTime?
-  certificateUrl  String?
-  rating          Int?
-  review          String?
+  id                String    @id @default(cuid())
+  courseId          String
+  nurseId           String
+  status            String    @default("IN_PROGRESS")
+  enrolledAt        DateTime  @default(now())
+  completedAt       DateTime?
+  progressPercent   Int       @default(0)
+  currentModuleId   String?
+  lastAccessedAt    DateTime?
+  certificateUrl    String?
+  certificateIssued Boolean   @default(false)
+  certificateNumber String?
+  rating            Int?
+  review            String?
 
   course Course        @relation(fields: [courseId], references: [id])
   nurse  NurseProfile  @relation("Enrollments", fields: [nurseId], references: [id])
@@ -704,7 +707,11 @@ model Simulation {
   correctActions      String   @default("[]")
   timeLimitMinutes    Int?
   scoringCriteria     String?
+  durationMinutes     Int?
+  scenario            String?
+  learningObjectives  String   @default("[]")
   aiFeedbackEnabled   Boolean  @default(true)
+  isPublished         Boolean  @default(true)
   completionCount     Int      @default(0)
   avgScore            Float    @default(0)
   createdAt           DateTime @default(now())

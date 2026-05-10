@@ -5,9 +5,6 @@ import Link from 'next/link'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,14 +18,107 @@ import {
   Award,
   GraduationCap,
   Library,
-  ArrowRight,
   FileText,
-  Star,
+  Loader2,
 } from 'lucide-react'
-import { myLearningInProgress, myLearningCompleted } from '@/lib/academy-data'
+import { toast } from 'sonner'
+
+interface EnrollmentCourse {
+  title: string
+  description: string
+  category: string
+  durationMinutes: number | null
+  level: string
+  cpdPoints: number | null
+  rating: number
+  enrollmentCount: number
+  moduleCount: number
+}
+
+interface Enrollment {
+  id: string
+  courseId: string
+  status: string
+  progressPercent: number
+  enrolledAt: string
+  completedAt: string | null
+  certificateNumber: string | null
+  certificateIssued: boolean
+  course: EnrollmentCourse
+}
+
+interface LearningData {
+  enrollments: Enrollment[]
+  inProgress: Enrollment[]
+  completed: Enrollment[]
+  totalEnrolled: number
+  totalCompleted: number
+  totalCPD: number
+}
 
 export default function MyLearningPage() {
-  const totalCPD = myLearningCompleted.reduce((sum, c) => sum + c.cpdPoints, 0)
+  const [data, setData] = React.useState<LearningData | null>(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function fetchLearningData() {
+      try {
+        const res = await fetch('/api/nurseacademy/my-learning')
+        if (!res.ok) throw new Error('Failed to fetch learning data')
+        const result = await res.json()
+        setData(result)
+      } catch {
+        toast.error('Failed to load your learning data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchLearningData()
+  }, [])
+
+  const inProgress = data?.inProgress || []
+  const completed = data?.completed || []
+  const totalCPD = data?.totalCPD || 0
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'N/A'
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    } catch {
+      return dateStr
+    }
+  }
+
+  const formatDuration = (minutes: number | null) => {
+    if (!minutes) return 'Self-paced'
+    if (minutes < 60) return `${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+  }
+
+  const levelLabel = (level: string) => {
+    switch (level) {
+      case 'BEGINNER': return 'Beginner'
+      case 'INTERMEDIATE': return 'Intermediate'
+      case 'ADVANCED': return 'Advanced'
+      case 'EXPERT': return 'Expert'
+      default: return level
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading your learning...</span>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
@@ -48,7 +138,7 @@ export default function MyLearningPage() {
               <Library className="size-6 text-emerald-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-emerald-600">{myLearningInProgress.length}</p>
+              <p className="text-2xl font-bold text-emerald-600">{inProgress.length}</p>
               <p className="text-sm text-muted-foreground">Courses In Progress</p>
             </div>
           </CardContent>
@@ -59,7 +149,7 @@ export default function MyLearningPage() {
               <CheckCircle2 className="size-6 text-teal-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-teal-600">{myLearningCompleted.length}</p>
+              <p className="text-2xl font-bold text-teal-600">{completed.length}</p>
               <p className="text-sm text-muted-foreground">Completed</p>
             </div>
           </CardContent>
@@ -81,17 +171,17 @@ export default function MyLearningPage() {
       <Tabs defaultValue="in-progress" className="space-y-4">
         <TabsList>
           <TabsTrigger value="in-progress" className="gap-1.5">
-            <Play className="size-3.5" /> In Progress ({myLearningInProgress.length})
+            <Play className="size-3.5" /> In Progress ({inProgress.length})
           </TabsTrigger>
           <TabsTrigger value="completed" className="gap-1.5">
-            <CheckCircle2 className="size-3.5" /> Completed ({myLearningCompleted.length})
+            <CheckCircle2 className="size-3.5" /> Completed ({completed.length})
           </TabsTrigger>
         </TabsList>
 
         {/* In Progress Tab */}
         <TabsContent value="in-progress" className="space-y-4">
-          {myLearningInProgress.map((course) => (
-            <Card key={course.id} className="hover:shadow-md transition-all">
+          {inProgress.map((enrollment) => (
+            <Card key={enrollment.id} className="hover:shadow-md transition-all">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   {/* Thumbnail */}
@@ -103,15 +193,15 @@ export default function MyLearningPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="outline" className="text-xs">
-                          {course.category}
+                          {enrollment.course.category}
                         </Badge>
                         <Badge className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20">
-                          {course.cpdPoints} CPD
+                          {enrollment.course.cpdPoints || 0} CPD
                         </Badge>
                       </div>
-                      <Link href={`/academy/courses/${course.id}`}>
+                      <Link href={`/academy/courses/${enrollment.courseId}`}>
                         <h3 className="font-semibold text-base hover:text-emerald-600 transition-colors">
-                          {course.title}
+                          {enrollment.course.title}
                         </h3>
                       </Link>
                     </div>
@@ -120,27 +210,27 @@ export default function MyLearningPage() {
                     <div>
                       <div className="flex justify-between text-sm mb-1.5">
                         <span className="text-muted-foreground">Progress</span>
-                        <span className="font-semibold text-emerald-600">{course.progress}%</span>
+                        <span className="font-semibold text-emerald-600">{enrollment.progressPercent}%</span>
                       </div>
-                      <Progress value={course.progress} className="h-2.5" />
+                      <Progress value={enrollment.progressPercent} className="h-2.5" />
                     </div>
 
-                    {/* Last/Next Module */}
+                    {/* Course info */}
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1.5">
-                        <Clock className="size-3.5" /> Last: {course.lastModule}
+                        <Clock className="size-3.5" /> {formatDuration(enrollment.course.durationMinutes)}
                       </span>
-                      <span className="hidden sm:inline text-muted-foreground/50">→</span>
-                      <span className="flex items-center gap-1.5">
-                        Next: {course.nextModule}
-                      </span>
+                      <span className="hidden sm:inline text-muted-foreground/50">•</span>
+                      <span>{levelLabel(enrollment.course.level)}</span>
+                      <span className="hidden sm:inline text-muted-foreground/50">•</span>
+                      <span>{enrollment.course.moduleCount} modules</span>
                     </div>
 
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">
-                        Enrolled: {course.enrolledDate}
+                        Enrolled: {formatDate(enrollment.enrolledAt)}
                       </span>
-                      <Link href={`/academy/courses/${course.id}`}>
+                      <Link href={`/academy/courses/${enrollment.courseId}`}>
                         <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
                           <Play className="size-4 mr-1.5" /> Continue Learning
                         </Button>
@@ -152,7 +242,7 @@ export default function MyLearningPage() {
             </Card>
           ))}
 
-          {myLearningInProgress.length === 0 && (
+          {inProgress.length === 0 && (
             <Card>
               <CardContent className="p-8 text-center">
                 <BookOpen className="size-10 mx-auto mb-3 text-muted-foreground/50" />
@@ -170,8 +260,8 @@ export default function MyLearningPage() {
 
         {/* Completed Tab */}
         <TabsContent value="completed" className="space-y-4">
-          {myLearningCompleted.map((course) => (
-            <Card key={course.id} className="hover:shadow-md transition-all border-emerald-500/20">
+          {completed.map((enrollment) => (
+            <Card key={enrollment.id} className="hover:shadow-md transition-all border-emerald-500/20">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   {/* Thumbnail */}
@@ -186,31 +276,35 @@ export default function MyLearningPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="outline" className="text-xs">
-                          {course.category}
+                          {enrollment.course.category}
                         </Badge>
                         <Badge className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20 gap-1">
-                          <Award className="size-2.5" /> {course.cpdPoints} CPD Earned
+                          <Award className="size-2.5" /> {enrollment.course.cpdPoints || 0} CPD Earned
                         </Badge>
                       </div>
-                      <h3 className="font-semibold text-base">{course.title}</h3>
+                      <h3 className="font-semibold text-base">{enrollment.course.title}</h3>
                     </div>
 
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <CheckCircle2 className="size-3.5 text-emerald-600" />
-                        Completed: {course.completedDate}
+                        Completed: {formatDate(enrollment.completedAt)}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <Link href="/academy/certificates">
-                        <Button variant="outline" size="sm" className="gap-1.5">
-                          <FileText className="size-3.5" /> View Certificate
-                        </Button>
-                      </Link>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        ID: {course.certificateId}
-                      </span>
+                      {enrollment.certificateIssued && (
+                        <Link href="/academy/certificates">
+                          <Button variant="outline" size="sm" className="gap-1.5">
+                            <FileText className="size-3.5" /> View Certificate
+                          </Button>
+                        </Link>
+                      )}
+                      {enrollment.certificateNumber && (
+                        <span className="text-xs text-muted-foreground font-mono">
+                          ID: {enrollment.certificateNumber}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -218,7 +312,7 @@ export default function MyLearningPage() {
             </Card>
           ))}
 
-          {myLearningCompleted.length === 0 && (
+          {completed.length === 0 && (
             <Card>
               <CardContent className="p-8 text-center">
                 <GraduationCap className="size-10 mx-auto mb-3 text-muted-foreground/50" />

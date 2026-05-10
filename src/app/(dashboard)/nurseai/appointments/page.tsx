@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { appointments } from '@/lib/nurseai-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,9 +12,113 @@ import { Separator } from '@/components/ui/separator'
 import { Calendar } from '@/components/ui/calendar'
 import {
   CalendarDays, List, Plus, Clock, CheckCircle, Loader2,
-  UserX, CalendarCheck, Stethoscope, MapPin
+  UserX, CalendarCheck, Stethoscope, MapPin, AlertCircle, CalendarX2
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+// ---- Types matching the API response ----
+interface AppointmentPatient {
+  id: string
+  patientId: string
+  user: {
+    firstName: string
+    lastName: string
+    displayName: string | null
+  } | null
+}
+
+interface AppointmentFacility {
+  id: string
+  name: string
+}
+
+interface Appointment {
+  id: string
+  patientId: string
+  appointmentDate: string
+  durationMinutes: number
+  type: 'CONSULTATION' | 'FOLLOW_UP' | 'CHECK_UP' | 'EMERGENCY' | 'PROCEDURE' | 'LAB_REVIEW'
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED'
+  reason: string | null
+  notes: string | null
+  patient: AppointmentPatient | null
+  facility: AppointmentFacility | null
+}
+
+interface PatientOption {
+  id: string
+  patientId: string
+  user: {
+    firstName: string
+    lastName: string
+    displayName: string | null
+  } | null
+}
+
+// ---- Helper mappers ----
+const statusLabelMap: Record<string, string> = {
+  SCHEDULED: 'Scheduled',
+  IN_PROGRESS: 'In Progress',
+  COMPLETED: 'Completed',
+  NO_SHOW: 'No Show',
+  CANCELLED: 'Cancelled',
+}
+
+const typeLabelMap: Record<string, string> = {
+  CONSULTATION: 'Consultation',
+  FOLLOW_UP: 'Follow-up',
+  CHECK_UP: 'Check-up',
+  EMERGENCY: 'Emergency',
+  PROCEDURE: 'Procedure',
+  LAB_REVIEW: 'Lab Review',
+}
+
+function getPatientName(apt: Appointment): string {
+  if (apt.patient?.user) {
+    return apt.patient.user.displayName || `${apt.patient.user.firstName} ${apt.patient.user.lastName}`
+  }
+  return 'Unknown Patient'
+}
+
+function getDateStr(isoDate: string): string {
+  return new Date(isoDate).toISOString().split('T')[0]
+}
+
+function getTimeStr(isoDate: string): string {
+  const d = new Date(isoDate)
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+function formatDateDisplay(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+// ---- Color helpers ----
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'SCHEDULED': return 'bg-sky-50 text-sky-700 border-sky-200'
+    case 'IN_PROGRESS': return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'COMPLETED': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'NO_SHOW': return 'bg-red-50 text-red-700 border-red-200'
+    case 'CANCELLED': return 'bg-slate-50 text-slate-500 border-slate-200'
+    default: return 'bg-slate-50 text-slate-600 border-slate-200'
+  }
+}
+
+const getTypeColor = (type: string) => {
+  switch (type) {
+    case 'FOLLOW_UP': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'CONSULTATION': return 'bg-purple-50 text-purple-700 border-purple-200'
+    case 'CHECK_UP': return 'bg-cyan-50 text-cyan-700 border-cyan-200'
+    case 'EMERGENCY': return 'bg-red-50 text-red-700 border-red-200'
+    case 'PROCEDURE': return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'LAB_REVIEW': return 'bg-teal-50 text-teal-700 border-teal-200'
+    default: return 'bg-slate-50 text-slate-600 border-slate-200'
+  }
+}
+
+const APPOINTMENT_TYPES = ['CONSULTATION', 'FOLLOW_UP', 'CHECK_UP', 'EMERGENCY', 'PROCEDURE', 'LAB_REVIEW'] as const
 
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = React.useState<'list' | 'calendar'>('list')
@@ -23,43 +126,130 @@ export default function AppointmentsPage() {
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date())
   const [typeFilter, setTypeFilter] = React.useState('all')
 
+  // Data state
+  const [appointments, setAppointments] = React.useState<Appointment[]>([])
+  const [patients, setPatients] = React.useState<PatientOption[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+  const [submitting, setSubmitting] = React.useState(false)
+
+  // Form state
+  const [formPatientId, setFormPatientId] = React.useState('')
+  const [formDate, setFormDate] = React.useState('')
+  const [formTime, setFormTime] = React.useState('09:00')
+  const [formDuration, setFormDuration] = React.useState('30')
+  const [formType, setFormType] = React.useState('')
+  const [formReason, setFormReason] = React.useState('')
+  const [formNotes, setFormNotes] = React.useState('')
+
+  // Fetch appointments
+  const fetchAppointments = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await fetch('/api/nurseai/appointments?limit=100')
+      if (!res.ok) throw new Error('Failed to fetch appointments')
+      const data = await res.json()
+      setAppointments(data.appointments || [])
+    } catch (err) {
+      console.error('Error fetching appointments:', err)
+      setError('Failed to load appointments. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Fetch patients for the form dropdown
+  const fetchPatients = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/nurseai/patients?limit=100')
+      if (!res.ok) return
+      const data = await res.json()
+      setPatients(data.patients || [])
+    } catch (err) {
+      console.error('Error fetching patients for form:', err)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    fetchAppointments()
+  }, [fetchAppointments])
+
+  // Fetch patients when dialog opens
+  React.useEffect(() => {
+    if (dialogOpen) {
+      fetchPatients()
+    }
+  }, [dialogOpen, fetchPatients])
+
+  // Schedule appointment
+  const handleSchedule = async () => {
+    if (!formPatientId) {
+      toast.error('Please select a patient')
+      return
+    }
+    if (!formDate || !formTime) {
+      toast.error('Please select a date and time')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const appointmentDate = new Date(`${formDate}T${formTime}:00`).toISOString()
+
+      const res = await fetch('/api/nurseai/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: formPatientId,
+          appointmentDate,
+          durationMinutes: parseInt(formDuration) || 30,
+          type: formType || 'CONSULTATION',
+          reason: formReason || undefined,
+          notes: formNotes || undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to schedule appointment')
+        setSubmitting(false)
+        return
+      }
+
+      toast.success('Appointment scheduled successfully!')
+      setDialogOpen(false)
+      // Reset form
+      setFormPatientId('')
+      setFormDate('')
+      setFormTime('09:00')
+      setFormDuration('30')
+      setFormType('')
+      setFormReason('')
+      setFormNotes('')
+      // Refresh list
+      fetchAppointments()
+    } catch {
+      toast.error('Failed to schedule appointment. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ---- Computed values ----
   const todayStr = new Date().toISOString().split('T')[0]
-  const todayAppointments = appointments.filter(a => a.date === todayStr)
-  const upcomingAppointments = appointments.filter(a => a.date > todayStr)
+  const todayAppointments = appointments.filter(a => getDateStr(a.appointmentDate) === todayStr)
+  const upcomingAppointments = appointments.filter(a => getDateStr(a.appointmentDate) > todayStr)
 
   const todaysTotal = todayAppointments.length
-  const completed = todayAppointments.filter(a => a.status === 'Completed').length
-  const inProgress = todayAppointments.filter(a => a.status === 'In Progress').length
-  const noShows = todayAppointments.filter(a => a.status === 'No Show').length
+  const completed = todayAppointments.filter(a => a.status === 'COMPLETED').length
+  const inProgress = todayAppointments.filter(a => a.status === 'IN_PROGRESS').length
+  const noShows = todayAppointments.filter(a => a.status === 'NO_SHOW').length
 
   const filteredAppointments = typeFilter === 'all'
     ? appointments
     : appointments.filter(a => a.type === typeFilter)
-
-  const appointmentTypes = [...new Set(appointments.map(a => a.type))]
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Scheduled': return 'bg-sky-50 text-sky-700 border-sky-200'
-      case 'In Progress': return 'bg-amber-50 text-amber-700 border-amber-200'
-      case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      case 'No Show': return 'bg-red-50 text-red-700 border-red-200'
-      case 'Cancelled': return 'bg-slate-50 text-slate-500 border-slate-200'
-      default: return 'bg-slate-50 text-slate-600 border-slate-200'
-    }
-  }
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'Follow-up': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      case 'Consultation': return 'bg-purple-50 text-purple-700 border-purple-200'
-      case 'Check-up': return 'bg-cyan-50 text-cyan-700 border-cyan-200'
-      case 'Emergency': return 'bg-red-50 text-red-700 border-red-200'
-      case 'Procedure': return 'bg-amber-50 text-amber-700 border-amber-200'
-      case 'Lab Review': return 'bg-teal-50 text-teal-700 border-teal-200'
-      default: return 'bg-slate-50 text-slate-600 border-slate-200'
-    }
-  }
 
   const stats = [
     { label: "Today's Appointments", value: todaysTotal, icon: CalendarDays, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -70,10 +260,11 @@ export default function AppointmentsPage() {
 
   // Group appointments by date for calendar view
   const appointmentsByDate = appointments.reduce((acc, apt) => {
-    if (!acc[apt.date]) acc[apt.date] = []
-    acc[apt.date].push(apt)
+    const dateKey = getDateStr(apt.appointmentDate)
+    if (!acc[dateKey]) acc[dateKey] = []
+    acc[dateKey].push(apt)
     return acc
-  }, {} as Record<string, typeof appointments>)
+  }, {} as Record<string, Appointment[]>)
 
   const isToday = (dateStr: string) => dateStr === todayStr
 
@@ -120,36 +311,52 @@ export default function AppointmentsPage() {
                 <DialogDescription>Book a new patient appointment.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
-                    <Label>Patient</Label>
-                    <Input placeholder="Search patient..." />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Doctor</Label>
-                    <Select>
-                      <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                    <Label>Patient *</Label>
+                    <Select value={formPatientId} onValueChange={setFormPatientId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select patient..." />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Dr. Okafor">Dr. Okafor</SelectItem>
-                        <SelectItem value="Dr. Adeyemi">Dr. Adeyemi</SelectItem>
-                        <SelectItem value="Dr. Bello">Dr. Bello</SelectItem>
-                        <SelectItem value="Dr. Ogunleye">Dr. Ogunleye</SelectItem>
+                        {patients.map(p => {
+                          const name = p.user
+                            ? (p.user.displayName || `${p.user.firstName} ${p.user.lastName}`)
+                            : p.patientId
+                          return (
+                            <SelectItem key={p.id} value={p.id}>
+                              {name} ({p.patientId})
+                            </SelectItem>
+                          )
+                        })}
+                        {patients.length === 0 && (
+                          <SelectItem value="__none" disabled>No patients found</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label>Date</Label>
-                    <Input type="date" defaultValue="2026-03-05" />
+                    <Label>Date *</Label>
+                    <Input
+                      type="date"
+                      value={formDate}
+                      onChange={e => setFormDate(e.target.value)}
+                      min={todayStr}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Time</Label>
-                    <Input type="time" defaultValue="09:00" />
+                    <Label>Time *</Label>
+                    <Input
+                      type="time"
+                      value={formTime}
+                      onChange={e => setFormTime(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Duration (min)</Label>
-                    <Select defaultValue="30">
+                    <Select value={formDuration} onValueChange={setFormDuration}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="15">15 min</SelectItem>
@@ -163,21 +370,42 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Appointment Type</Label>
-                  <Select>
+                  <Select value={formType} onValueChange={setFormType}>
                     <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
-                      {appointmentTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {APPOINTMENT_TYPES.map(t => (
+                        <SelectItem key={t} value={t}>{typeLabelMap[t]}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Reason</Label>
+                  <Input
+                    placeholder="Reason for appointment..."
+                    value={formReason}
+                    onChange={e => setFormReason(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label>Notes</Label>
-                  <Input placeholder="Additional notes..." />
+                  <Input
+                    placeholder="Additional notes..."
+                    value={formNotes}
+                    onChange={e => setFormNotes(e.target.value)}
+                  />
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); toast.info('Appointment scheduling is coming soon — this feature is being developed.'); }}>Schedule Appointment</Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={handleSchedule}
+                  disabled={submitting}
+                >
+                  {submitting && <Loader2 className="size-4 mr-2 animate-spin" />}
+                  Schedule Appointment
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -201,7 +429,42 @@ export default function AppointmentsPage() {
         ))}
       </div>
 
-      {viewMode === 'list' ? (
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="size-8 animate-spin text-emerald-600" />
+        </div>
+      ) : error ? (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="size-12 mx-auto mb-3 text-red-400" />
+            <p className="font-medium text-red-600">{error}</p>
+            <Button
+              variant="outline"
+              className="mt-4 gap-2"
+              onClick={fetchAppointments}
+            >
+              <Loader2 className="size-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : appointments.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-8 text-center">
+            <CalendarX2 className="size-12 mx-auto mb-3 text-muted-foreground/30" />
+            <p className="font-medium text-muted-foreground">No appointments found</p>
+            <p className="text-sm text-muted-foreground mt-1">Schedule your first appointment to get started</p>
+            <Button
+              className="mt-4 bg-emerald-600 hover:bg-emerald-700 gap-2"
+              onClick={() => setDialogOpen(true)}
+            >
+              <Plus className="size-4" />
+              Schedule Appointment
+            </Button>
+          </CardContent>
+        </Card>
+      ) : viewMode === 'list' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Today's Appointments Timeline */}
           <div className="lg:col-span-2 space-y-4">
@@ -210,54 +473,62 @@ export default function AppointmentsPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <Clock className="size-4 text-emerald-500" />
-                    Today&apos;s Appointments — March 4, 2026
+                    Today&apos;s Appointments — {formatDateDisplay(todayStr)}
                   </CardTitle>
                   <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                    {todayAppointments.length} appointments
+                    {todayAppointments.length} appointment{todayAppointments.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {todayAppointments.sort((a, b) => a.time.localeCompare(b.time)).map((apt, idx) => (
-                  <div key={apt.id} className="flex gap-3">
-                    {/* Timeline */}
-                    <div className="flex flex-col items-center">
-                      <div className={`size-3 rounded-full mt-1.5 ${
-                        apt.status === 'Completed' ? 'bg-emerald-500' :
-                        apt.status === 'In Progress' ? 'bg-amber-500 animate-pulse' :
-                        apt.status === 'No Show' ? 'bg-red-500' :
-                        'bg-sky-500'
-                      }`} />
-                      {idx < todayAppointments.length - 1 && <div className="flex-1 w-px bg-border mt-1" />}
-                    </div>
-                    <div className="flex-1 pb-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold">{apt.time}</span>
-                            <span className="text-xs text-muted-foreground">{apt.duration} min</span>
+                {todayAppointments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No appointments scheduled for today</p>
+                ) : (
+                  [...todayAppointments]
+                    .sort((a, b) => getTimeStr(a.appointmentDate).localeCompare(getTimeStr(b.appointmentDate)))
+                    .map((apt, idx) => (
+                    <div key={apt.id} className="flex gap-3">
+                      {/* Timeline */}
+                      <div className="flex flex-col items-center">
+                        <div className={`size-3 rounded-full mt-1.5 ${
+                          apt.status === 'COMPLETED' ? 'bg-emerald-500' :
+                          apt.status === 'IN_PROGRESS' ? 'bg-amber-500 animate-pulse' :
+                          apt.status === 'NO_SHOW' ? 'bg-red-500' :
+                          'bg-sky-500'
+                        }`} />
+                        {idx < todayAppointments.length - 1 && <div className="flex-1 w-px bg-border mt-1" />}
+                      </div>
+                      <div className="flex-1 pb-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold">{getTimeStr(apt.appointmentDate)}</span>
+                              <span className="text-xs text-muted-foreground">{apt.durationMinutes} min</span>
+                            </div>
+                            <p className="text-sm font-medium mt-0.5">{getPatientName(apt)}</p>
                           </div>
-                          <p className="text-sm font-medium mt-0.5">{apt.patientName}</p>
+                          <Badge variant="outline" className={`text-xs ${getStatusColor(apt.status)}`}>
+                            {statusLabelMap[apt.status] || apt.status}
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className={`text-xs ${getStatusColor(apt.status)}`}>
-                          {apt.status}
-                        </Badge>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className={`text-[10px] ${getTypeColor(apt.type)}`}>
+                            {typeLabelMap[apt.type] || apt.type}
+                          </Badge>
+                          {apt.facility && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <MapPin className="size-3" />
+                              {apt.facility.name}
+                            </span>
+                          )}
+                        </div>
+                        {apt.notes && (
+                          <p className="text-xs text-muted-foreground mt-1">{apt.notes}</p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className={`text-[10px] ${getTypeColor(apt.type)}`}>
-                          {apt.type}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Stethoscope className="size-3" />
-                          {apt.doctor}
-                        </span>
-                      </div>
-                      {apt.notes && (
-                        <p className="text-xs text-muted-foreground mt-1">{apt.notes}</p>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
 
@@ -270,28 +541,40 @@ export default function AppointmentsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
-                {upcomingAppointments.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)).map(apt => (
-                  <div key={apt.id} className="p-3 rounded-lg border bg-muted/20 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="text-sm font-medium">{apt.patientName}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-muted-foreground font-medium">{apt.date}</span>
-                          <span className="text-xs text-muted-foreground">at {apt.time}</span>
+                {upcomingAppointments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No upcoming appointments</p>
+                ) : (
+                  [...upcomingAppointments]
+                    .sort((a, b) => {
+                      const dateComp = getDateStr(a.appointmentDate).localeCompare(getDateStr(b.appointmentDate))
+                      if (dateComp !== 0) return dateComp
+                      return getTimeStr(a.appointmentDate).localeCompare(getTimeStr(b.appointmentDate))
+                    })
+                    .map(apt => (
+                    <div key={apt.id} className="p-3 rounded-lg border bg-muted/20 hover:bg-muted/30 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{getPatientName(apt)}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-muted-foreground font-medium">{getDateStr(apt.appointmentDate)}</span>
+                            <span className="text-xs text-muted-foreground">at {getTimeStr(apt.appointmentDate)}</span>
+                          </div>
                         </div>
+                        <Badge variant="outline" className={`text-[10px] ${getStatusColor(apt.status)}`}>
+                          {statusLabelMap[apt.status] || apt.status}
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className={`text-[10px] ${getStatusColor(apt.status)}`}>
-                        {apt.status}
-                      </Badge>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Badge variant="outline" className={`text-[10px] ${getTypeColor(apt.type)}`}>
+                          {typeLabelMap[apt.type] || apt.type}
+                        </Badge>
+                        {apt.facility && (
+                          <span className="text-xs text-muted-foreground">{apt.facility.name}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <Badge variant="outline" className={`text-[10px] ${getTypeColor(apt.type)}`}>
-                        {apt.type}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{apt.doctor}</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
@@ -364,7 +647,9 @@ export default function AppointmentsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
-                    {appointmentTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    {APPOINTMENT_TYPES.map(t => (
+                      <SelectItem key={t} value={t}>{typeLabelMap[t]}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -391,29 +676,33 @@ export default function AppointmentsPage() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold">{dayName}</p>
-                            <p className="text-xs text-muted-foreground">{monthDay} • {filteredApts.length} appointments</p>
+                            <p className="text-xs text-muted-foreground">{monthDay} &bull; {filteredApts.length} appointment{filteredApts.length !== 1 ? 's' : ''}</p>
                           </div>
                           {isToday(date) && (
                             <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs ml-2">Today</Badge>
                           )}
                         </div>
                         <div className="ml-4 space-y-2 pl-4 border-l-2 border-muted">
-                          {filteredApts.sort((a, b) => a.time.localeCompare(b.time)).map(apt => (
+                          {[...filteredApts]
+                            .sort((a, b) => getTimeStr(a.appointmentDate).localeCompare(getTimeStr(b.appointmentDate)))
+                            .map(apt => (
                             <div key={apt.id} className="p-3 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                               <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs font-mono font-semibold text-muted-foreground">{apt.time}</span>
-                                  <p className="text-sm font-medium">{apt.patientName}</p>
+                                  <span className="text-xs font-mono font-semibold text-muted-foreground">{getTimeStr(apt.appointmentDate)}</span>
+                                  <p className="text-sm font-medium">{getPatientName(apt)}</p>
                                 </div>
                                 <Badge variant="outline" className={`text-[10px] ${getStatusColor(apt.status)}`}>
-                                  {apt.status}
+                                  {statusLabelMap[apt.status] || apt.status}
                                 </Badge>
                               </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <Badge variant="outline" className={`text-[10px] ${getTypeColor(apt.type)}`}>
-                                  {apt.type}
+                                  {typeLabelMap[apt.type] || apt.type}
                                 </Badge>
-                                <span className="text-xs text-muted-foreground">{apt.doctor} • {apt.duration}min</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {apt.facility ? `${apt.facility.name} • ` : ''}{apt.durationMinutes}min
+                                </span>
                               </div>
                             </div>
                           ))}

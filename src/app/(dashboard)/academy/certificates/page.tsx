@@ -4,9 +4,6 @@ import * as React from 'react'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +13,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Award,
@@ -30,18 +26,96 @@ import {
   Calendar,
   User,
   FileText,
+  Loader2,
 } from 'lucide-react'
-import { certificates } from '@/lib/academy-data'
+import { toast } from 'sonner'
+
+interface Certificate {
+  id: string
+  enrollmentId: string
+  certificateNumber: string
+  issuedDate: string | null
+  expiryDate: string | null
+  isVerified: boolean
+  course: {
+    title: string
+    category: string
+    level: string
+    cpdPoints: number | null
+  }
+}
 
 export default function CertificatesPage() {
+  const [certificates, setCertificates] = React.useState<Certificate[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [verifyDialogOpen, setVerifyDialogOpen] = React.useState(false)
-  const [selectedCert, setSelectedCert] = React.useState<(typeof certificates)[0] | null>(null)
+  const [selectedCert, setSelectedCert] = React.useState<Certificate | null>(null)
   const [copied, setCopied] = React.useState(false)
+
+  React.useEffect(() => {
+    async function fetchCertificates() {
+      try {
+        const res = await fetch('/api/nurseacademy/certificates')
+        if (!res.ok) throw new Error('Failed to fetch certificates')
+        const data = await res.json()
+        setCertificates(data.certificates || [])
+      } catch {
+        toast.error('Failed to load certificates')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchCertificates()
+  }, [])
 
   const copyHash = (hash: string) => {
     navigator.clipboard.writeText(hash)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'N/A'
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    } catch {
+      return dateStr
+    }
+  }
+
+  const totalCPD = certificates.reduce((sum, c) => sum + (c.course.cpdPoints || 0), 0)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading certificates...</span>
+      </div>
+    )
+  }
+
+  if (certificates.length === 0) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
+        <div>
+          <h1 className="text-2xl font-bold">Certificates</h1>
+          <p className="text-muted-foreground text-sm">
+            Your earned certificates and verifiable credentials
+          </p>
+        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Award className="size-10 mx-auto mb-3 text-muted-foreground/50" />
+            <p className="font-medium text-muted-foreground">No certificates yet</p>
+            <p className="text-sm text-muted-foreground">Complete courses to earn certificates</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -73,9 +147,7 @@ export default function CertificatesPage() {
               <FileText className="size-6 text-teal-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-teal-600">
-                {certificates.reduce((sum, c) => sum + c.cpdPoints, 0)}
-              </p>
+              <p className="text-2xl font-bold text-teal-600">{totalCPD}</p>
               <p className="text-sm text-muted-foreground">Total CPD Points</p>
             </div>
           </CardContent>
@@ -86,7 +158,9 @@ export default function CertificatesPage() {
               <Shield className="size-6 text-amber-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-amber-600">{certificates.length}</p>
+              <p className="text-2xl font-bold text-amber-600">
+                {certificates.filter((c) => c.isVerified).length}
+              </p>
               <p className="text-sm text-muted-foreground">Blockchain Verified</p>
             </div>
           </CardContent>
@@ -113,13 +187,13 @@ export default function CertificatesPage() {
                 Certificate of Completion
               </p>
               <h3 className="font-bold text-sm leading-tight mb-2 line-clamp-2">
-                {cert.courseName}
+                {cert.course.title}
               </h3>
               <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
-                <Calendar className="size-3" /> {cert.completedDate}
+                <Calendar className="size-3" /> {formatDate(cert.issuedDate)}
               </div>
               <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                <User className="size-3" /> {cert.instructor}
+                <Badge variant="outline" className="text-[10px]">{cert.course.category}</Badge>
               </div>
             </div>
 
@@ -128,12 +202,12 @@ export default function CertificatesPage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Certificate ID</span>
-                  <span className="font-mono text-xs">{cert.certificateId}</span>
+                  <span className="font-mono text-xs">{cert.certificateNumber}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">CPD Points</span>
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20">
-                    {cert.cpdPoints} points
+                    {cert.course.cpdPoints || 0} points
                   </Badge>
                 </div>
               </div>
@@ -182,24 +256,24 @@ export default function CertificatesPage() {
             <div className="space-y-4">
               <div className="p-4 bg-emerald-50 dark:bg-emerald-500/5 rounded-lg border border-emerald-200 dark:border-emerald-500/20 text-center">
                 <Award className="size-8 text-emerald-600 mx-auto mb-2" />
-                <p className="font-bold">{selectedCert.courseName}</p>
-                <p className="text-sm text-muted-foreground">{selectedCert.completedDate}</p>
+                <p className="font-bold">{selectedCert.course.title}</p>
+                <p className="text-sm text-muted-foreground">{formatDate(selectedCert.issuedDate)}</p>
               </div>
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Certificate ID</p>
-                <p className="text-sm font-mono">{selectedCert.certificateId}</p>
+                <p className="text-sm font-mono">{selectedCert.certificateNumber}</p>
               </div>
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Blockchain Verification Hash</p>
                 <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                   <code className="text-xs break-all font-mono flex-1">
-                    {selectedCert.verificationHash}
+                    0x{selectedCert.id.replace(/-/g, '')}
                   </code>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="shrink-0 size-8 p-0"
-                    onClick={() => copyHash(selectedCert.verificationHash)}
+                    onClick={() => copyHash(`0x${selectedCert.id.replace(/-/g, '')}`)}
                   >
                     {copied ? (
                       <CheckCircle2 className="size-3.5 text-emerald-600" />

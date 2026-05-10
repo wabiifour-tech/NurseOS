@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
-    const certificates = await db.enrollment.findMany({
+    const enrollments = await db.enrollment.findMany({
       where: {
         nurseId: authUser.id,
         certificateIssued: true,
@@ -20,11 +20,27 @@ export async function GET(request: NextRequest) {
             title: true,
             category: true,
             level: true,
+            cpdPoints: true,
           },
         },
       },
       orderBy: { completedAt: 'desc' },
     })
+
+    const certificates = enrollments.map((e) => ({
+      id: e.id,
+      enrollmentId: e.id,
+      certificateNumber: e.certificateNumber || `CERT/NOS/${new Date(e.completedAt || e.enrolledAt).getFullYear()}/${e.id.slice(-6).toUpperCase()}`,
+      issuedDate: e.completedAt?.toISOString().split('T')[0] || null,
+      expiryDate: null,
+      isVerified: true,
+      course: {
+        title: e.course.title,
+        category: e.course.category,
+        level: e.course.level,
+        cpdPoints: e.course.cpdPoints,
+      },
+    }))
 
     return NextResponse.json({ certificates })
   } catch (error) {

@@ -49,9 +49,49 @@ import {
   TrendingUp,
   Filter,
   Search,
+  Loader2,
 } from 'lucide-react'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
-import { cpdActivities, cpdTypes, cpdPointsByType } from '@/lib/nurseid-data'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { toast } from 'sonner'
+import { useAuthStore } from '@/lib/auth-store'
+
+// API response type
+interface ApiCPDRecord {
+  id: string
+  nurseId: string
+  activityType: string
+  title: string
+  description: string
+  cpdPoints: number
+  dateCompleted: string
+  provider: string | null
+  certificateUrl: string | null
+  isVerified: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+const CPD_TYPES = ['Course', 'Workshop', 'Conference', 'Seminar']
+
+const TYPE_COLORS: Record<string, string> = {
+  Course: '#10b981',
+  Workshop: '#14b8a6',
+  Conference: '#0d9488',
+  Seminar: '#059669',
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '—'
+  try {
+    return new Date(dateStr).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return dateStr
+  }
+}
 
 // Circular progress component
 function CircularProgress({ value, max, size = 160 }: { value: number; max: number; size?: number }) {
@@ -101,22 +141,127 @@ function CircularProgress({ value, max, size = 160 }: { value: number; max: numb
 }
 
 export default function CPDTrackerPage() {
+  const { token } = useAuthStore()
+  const [cpdRecords, setCpdRecords] = React.useState<ApiCPDRecord[]>([])
+  const [totalPoints, setTotalPoints] = React.useState(0)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
   const [typeFilter, setTypeFilter] = React.useState('All')
   const [searchQuery, setSearchQuery] = React.useState('')
   const [addDialogOpen, setAddDialogOpen] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
 
-  const totalEarned = cpdActivities.reduce((sum, a) => sum + a.points, 0)
-  const annualTarget = 60
-  const progressPercent = Math.min((totalEarned / annualTarget) * 100, 100)
+  // Form state
+  const [formTitle, setFormTitle] = React.useState('')
+  const [formType, setFormType] = React.useState('')
+  const [formPoints, setFormPoints] = React.useState('')
+  const [formProvider, setFormProvider] = React.useState('')
+  const [formDate, setFormDate] = React.useState('')
+  const [formDescription, setFormDescription] = React.useState('')
 
-  const filteredActivities = cpdActivities.filter((a) => {
-    const matchesType = typeFilter === 'All' || a.type === typeFilter
+  // Fetch CPD records
+  const fetchCPD = React.useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const headers: HeadersInit = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch('/api/nurseid/cpd', { headers })
+      if (!res.ok) throw new Error(`Failed to fetch CPD records (${res.status})`)
+      const data = await res.json()
+      setCpdRecords(data.records || [])
+      setTotalPoints(data.totalPoints || 0)
+    } catch (err) {
+      console.error('Error fetching CPD records:', err)
+      const msg = err instanceof Error ? err.message : 'Failed to load CPD records'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
+
+  React.useEffect(() => {
+    fetchCPD()
+  }, [fetchCPD])
+
+  // Submit new CPD activity
+  const handleSubmit = async () => {
+    if (!formTitle || !formType || !formPoints) {
+      toast.error('Activity title, type, and CPD points are required')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch('/api/nurseid/cpd', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: formTitle,
+          activityType: formType,
+          cpdPoints: parseFloat(formPoints),
+          dateCompleted: formDate || undefined,
+          provider: formProvider || undefined,
+          description: formDescription || undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to log CPD activity')
+      }
+
+      toast.success('CPD activity logged successfully')
+      setAddDialogOpen(false)
+      resetForm()
+      fetchCPD()
+    } catch (err) {
+      console.error('Error logging CPD activity:', err)
+      toast.error(err instanceof Error ? err.message : 'Failed to log CPD activity')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const resetForm = () => {
+    setFormTitle('')
+    setFormType('')
+    setFormPoints('')
+    setFormProvider('')
+    setFormDate('')
+    setFormDescription('')
+  }
+
+  const filteredActivities = cpdRecords.filter((a) => {
+    const matchesType = typeFilter === 'All' || a.activityType === typeFilter
     const matchesSearch =
       searchQuery === '' ||
       a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.provider.toLowerCase().includes(searchQuery.toLowerCase())
+      (a.provider || '').toLowerCase().includes(searchQuery.toLowerCase())
     return matchesType && matchesSearch
   })
+
+  // Compute points by type for pie chart
+  const pointsByType = React.useMemo(() => {
+    const map: Record<string, number> = {}
+    cpdRecords.forEach((r) => {
+      map[r.activityType] = (map[r.activityType] || 0) + r.cpdPoints
+    })
+    return Object.entries(map).map(([name, value]) => ({
+      name,
+      value,
+      color: TYPE_COLORS[name] || '#6b7280',
+    }))
+  }, [cpdRecords])
+
+  const annualTarget = 60
+  const progressPercent = Math.min((totalPoints / annualTarget) * 100, 100)
 
   const typeIcon = (type: string) => {
     switch (type) {
@@ -133,6 +278,65 @@ export default function CPDTrackerPage() {
     }
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">CPD Tracker</h1>
+            <p className="text-muted-foreground text-sm">
+              Track your Continuing Professional Development activities
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="md:row-span-2"><CardContent className="p-12 flex flex-col items-center justify-center"><Loader2 className="size-8 text-emerald-600 animate-spin mb-3" /><p className="text-sm text-muted-foreground">Loading...</p></CardContent></Card>
+          {[1, 2, 3].map((i) => (
+            <Card key={i}><CardContent className="p-4"><div className="flex items-center gap-4"><div className="size-12 rounded-lg bg-muted animate-pulse" /><div className="space-y-2 flex-1"><div className="h-6 w-12 bg-muted rounded animate-pulse" /><div className="h-3 w-24 bg-muted rounded animate-pulse" /></div></div></CardContent></Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">CPD Tracker</h1>
+            <p className="text-muted-foreground text-sm">
+              Track your Continuing Professional Development activities
+            </p>
+          </div>
+        </div>
+        <Card className="border-red-500/30 bg-red-50 dark:bg-red-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <GraduationCap className="size-5 text-red-600 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                  Failed to load CPD records
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto shrink-0"
+                onClick={() => fetchCPD()}
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
       {/* Page Header */}
@@ -143,7 +347,7 @@ export default function CPDTrackerPage() {
             Track your Continuing Professional Development activities
           </p>
         </div>
-        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <Dialog open={addDialogOpen} onOpenChange={(open) => { setAddDialogOpen(open); if (!open) resetForm() }}>
           <DialogTrigger asChild>
             <Button className="bg-emerald-600 hover:bg-emerald-700">
               <Plus className="size-4 mr-2" /> Log CPD Activity
@@ -159,17 +363,22 @@ export default function CPDTrackerPage() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="cpd-title">Activity Title</Label>
-                <Input id="cpd-title" placeholder="e.g., Advanced Wound Care Workshop" />
+                <Input
+                  id="cpd-title"
+                  placeholder="e.g., Advanced Wound Care Workshop"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Activity Type</Label>
-                  <Select>
+                  <Select value={formType} onValueChange={setFormType}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {cpdTypes.filter((t) => t !== 'All').map((type) => (
+                      {CPD_TYPES.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
                         </SelectItem>
@@ -179,29 +388,55 @@ export default function CPDTrackerPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="cpd-points">CPD Points</Label>
-                  <Input id="cpd-points" type="number" placeholder="e.g., 5" />
+                  <Input
+                    id="cpd-points"
+                    type="number"
+                    placeholder="e.g., 5"
+                    value={formPoints}
+                    onChange={(e) => setFormPoints(e.target.value)}
+                  />
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="cpd-provider">Provider</Label>
-                <Input id="cpd-provider" placeholder="e.g., NurseOS Academy" />
+                <Input
+                  id="cpd-provider"
+                  placeholder="e.g., NurseOS Academy"
+                  value={formProvider}
+                  onChange={(e) => setFormProvider(e.target.value)}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="cpd-date">Date</Label>
-                  <Input id="cpd-date" type="date" />
+                  <Input
+                    id="cpd-date"
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="cpd-desc">Description</Label>
-                  <Input id="cpd-desc" placeholder="Brief description" />
+                  <Input
+                    id="cpd-desc"
+                    placeholder="Brief description"
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+              <Button variant="outline" onClick={() => { setAddDialogOpen(false); resetForm() }}>
                 Cancel
               </Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setAddDialogOpen(false)}>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting && <Loader2 className="size-4 mr-2 animate-spin" />}
                 Log Activity
               </Button>
             </DialogFooter>
@@ -218,7 +453,7 @@ export default function CPDTrackerPage() {
             <CardDescription>2024/2025 CPD Cycle</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center pb-6">
-            <CircularProgress value={totalEarned} max={annualTarget} />
+            <CircularProgress value={Math.round(totalPoints)} max={annualTarget} />
             <div className="w-full mt-4">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-muted-foreground">Progress</span>
@@ -226,9 +461,9 @@ export default function CPDTrackerPage() {
               </div>
               <Progress value={progressPercent} className="h-2" />
               <p className="text-xs text-muted-foreground mt-2">
-                {annualTarget - totalEarned > 0
-                  ? `${annualTarget - totalEarned} points remaining to meet annual requirement`
-                  : 'Annual requirement met! 🎉'}
+                {annualTarget - totalPoints > 0
+                  ? `${Math.round(annualTarget - totalPoints)} points remaining to meet annual requirement`
+                  : 'Annual requirement met!'}
               </p>
             </div>
           </CardContent>
@@ -241,7 +476,7 @@ export default function CPDTrackerPage() {
               <Target className="size-6 text-emerald-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-emerald-600">{totalEarned}</p>
+              <p className="text-2xl font-bold text-emerald-600">{Math.round(totalPoints)}</p>
               <p className="text-sm text-muted-foreground">Total Points Earned</p>
             </div>
           </CardContent>
@@ -253,7 +488,7 @@ export default function CPDTrackerPage() {
               <TrendingUp className="size-6 text-teal-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-teal-600">{cpdActivities.length}</p>
+              <p className="text-2xl font-bold text-teal-600">{cpdRecords.length}</p>
               <p className="text-sm text-muted-foreground">Activities Logged</p>
             </div>
           </CardContent>
@@ -265,50 +500,58 @@ export default function CPDTrackerPage() {
             <CardTitle className="text-lg">Points Breakdown by Type</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-6">
-              <div className="w-48 h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={cpdPointsByType}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={70}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {cpdPointsByType.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => [`${value} points`, '']}
-                      contentStyle={{
-                        borderRadius: '8px',
-                        border: '1px solid #e5e7eb',
-                        fontSize: '13px',
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+            {pointsByType.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <GraduationCap className="size-10 mx-auto mb-3 text-muted-foreground/50" />
+                <p className="font-medium">No CPD activities yet</p>
+                <p className="text-sm">Log your first activity to see the breakdown</p>
               </div>
-              <div className="space-y-3 flex-1">
-                {cpdPointsByType.map((item) => (
-                  <div key={item.name} className="flex items-center gap-3">
-                    <div
-                      className="size-3 rounded-full shrink-0"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="text-sm flex-1">{item.name}</span>
-                    <span className="text-sm font-semibold">{item.value} pts</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {Math.round((item.value / totalEarned) * 100)}%
-                    </Badge>
-                  </div>
-                ))}
+            ) : (
+              <div className="flex items-center gap-6">
+                <div className="w-48 h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pointsByType}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={70}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {pointsByType.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => [`${value} points`, '']}
+                        contentStyle={{
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          fontSize: '13px',
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-3 flex-1">
+                  {pointsByType.map((item) => (
+                    <div key={item.name} className="flex items-center gap-3">
+                      <div
+                        className="size-3 rounded-full shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-sm flex-1">{item.name}</span>
+                      <span className="text-sm font-semibold">{item.value} pts</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {totalPoints > 0 ? Math.round((item.value / totalPoints) * 100) : 0}%
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -332,7 +575,7 @@ export default function CPDTrackerPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {cpdTypes.map((type) => (
+                {['All', ...CPD_TYPES].map((type) => (
                   <SelectItem key={type} value={type}>
                     {type}
                   </SelectItem>
@@ -346,58 +589,66 @@ export default function CPDTrackerPage() {
       {/* Activity Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Activity</TableHead>
-                <TableHead className="hidden md:table-cell">Type</TableHead>
-                <TableHead>Points</TableHead>
-                <TableHead className="hidden sm:table-cell">Date</TableHead>
-                <TableHead className="hidden lg:table-cell">Provider</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredActivities.map((activity) => (
-                <TableRow key={activity.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-sm">{activity.title}</p>
-                      <p className="text-xs text-muted-foreground">{activity.description}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <div className="flex items-center gap-1.5">
-                      {typeIcon(activity.type)}
-                      <span className="text-sm">{activity.type}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-semibold text-emerald-600">{activity.points}</span>
-                    <span className="text-xs text-muted-foreground ml-1">pts</span>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                    {activity.date}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                    {activity.provider}
-                  </TableCell>
-                  <TableCell>
-                    {activity.status === 'Verified' ? (
-                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20 gap-1">
-                        <CheckCircle2 className="size-3" /> Verified
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20 gap-1">
-                        <Clock className="size-3" /> Pending
-                      </Badge>
-                    )}
-                  </TableCell>
+          {cpdRecords.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <GraduationCap className="size-10 mx-auto mb-3 text-muted-foreground/50" />
+              <p className="font-medium">No CPD activities yet</p>
+              <p className="text-sm">Log your first activity to get started</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Activity</TableHead>
+                  <TableHead className="hidden md:table-cell">Type</TableHead>
+                  <TableHead>Points</TableHead>
+                  <TableHead className="hidden sm:table-cell">Date</TableHead>
+                  <TableHead className="hidden lg:table-cell">Provider</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {filteredActivities.length === 0 && (
+              </TableHeader>
+              <TableBody>
+                {filteredActivities.map((activity) => (
+                  <TableRow key={activity.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm">{activity.title}</p>
+                        <p className="text-xs text-muted-foreground">{activity.description || '—'}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex items-center gap-1.5">
+                        {typeIcon(activity.activityType)}
+                        <span className="text-sm">{activity.activityType}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-semibold text-emerald-600">{activity.cpdPoints}</span>
+                      <span className="text-xs text-muted-foreground ml-1">pts</span>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                      {formatDate(activity.dateCompleted)}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                      {activity.provider || '—'}
+                    </TableCell>
+                    <TableCell>
+                      {activity.isVerified ? (
+                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20 gap-1">
+                          <CheckCircle2 className="size-3" /> Verified
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20 gap-1">
+                          <Clock className="size-3" /> Pending
+                        </Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {cpdRecords.length > 0 && filteredActivities.length === 0 && (
             <div className="p-8 text-center text-muted-foreground">
               <GraduationCap className="size-10 mx-auto mb-3 text-muted-foreground/50" />
               <p className="font-medium">No CPD activities found</p>

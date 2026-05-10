@@ -40,9 +40,12 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
       login: (user: User, token?: string) => {
-        const authToken = token || user.id;
-        set({ user, token: authToken, isAuthenticated: true });
-        setAuthCookie(authToken);
+        if (!token) {
+          console.error('Auth login called without a token — this should not happen');
+          return;
+        }
+        set({ user, token: token, isAuthenticated: true });
+        setAuthCookie(token);
       },
       logout: () => {
         set({ user: null, token: null, isAuthenticated: false });

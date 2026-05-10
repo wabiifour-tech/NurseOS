@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const body = await request.json()
-    const { userId, currentPassword, newPassword } = body
+    const { currentPassword, newPassword } = body
 
-    if (!userId || !currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword) {
       return NextResponse.json(
-        { error: 'User ID, current password, and new password are required' },
+        { error: 'Current password and new password are required' },
         { status: 400 }
       )
     }
+
+    // Use the authenticated user's ID from the session, not from the request body
+    const userId = authUser.id
 
     // Validate new password strength
     if (newPassword.length < 8) {

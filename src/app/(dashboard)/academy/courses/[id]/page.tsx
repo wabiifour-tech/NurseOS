@@ -36,36 +36,88 @@ import {
   MessageSquare,
   ChevronRight,
   Sparkles,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
-import { courses } from '@/lib/academy-data'
+import { toast } from 'sonner'
+
+interface CourseModule {
+  id: string
+  title: string
+  type: string
+  durationMinutes: number | null
+  order: number
+}
+
+interface CourseData {
+  id: string
+  title: string
+  slug: string
+  description: string
+  category: string
+  level: string
+  durationMinutes: number | null
+  cpdPoints: number | null
+  language: string
+  tags: string
+  isPublished: boolean
+  isFree: boolean
+  price: number | null
+  enrollmentCount: number
+  rating: number
+  totalRatings: number
+  modules: CourseModule[]
+  _count: {
+    enrollments: number
+    modules: number
+  }
+}
+
+interface CourseDetail {
+  course: CourseData
+  isEnrolled: boolean
+  enrollmentStatus: string | null
+  enrollmentProgress: number
+}
 
 export default function CourseDetailPage() {
   const params = useParams()
   const courseId = params.id as string
-  const course = courses.find((c) => c.id === courseId)
+  const [courseDetail, setCourseDetail] = React.useState<CourseDetail | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
 
-  if (!course) {
-    return (
-      <div className="p-6 text-center">
-        <BookOpen className="size-12 mx-auto mb-4 text-muted-foreground/50" />
-        <h2 className="text-xl font-semibold mb-2">Course Not Found</h2>
-        <p className="text-muted-foreground mb-4">The course you are looking for does not exist.</p>
-        <Link href="/academy/courses">
-          <Button variant="outline">
-            <ArrowLeft className="size-4 mr-2" /> Back to Catalog
-          </Button>
-        </Link>
-      </div>
-    )
-  }
+  React.useEffect(() => {
+    async function fetchCourse() {
+      try {
+        const res = await fetch(`/api/nurseacademy/courses/${courseId}`)
+        if (res.status === 404) {
+          setError('Course not found')
+          return
+        }
+        if (!res.ok) throw new Error('Failed to fetch course')
+        const data = await res.json()
+        setCourseDetail(data)
+      } catch {
+        toast.error('Failed to load course details')
+        setError('Failed to load course')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchCourse()
+  }, [courseId])
 
   const moduleTypeIcon = (type: string) => {
     switch (type) {
       case 'Video':
+      case 'VIDEO':
         return <Play className="size-4 text-emerald-600" />
       case 'Text':
+      case 'TEXT':
         return <FileText className="size-4 text-blue-600" />
       case 'Quiz':
+      case 'QUIZ':
         return <HelpCircle className="size-4 text-amber-600" />
       default:
         return <FileText className="size-4" />
@@ -75,13 +127,26 @@ export default function CourseDetailPage() {
   const levelColor = (level: string) => {
     switch (level) {
       case 'Beginner':
+      case 'BEGINNER':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20'
       case 'Intermediate':
+      case 'INTERMEDIATE':
         return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20'
       case 'Advanced':
+      case 'ADVANCED':
         return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/20'
       default:
         return ''
+    }
+  }
+
+  const levelLabel = (level: string) => {
+    switch (level) {
+      case 'BEGINNER': return 'Beginner'
+      case 'INTERMEDIATE': return 'Intermediate'
+      case 'ADVANCED': return 'Advanced'
+      case 'EXPERT': return 'Expert'
+      default: return level
     }
   }
 
@@ -100,16 +165,53 @@ export default function CourseDetailPage() {
     ))
   }
 
-  const relatedCourses = courses
-    .filter((c) => c.id !== course.id && c.category === course.category)
-    .slice(0, 3)
+  const formatDuration = (minutes: number | null) => {
+    if (!minutes) return 'Self-paced'
+    if (minutes < 60) return `${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+  }
 
-  const reviews = [
-    { name: 'Nurse Chidinma O.', rating: 5, date: '2 weeks ago', comment: 'Excellent course! The emergency protocols are very practical and applicable to our setting in Nigeria.' },
-    { name: 'Nurse Ibrahim M.', rating: 4, date: '1 month ago', comment: 'Very informative. The case studies from Lagos were particularly helpful. Would recommend to all ER nurses.' },
-    { name: 'Nurse Funke A.', rating: 5, date: '2 months ago', comment: 'Best emergency nursing course I have taken. The instructor explains complex concepts clearly.' },
-    { name: 'Nurse Emeka N.', rating: 4, date: '3 months ago', comment: 'Great content and well-structured modules. The quizzes really test your understanding.' },
-  ]
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading course details...</span>
+      </div>
+    )
+  }
+
+  if (error || !courseDetail) {
+    return (
+      <div className="p-6 text-center">
+        <AlertCircle className="size-12 mx-auto mb-4 text-muted-foreground/50" />
+        <h2 className="text-xl font-semibold mb-2">
+          {error === 'Course not found' ? 'Course Not Found' : 'Error Loading Course'}
+        </h2>
+        <p className="text-muted-foreground mb-4">
+          {error === 'Course not found'
+            ? 'The course you are looking for does not exist.'
+            : 'Something went wrong while loading the course. Please try again.'}
+        </p>
+        <Link href="/academy/courses">
+          <Button variant="outline">
+            <ArrowLeft className="size-4 mr-2" /> Back to Catalog
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  const { course, isEnrolled, enrollmentStatus, enrollmentProgress } = courseDetail
+  const moduleTypeLabel = (type: string) => {
+    switch (type) {
+      case 'VIDEO': return 'Video'
+      case 'TEXT': return 'Text'
+      case 'QUIZ': return 'Quiz'
+      default: return type
+    }
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
@@ -129,12 +231,12 @@ export default function CourseDetailPage() {
           <Card className="overflow-hidden">
             <div className="h-48 bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 relative flex items-center justify-center">
               <BookOpen className="size-16 text-white/60" />
-              {course.featured && (
+              {course.enrollmentCount > 500 && (
                 <Badge className="absolute top-4 left-4 bg-amber-500 text-white border-0 gap-1">
                   <Sparkles className="size-3" /> Featured
                 </Badge>
               )}
-              {course.enrolled && (
+              {isEnrolled && (
                 <Badge className="absolute top-4 right-4 bg-emerald-600 text-white border-0 gap-1">
                   <CheckCircle2 className="size-3" /> Enrolled
                 </Badge>
@@ -144,7 +246,7 @@ export default function CourseDetailPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Badge variant="outline">{course.category}</Badge>
                 <Badge variant="outline" className={levelColor(course.level)}>
-                  {course.level}
+                  {levelLabel(course.level)}
                 </Badge>
               </div>
               <h1 className="text-2xl font-bold mb-3">{course.title}</h1>
@@ -154,22 +256,22 @@ export default function CourseDetailPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex">{renderStars(course.rating)}</div>
                   <span className="font-medium">{course.rating}</span>
-                  <span className="text-sm text-muted-foreground">({course.reviewCount} reviews)</span>
+                  <span className="text-sm text-muted-foreground">({course.totalRatings} reviews)</span>
                 </div>
                 <Separator orientation="vertical" className="h-5" />
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <Users className="size-4" />
-                  {course.students.toLocaleString()} students
+                  {course.enrollmentCount.toLocaleString()} students
                 </div>
               </div>
 
-              {course.enrolled && course.progress > 0 && (
+              {isEnrolled && enrollmentProgress > 0 && (
                 <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-500/5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium">Your Progress</span>
-                    <span className="text-sm font-semibold text-emerald-600">{course.progress}%</span>
+                    <span className="text-sm font-semibold text-emerald-600">{enrollmentProgress}%</span>
                   </div>
-                  <Progress value={course.progress} className="h-2.5" />
+                  <Progress value={enrollmentProgress} className="h-2.5" />
                   <Button className="mt-3 bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto" size="sm">
                     <Play className="size-4 mr-2" /> Continue Learning
                   </Button>
@@ -183,49 +285,56 @@ export default function CourseDetailPage() {
             <CardHeader>
               <CardTitle className="text-lg">Course Curriculum</CardTitle>
               <CardDescription>
-                {course.modules.length} modules • {course.duration}
+                {course.modules.length} modules • {formatDuration(course.durationMinutes)}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Accordion type="single" collapsible className="w-full">
-                {course.modules.map((mod, index) => (
-                  <AccordionItem key={mod.id} value={mod.id}>
-                    <AccordionTrigger className="hover:no-underline hover:bg-muted/50 px-3 rounded-lg">
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="size-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0">
-                          {moduleTypeIcon(mod.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">
-                            {index + 1}. {mod.title}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="outline" className="text-[10px] py-0">
-                              {mod.type}
-                            </Badge>
-                            <span>{mod.duration}</span>
+              {course.modules.length > 0 ? (
+                <Accordion type="single" collapsible className="w-full">
+                  {course.modules.map((mod, index) => (
+                    <AccordionItem key={mod.id} value={mod.id}>
+                      <AccordionTrigger className="hover:no-underline hover:bg-muted/50 px-3 rounded-lg">
+                        <div className="flex items-center gap-3 text-left">
+                          <div className="size-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0">
+                            {moduleTypeIcon(mod.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">
+                              {index + 1}. {mod.title}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-[10px] py-0">
+                                {moduleTypeLabel(mod.type)}
+                              </Badge>
+                              <span>{formatDuration(mod.durationMinutes)}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-3 pb-3">
-                      <p className="text-sm text-muted-foreground pl-11">
-                        {mod.type === 'Video'
-                          ? 'Watch the video lecture and take notes on key concepts.'
-                          : mod.type === 'Quiz'
-                          ? 'Test your understanding with assessment questions based on the module content.'
-                          : 'Read through the course material and review the key points.'}
-                      </p>
-                      {course.enrolled && (
-                        <Button variant="outline" size="sm" className="ml-11 mt-2">
-                          <Play className="size-3.5 mr-1.5" />
-                          {mod.type === 'Quiz' ? 'Start Quiz' : mod.type === 'Video' ? 'Watch Video' : 'Read Material'}
-                        </Button>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-3 pb-3">
+                        <p className="text-sm text-muted-foreground pl-11">
+                          {mod.type === 'Video' || mod.type === 'VIDEO'
+                            ? 'Watch the video lecture and take notes on key concepts.'
+                            : mod.type === 'Quiz' || mod.type === 'QUIZ'
+                            ? 'Test your understanding with assessment questions based on the module content.'
+                            : 'Read through the course material and review the key points.'}
+                        </p>
+                        {isEnrolled && (
+                          <Button variant="outline" size="sm" className="ml-11 mt-2">
+                            <Play className="size-3.5 mr-1.5" />
+                            {mod.type === 'Quiz' || mod.type === 'QUIZ' ? 'Start Quiz' : mod.type === 'Video' || mod.type === 'VIDEO' ? 'Watch Video' : 'Read Material'}
+                          </Button>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="size-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No modules available yet</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -237,35 +346,11 @@ export default function CourseDetailPage() {
                 Student Reviews
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {reviews.map((review, i) => (
-                <div key={i} className="p-4 bg-muted/30 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="size-8 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
-                        <User className="size-4 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{review.name}</p>
-                        <p className="text-xs text-muted-foreground">{review.date}</p>
-                      </div>
-                    </div>
-                    <div className="flex">
-                      {Array.from({ length: 5 }, (_, j) => (
-                        <Star
-                          key={j}
-                          className={`size-3.5 ${
-                            j < review.rating
-                              ? 'fill-amber-400 text-amber-400'
-                              : 'text-muted-foreground/30'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{review.comment}</p>
-                </div>
-              ))}
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                <MessageSquare className="size-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No reviews yet. Be the first to review this course!</p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -277,25 +362,21 @@ export default function CourseDetailPage() {
             <CardContent className="p-6 space-y-4">
               <div className="text-center">
                 <p className="text-3xl font-bold">
-                  {course.price === 0 ? (
+                  {course.isFree || course.price === 0 || course.price === null ? (
                     <span className="text-emerald-600">Free</span>
                   ) : (
                     <span>₦{course.price.toLocaleString()}</span>
                   )}
                 </p>
-                {course.price > 0 && (
+                {course.price && course.price > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">One-time payment</p>
                 )}
               </div>
 
               <Button
-                className={`w-full ${
-                  course.enrolled
-                    ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'bg-emerald-600 hover:bg-emerald-700'
-                }`}
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
               >
-                {course.enrolled ? (
+                {isEnrolled ? (
                   <>
                     <Play className="size-4 mr-2" /> Continue Learning
                   </>
@@ -313,27 +394,27 @@ export default function CourseDetailPage() {
                   <span className="flex items-center gap-2 text-muted-foreground">
                     <Clock className="size-4" /> Duration
                   </span>
-                  <span className="font-medium">{course.duration}</span>
+                  <span className="font-medium">{formatDuration(course.durationMinutes)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-muted-foreground">
                     <Award className="size-4" /> CPD Points
                   </span>
-                  <span className="font-medium">{course.cpdPoints} points</span>
+                  <span className="font-medium">{course.cpdPoints || 0} points</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-muted-foreground">
                     <BookOpen className="size-4" /> Level
                   </span>
                   <Badge variant="outline" className={levelColor(course.level)}>
-                    {course.level}
+                    {levelLabel(course.level)}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-muted-foreground">
                     <Globe className="size-4" /> Language
                   </span>
-                  <span className="font-medium">{course.language}</span>
+                  <span className="font-medium">{course.language === 'en' ? 'English' : course.language}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 text-muted-foreground">
@@ -345,56 +426,28 @@ export default function CourseDetailPage() {
                   <span className="flex items-center gap-2 text-muted-foreground">
                     <Users className="size-4" /> Students
                   </span>
-                  <span className="font-medium">{course.students.toLocaleString()}</span>
+                  <span className="font-medium">{course.enrollmentCount.toLocaleString()}</span>
                 </div>
               </div>
 
               <Separator />
 
-              {/* Instructor */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Instructor</p>
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
-                    <User className="size-5 text-emerald-600" />
+              {/* Enrollment Status */}
+              {isEnrolled && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-500/5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                  <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+                    <CheckCircle2 className="size-4" />
+                    <span className="font-medium">You are enrolled</span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">{course.instructor}</p>
-                    <p className="text-xs text-muted-foreground">{course.instructorTitle}</p>
-                  </div>
+                  {enrollmentStatus && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Status: {enrollmentStatus === 'IN_PROGRESS' ? 'In Progress' : enrollmentStatus === 'COMPLETED' ? 'Completed' : enrollmentStatus}
+                    </p>
+                  )}
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
-
-          {/* Related Courses */}
-          {relatedCourses.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Related Courses</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {relatedCourses.map((rc) => (
-                  <Link key={rc.id} href={`/academy/courses/${rc.id}`}>
-                    <div className="flex gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group">
-                      <div className="size-12 rounded-lg bg-gradient-to-br from-emerald-400/80 to-teal-500/80 flex items-center justify-center shrink-0">
-                        <BookOpen className="size-5 text-white/80" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium group-hover:text-emerald-600 transition-colors line-clamp-2">
-                          {rc.title}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          <Star className="size-3 fill-amber-400 text-amber-400" />
-                          {rc.rating} • {rc.duration}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
     </div>
