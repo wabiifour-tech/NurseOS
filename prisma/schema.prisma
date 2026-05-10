@@ -1,0 +1,817 @@
+// NurseOS — The Operating System for Global Nursing Care
+// Prisma Schema (SQLite-adapted)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===== CORE USER & AUTH =====
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  passwordHash     String
+  firstName        String
+  lastName         String
+  middleName       String?
+  displayName      String?
+  avatarUrl        String?
+  phone            String?
+  countryCode      String   @default("NG")
+  role             String   @default("NURSE")
+  status           String   @default("ACTIVE")
+  emailVerified    Boolean  @default(false)
+  phoneVerified    Boolean  @default(false)
+  twoFactorEnabled Boolean  @default(false)
+  lastLoginAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  nurseProfile   NurseProfile?
+  adminProfile   AdminProfile?
+  patientProfile PatientProfile?
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  sessions       Session[]
+
+  @@index([email])
+}
+
+model NurseProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  licenseNumber      String   @unique
+  licenseIssuingBody String   @default("NMCN")
+  licenseExpiryDate  DateTime
+  specialization     String?
+  yearsOfExperience  Int?
+  currentFacilityId  String?
+  blsCertified       Boolean  @default(false)
+  blsCertExpiry      DateTime?
+  aclsCertified      Boolean  @default(false)
+  aclsCertExpiry     DateTime?
+  nursingCouncil     String   @default("Nigeria")
+  degree             String?
+  university         String?
+  graduationYear     Int?
+  bio                String?
+  skills             String   @default("[]")
+  languages          String   @default("[\"English\"]")
+  availableForConsult Boolean @default(false)
+  rating             Float    @default(0)
+  totalRatings       Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  facility               Facility?         @relation("NurseFacility", fields: [currentFacilityId], references: [id])
+  credentials            Credential[]
+  competencies           Competency[]
+  portfolioEntries       PortfolioEntry[]
+  cpdRecords             CPDRecord[]
+  departmentHead         Department[]      @relation("DepartmentHead")
+  attendingRecords       MedicalRecord[]   @relation("AttendingNurse")
+  recordedVitals         VitalSign[]       @relation("RecordedVitals")
+  nursingNotes           NursingNote[]     @relation("NursingNotes")
+  aiInteractions         AIInteraction[]   @relation("AIInteractions")
+  verifiedMedications    MedicationOrder[] @relation("VerifiedMedications")
+  outgoingReferrals      Referral[]        @relation("ReferringNurse")
+  incomingReferrals      Referral[]        @relation("AcceptingNurse")
+  requestedConsultations Consultation[]    @relation("RequestedConsultations")
+  receivedConsultations  Consultation[]    @relation("ReceivedConsultations")
+  authoredArticles       KnowledgeArticle[] @relation("AuthoredArticles")
+  articleComments        ArticleComment[]  @relation("ArticleComments")
+  enrollments            Enrollment[]      @relation("Enrollments")
+  simulationAttempts     SimulationAttempt[] @relation("SimulationAttempts")
+
+  @@index([licenseNumber])
+}
+
+model AdminProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  facilityId  String?
+  department  String?
+  accessLevel Int      @default(1)
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  facility Facility? @relation(fields: [facilityId], references: [id])
+}
+
+model PatientProfile {
+  id                       String    @id @default(cuid())
+  userId                   String?   @unique
+  patientId                String    @unique
+  dateOfBirth              DateTime?
+  gender                   String?
+  bloodType                String?
+  genotype                 String?
+  allergies                String    @default("[]")
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+  nationality              String?   @default("Nigerian")
+  stateOfOrigin            String?
+  lga                      String?
+  religion                 String?
+  occupation               String?
+  insuranceProvider        String?
+  insuranceNumber          String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  user           User?           @relation(fields: [userId], references: [id])
+  medicalRecords MedicalRecord[]
+  appointments   Appointment[]
+  vitals         VitalSign[]
+  medications    MedicationOrder[]
+  labOrders      LabOrder[]
+  referrals      Referral[]
+  visitHistory   VisitRecord[]
+  consultations  Consultation[]
+
+  @@index([patientId])
+}
+
+// ===== FACILITY & ORGANIZATION =====
+
+model Facility {
+  id                  String   @id @default(cuid())
+  name                String
+  type                String
+  level               String?
+  address             String
+  city                String
+  state               String
+  country             String   @default("Nigeria")
+  latitude            Float?
+  longitude           Float?
+  phone               String?
+  email               String?
+  website             String?
+  bedCapacity         Int?
+  staffCount          Int?
+  registrationNumber  String?  @unique
+  accreditingBody     String?
+  accreditationStatus String?  @default("PENDING")
+  isVerified          Boolean  @default(false)
+  isEmergencyCapable  Boolean  @default(false)
+  servicesOffered     String   @default("[]")
+  operatingHours      String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  departments       Department[]
+  staff             NurseProfile[]     @relation("NurseFacility")
+  patients          MedicalRecord[]
+  appointments      Appointment[]
+  outgoingReferrals Referral[]         @relation("OutgoingReferrals")
+  incomingReferrals Referral[]         @relation("IncomingReferrals")
+  analytics         FacilityAnalytics[]
+  adminProfiles     AdminProfile[]
+
+  @@index([type, city, state])
+  @@index([isVerified])
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  facilityId  String
+  name        String
+  headNurseId String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  facility  Facility      @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  headNurse NurseProfile? @relation("DepartmentHead", fields: [headNurseId], references: [id])
+  patients  MedicalRecord[]
+}
+
+// ===== MODULE 1: NurseAI =====
+
+model MedicalRecord {
+  id                      String   @id @default(cuid())
+  patientId               String
+  facilityId              String
+  departmentId            String?
+  encounterType           String
+  encounterDate           DateTime @default(now())
+  attendingNurseId        String?
+  attendingDoctorId       String?
+  chiefComplaint          String
+  historyOfPresentIllness String?
+  pastMedicalHistory      String?
+  familyHistory           String?
+  socialHistory           String?
+  nursingAssessment       String?
+  nursingDiagnosis        String   @default("[]")
+  nursingCarePlan         String?
+  interventions           String   @default("[]")
+  evaluationNotes         String?
+  dischargeSummary        String?
+  aiSuggestions           String?
+  aiConfidenceScore       Float?
+  status                  String   @default("ACTIVE")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  patient        PatientProfile  @relation(fields: [patientId], references: [id])
+  facility       Facility        @relation(fields: [facilityId], references: [id])
+  department     Department?     @relation(fields: [departmentId], references: [id])
+  attendingNurse NurseProfile?   @relation("AttendingNurse", fields: [attendingNurseId], references: [id])
+  vitals         VitalSign[]
+  medications    MedicationOrder[]
+  labOrders      LabOrder[]
+  nursingNotes   NursingNote[]
+  aiInteractions AIInteraction[]
+
+  @@index([patientId, encounterDate])
+  @@index([facilityId, status])
+}
+
+model VitalSign {
+  id                     String   @id @default(cuid())
+  patientId              String
+  recordId               String?
+  recordedByNurseId      String?
+  temperature            Float?
+  heartRate              Int?
+  respiratoryRate        Int?
+  bloodPressureSystolic  Int?
+  bloodPressureDiastolic Int?
+  oxygenSaturation       Float?
+  weight                 Float?
+  height                 Float?
+  bmi                    Float?
+  bloodGlucose           Float?
+  painScale              Int?
+  consciousnessLevel     String?
+  recordedAt             DateTime @default(now())
+  earlyWarningScore      Float?
+  isAbnormal             Boolean?
+  notes                  String?
+  source                 String   @default("MANUAL")
+
+  patient       PatientProfile  @relation(fields: [patientId], references: [id])
+  medicalRecord MedicalRecord?  @relation(fields: [recordId], references: [id])
+  recordedBy    NurseProfile?   @relation("RecordedVitals", fields: [recordedByNurseId], references: [id])
+
+  @@index([patientId, recordedAt])
+}
+
+model NursingNote {
+  id          String   @id @default(cuid())
+  recordId    String
+  nurseId     String
+  noteType    String
+  content     String
+  aiGenerated Boolean  @default(false)
+  aiPrompt    String?
+  isSigned    Boolean  @default(false)
+  signedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
+  nurse         NurseProfile  @relation("NursingNotes", fields: [nurseId], references: [id])
+
+  @@index([recordId, createdAt])
+}
+
+model AIInteraction {
+  id              String   @id @default(cuid())
+  recordId        String
+  nurseId         String
+  interactionType String
+  userInput       String
+  aiOutput        String
+  aiModel         String   @default("gpt-4")
+  confidenceScore Float?
+  wasAccepted     Boolean?
+  feedbackRating  Int?
+  responseTimeMs  Int?
+  createdAt       DateTime @default(now())
+
+  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
+  nurse         NurseProfile  @relation("AIInteractions", fields: [nurseId], references: [id])
+
+  @@index([recordId])
+}
+
+model MedicationOrder {
+  id                    String    @id @default(cuid())
+  patientId             String
+  recordId              String
+  prescribedByDoctorId  String?
+  verifiedByNurseId     String?
+  medicationName        String
+  dosage                String
+  route                 String
+  frequency             String
+  duration              String?
+  startDate             DateTime
+  endDate               DateTime?
+  indications           String?
+  contraindications     String    @default("[]")
+  drugInteractions      String?
+  interactionAlerts     String?
+  status                String    @default("PENDING")
+  administeredAt        DateTime?
+  administeredByNurseId String?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  patient       PatientProfile @relation(fields: [patientId], references: [id])
+  medicalRecord MedicalRecord  @relation(fields: [recordId], references: [id])
+  verifiedBy    NurseProfile?  @relation("VerifiedMedications", fields: [verifiedByNurseId], references: [id])
+
+  @@index([patientId, status])
+}
+
+model LabOrder {
+  id             String   @id @default(cuid())
+  patientId      String
+  recordId       String
+  orderedBy      String
+  testName       String
+  testCategory   String
+  specimenType   String?
+  urgency        String   @default("ROUTINE")
+  status         String   @default("ORDERED")
+  resultValue    String?
+  resultUnit     String?
+  referenceRange String?
+  isAbnormal     Boolean?
+  resultDate     DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  patient       PatientProfile @relation(fields: [patientId], references: [id])
+  medicalRecord MedicalRecord  @relation(fields: [recordId], references: [id])
+
+  @@index([patientId, status])
+}
+
+// ===== MODULE 2: CareGrid =====
+
+model Referral {
+  id                String   @id @default(cuid())
+  patientId         String
+  fromFacilityId    String
+  toFacilityId      String?
+  toFacilityName    String?
+  referringNurseId  String
+  referringDoctorId String?
+  reason            String
+  clinicalSummary   String
+  urgency           String   @default("ROUTINE")
+  status            String   @default("PENDING")
+  acceptedByNurseId String?
+  acceptedAt        DateTime?
+  patientArrived    Boolean  @default(false)
+  arrivedAt         DateTime?
+  outcomeNotes      String?
+  feedbackRating    Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  patient        PatientProfile @relation(fields: [patientId], references: [id])
+  fromFacility   Facility       @relation("OutgoingReferrals", fields: [fromFacilityId], references: [id])
+  toFacility     Facility?      @relation("IncomingReferrals", fields: [toFacilityId], references: [id])
+  referringNurse NurseProfile   @relation("ReferringNurse", fields: [referringNurseId], references: [id])
+  acceptingNurse NurseProfile?  @relation("AcceptingNurse", fields: [acceptedByNurseId], references: [id])
+
+  @@index([fromFacilityId, status])
+}
+
+model Consultation {
+  id                String   @id @default(cuid())
+  requestingNurseId String
+  consultingNurseId String
+  patientId         String?
+  recordId          String?
+  consultationType  String
+  subject           String
+  description       String
+  status            String   @default("REQUESTED")
+  scheduledAt       DateTime?
+  startedAt         DateTime?
+  endedAt           DateTime?
+  notes             String?
+  recommendations   String?
+  recordingUrl      String?
+  transcript        String?
+  aiSummary         String?
+  rating            Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  requestingNurse NurseProfile    @relation("RequestedConsultations", fields: [requestingNurseId], references: [id])
+  consultingNurse NurseProfile    @relation("ReceivedConsultations", fields: [consultingNurseId], references: [id])
+  patient         PatientProfile? @relation(fields: [patientId], references: [id])
+
+  @@index([requestingNurseId, status])
+}
+
+model KnowledgeArticle {
+  id            String   @id @default(cuid())
+  authorId      String
+  title         String
+  slug          String   @unique
+  category      String
+  tags          String   @default("[]")
+  content       String
+  summary       String?
+  readingTime   Int?
+  evidenceLevel String?
+  references    String   @default("[]")
+  viewCount     Int      @default(0)
+  likeCount     Int      @default(0)
+  commentCount  Int      @default(0)
+  isPublished   Boolean  @default(false)
+  isFeatured    Boolean  @default(false)
+  language      String   @default("en")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  author   NurseProfile     @relation("AuthoredArticles", fields: [authorId], references: [id])
+  comments ArticleComment[]
+
+  @@index([category, isPublished])
+  @@index([slug])
+}
+
+model ArticleComment {
+  id        String   @id @default(cuid())
+  articleId String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author  NurseProfile     @relation("ArticleComments", fields: [authorId], references: [id])
+
+  @@index([articleId, createdAt])
+}
+
+// ===== MODULE 3: NurseAnalytics =====
+
+model FacilityAnalytics {
+  id                       String   @id @default(cuid())
+  facilityId               String
+  date                     DateTime @default(now())
+  totalPatients            Int?
+  newPatients              Int?
+  totalEncounters          Int?
+  avgWaitTimeMin           Float?
+  avgLengthOfStay          Float?
+  nurseToPatientRatio      Float?
+  bedOccupancyRate         Float?
+  medicationErrors         Int?
+  nearMissEvents           Int?
+  patientSatisfactionScore Float?
+  nurseSatisfactionScore   Float?
+  readmissionRate          Float?
+  infectionRate            Float?
+  mortalityRate            Float?
+  topDiagnoses             String?
+  peakHours                String?
+  staffingData             String?
+  aiInsights               String?
+  period                   String   @default("DAILY")
+  createdAt                DateTime @default(now())
+
+  facility Facility @relation(fields: [facilityId], references: [id])
+
+  @@unique([facilityId, date, period])
+  @@index([facilityId, date])
+}
+
+model DiseaseSurveillance {
+  id                String   @id @default(cuid())
+  facilityId        String
+  region            String
+  diseaseName       String
+  caseCount         Int
+  expectedRange     String
+  isOutbreakAlert   Boolean  @default(false)
+  alertLevel        String?
+  affectedGroups    String   @default("[]")
+  geographicCluster String?
+  aiPrediction      String?
+  reportedAt        DateTime @default(now())
+
+  @@index([diseaseName, region, reportedAt])
+}
+
+model StaffingPrediction {
+  id                   String   @id @default(cuid())
+  facilityId           String
+  departmentId         String?
+  predictedDate        DateTime
+  predictedPatientLoad Int?
+  recommendedStaffing  Int?
+  confidence           Float?
+  factors              String?
+  createdAt            DateTime @default(now())
+
+  @@index([facilityId, predictedDate])
+}
+
+// ===== MODULE 4: NurseID =====
+
+model Credential {
+  id               String   @id @default(cuid())
+  nurseId          String
+  credentialType   String
+  credentialName   String
+  issuingBody      String
+  issueDate        DateTime
+  expiryDate       DateTime?
+  credentialNumber String?
+  verificationHash String?
+  isVerified       Boolean  @default(false)
+  verifiedBy       String?
+  verifiedAt       DateTime?
+  documentUrl      String?
+  isPublic         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  nurse NurseProfile @relation(fields: [nurseId], references: [id], onDelete: Cascade)
+
+  @@index([nurseId, credentialType])
+}
+
+model Competency {
+  id             String   @id @default(cuid())
+  nurseId        String
+  competencyArea String
+  level          String
+  assessedBy     String?
+  assessedAt     DateTime?
+  evidence       String?
+  expiresAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  nurse NurseProfile @relation(fields: [nurseId], references: [id], onDelete: Cascade)
+
+  @@index([nurseId, competencyArea])
+}
+
+model PortfolioEntry {
+  id            String   @id @default(cuid())
+  nurseId       String
+  entryType     String
+  title         String
+  description   String
+  url           String?
+  evidenceUrls  String   @default("[]")
+  impactMetrics String?
+  startDate     DateTime?
+  endDate       DateTime?
+  isOngoing     Boolean  @default(false)
+  isPublic      Boolean  @default(true)
+  featured      Boolean  @default(false)
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  nurse NurseProfile @relation(fields: [nurseId], references: [id], onDelete: Cascade)
+
+  @@index([nurseId, entryType])
+}
+
+model CPDRecord {
+  id             String   @id @default(cuid())
+  nurseId        String
+  activityType   String
+  title          String
+  description    String
+  cpdPoints      Float
+  dateCompleted  DateTime
+  provider       String?
+  certificateUrl String?
+  isVerified     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  nurse NurseProfile @relation(fields: [nurseId], references: [id], onDelete: Cascade)
+
+  @@index([nurseId, dateCompleted])
+}
+
+// ===== MODULE 5: NurseAcademy =====
+
+model Course {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  description     String
+  category        String
+  level           String
+  instructorIds   String   @default("[]")
+  modules         String?
+  durationMinutes Int?
+  cpdPoints       Float?
+  language        String   @default("en")
+  tags            String   @default("[]")
+  thumbnailUrl    String?
+  isPublished     Boolean  @default(false)
+  isFree          Boolean  @default(true)
+  price           Float?
+  enrollmentCount Int      @default(0)
+  rating          Float    @default(0)
+  totalRatings    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  enrollments      Enrollment[]
+  simulations      Simulation[]
+  courseModules    CourseModule[]  @relation("CourseModules")
+
+  @@index([category, isPublished])
+  @@index([slug])
+}
+
+model CourseModule {
+  id              String   @id @default(cuid())
+  courseId        String
+  title           String
+  description     String
+  order           Int
+  contentType     String
+  contentUrl      String?
+  contentBody     String?
+  videoUrl        String?
+  durationMinutes Int?
+  isRequired      Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  course Course @relation("CourseModules", fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, order])
+}
+
+model Enrollment {
+  id              String    @id @default(cuid())
+  courseId        String
+  nurseId         String
+  enrolledAt      DateTime  @default(now())
+  completedAt     DateTime?
+  progressPercent Int       @default(0)
+  currentModuleId String?
+  lastAccessedAt  DateTime?
+  certificateUrl  String?
+  rating          Int?
+  review          String?
+
+  course Course        @relation(fields: [courseId], references: [id])
+  nurse  NurseProfile  @relation("Enrollments", fields: [nurseId], references: [id])
+
+  @@unique([courseId, nurseId])
+  @@index([nurseId])
+}
+
+model Simulation {
+  id                  String   @id @default(cuid())
+  courseId            String?
+  title               String
+  description         String
+  scenarioType        String
+  difficulty          String
+  patientProfile      String?
+  initialPresentation String?
+  decisionPoints      String?
+  correctActions      String   @default("[]")
+  timeLimitMinutes    Int?
+  scoringCriteria     String?
+  aiFeedbackEnabled   Boolean  @default(true)
+  completionCount     Int      @default(0)
+  avgScore            Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  course   Course?             @relation(fields: [courseId], references: [id])
+  attempts SimulationAttempt[]
+
+  @@index([scenarioType, difficulty])
+}
+
+model SimulationAttempt {
+  id                  String   @id @default(cuid())
+  simulationId        String
+  nurseId             String
+  startedAt           DateTime @default(now())
+  completedAt         DateTime?
+  score               Float?
+  maxScore            Float?
+  actionsTaken        String?
+  timeTakenSeconds    Int?
+  aiEvaluation        String?
+  strengths           String   @default("[]")
+  areasForImprovement String   @default("[]")
+  wouldRepeat         Boolean?
+
+  simulation Simulation    @relation(fields: [simulationId], references: [id])
+  nurse      NurseProfile  @relation("SimulationAttempts", fields: [nurseId], references: [id])
+
+  @@index([simulationId, nurseId])
+}
+
+// ===== SHARED MODELS =====
+
+model Appointment {
+  id                String   @id @default(cuid())
+  patientId         String
+  facilityId        String
+  nurseId           String?
+  doctorId          String?
+  appointmentDate   DateTime
+  appointmentTime   String
+  durationMinutes   Int      @default(15)
+  type              String
+  status            String   @default("SCHEDULED")
+  reason            String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  patient  PatientProfile @relation(fields: [patientId], references: [id])
+  facility Facility       @relation(fields: [facilityId], references: [id])
+
+  @@index([facilityId, appointmentDate])
+}
+
+model VisitRecord {
+  id          String   @id @default(cuid())
+  patientId   String
+  facilityId  String?
+  visitDate   DateTime @default(now())
+  visitType   String
+  outcome     String?
+  createdAt   DateTime @default(now())
+
+  patient PatientProfile @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, visitDate])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  data      String?
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  details    String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([resource, resourceId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
