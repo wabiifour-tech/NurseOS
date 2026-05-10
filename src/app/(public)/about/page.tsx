@@ -108,31 +108,31 @@ const previousProjects = [
 
 const milestones = [
   {
-    year: "2023",
+    year: "2026",
     title: "RUHC HMS Deployed",
     description:
-      "Hospital Management System deployed at Redeemer's University Health Centre, serving 7,000+ patients and proving the concept.",
+      "Hospital Management System deployed at Redeemer's University Health Centre, serving 7,000+ patients and proving that world-class healthcare software can be built in Nigeria.",
   },
   {
-    year: "2024",
+    year: "2025",
     title: "MedAI Built",
     description:
-      "AI-powered medical intelligence tool created, combining healthcare knowledge with artificial intelligence.",
+      "AI-powered medical intelligence tool created, combining healthcare knowledge with artificial intelligence to assist clinical decision-making.",
   },
   {
-    year: "2025",
+    year: "Dec 2025",
     title: "NurseOS Concept Born",
     description:
-      "From the experience of building RUHC HMS and MedAI, the vision for a unified nursing operating system emerged.",
+      "From the experience of building RUHC HMS and MedAI, the vision for a unified nursing operating system emerged — a platform built by a nurse, for every nurse.",
   },
   {
-    year: "2025",
-    title: "NurseOS Development Begins",
+    year: "Feb 2026",
+    title: "Development Begins",
     description:
       "Full development of the 5-module platform starts, built by a nurse who codes — every feature informed by real clinical experience.",
   },
   {
-    year: "2026",
+    year: "May 2026",
     title: "Platform Launch",
     description:
       "NurseOS launches with all 5 modules, starting from Nigeria with plans to expand across Africa and globally.",
