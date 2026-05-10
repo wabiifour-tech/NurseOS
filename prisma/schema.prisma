@@ -368,13 +368,13 @@ model LabOrder {
 model Referral {
   id                String   @id @default(cuid())
   patientId         String
-  fromFacilityId    String
+  fromFacilityId    String?
   toFacilityId      String?
   toFacilityName    String?
   referringNurseId  String
   referringDoctorId String?
-  reason            String
-  clinicalSummary   String
+  reason            String?
+  clinicalSummary   String?
   urgency           String   @default("ROUTINE")
   status            String   @default("PENDING")
   acceptedByNurseId String?
@@ -387,7 +387,7 @@ model Referral {
   updatedAt         DateTime @updatedAt
 
   patient        PatientProfile @relation(fields: [patientId], references: [id])
-  fromFacility   Facility       @relation("OutgoingReferrals", fields: [fromFacilityId], references: [id])
+  fromFacility   Facility?      @relation("OutgoingReferrals", fields: [fromFacilityId], references: [id])
   toFacility     Facility?      @relation("IncomingReferrals", fields: [toFacilityId], references: [id])
   referringNurse NurseProfile   @relation("ReferringNurse", fields: [referringNurseId], references: [id])
   acceptingNurse NurseProfile?  @relation("AcceptingNurse", fields: [acceptedByNurseId], references: [id])
@@ -749,11 +749,10 @@ model SimulationAttempt {
 model Appointment {
   id                String   @id @default(cuid())
   patientId         String
-  facilityId        String
+  facilityId        String?
   nurseId           String?
   doctorId          String?
   appointmentDate   DateTime
-  appointmentTime   String
   durationMinutes   Int      @default(15)
   type              String
   status            String   @default("SCHEDULED")
@@ -763,7 +762,7 @@ model Appointment {
   updatedAt         DateTime @updatedAt
 
   patient        PatientProfile @relation(fields: [patientId], references: [id])
-  facility       Facility       @relation(fields: [facilityId], references: [id])
+  facility       Facility?      @relation(fields: [facilityId], references: [id])
   attendingNurse NurseProfile?  @relation("AppointmentNurse", fields: [nurseId], references: [id])
 
   @@index([facilityId, appointmentDate])

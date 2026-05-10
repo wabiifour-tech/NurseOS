@@ -77,19 +77,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get first facility as default if not provided
+    let facilityId = body.facilityId
+    if (!facilityId) {
+      const facility = await db.facility.findFirst()
+      if (!facility) {
+        return NextResponse.json(
+          { error: 'No facility found. Please seed facilities first.' },
+          { status: 500 }
+        )
+      }
+      facilityId = facility.id
+    }
+
     const appointment = await db.appointment.create({
       data: {
         patientId: body.patientId,
-        facilityId: body.facilityId || null,
-        departmentId: body.departmentId || null,
+        facilityId,
         appointmentDate: new Date(body.appointmentDate),
         durationMinutes: body.durationMinutes || 30,
         type: body.type || 'CONSULTATION',
         status,
         reason: body.reason || null,
         notes: body.notes || null,
-        attendingNurseId: body.attendingNurseId || null,
-        attendingDoctorId: body.attendingDoctorId || null,
+        nurseId: body.nurseId || authUser.id,
       },
       include: {
         patient: {
