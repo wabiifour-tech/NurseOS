@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://nurseos.vercel.app"),
   title: "NurseOS — The Operating System for Global Nursing Care",
   description:
     "Built by a Nurse. For the World. NurseOS empowers healthcare facilities with AI-powered nursing care, workforce management, analytics, identity verification, and continuous education.",
