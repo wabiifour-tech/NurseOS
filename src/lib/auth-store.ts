@@ -22,14 +22,16 @@ interface AuthState {
 // Helper: set auth cookie for middleware (server-side auth check)
 function setAuthCookie(token: string) {
   if (typeof document !== "undefined") {
-    document.cookie = `nurseos-token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `nurseos-token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
   }
 }
 
 // Helper: clear auth cookie
 function clearAuthCookie() {
   if (typeof document !== "undefined") {
-    document.cookie = "nurseos-token=; path=/; max-age=0; SameSite=Lax";
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `nurseos-token=; path=/; max-age=0; SameSite=Lax${secure}`;
   }
 }
 

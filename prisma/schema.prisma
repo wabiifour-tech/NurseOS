@@ -1,5 +1,5 @@
 // NurseOS — The Operating System for Global Nursing Care
-// Prisma Schema (SQLite-adapted)
+// Prisma Schema (PostgreSQL — Neon / Vercel Postgres)
 
 generator client {
   provider = "prisma-client-js"

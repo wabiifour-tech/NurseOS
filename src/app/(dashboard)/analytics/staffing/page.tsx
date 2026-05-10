@@ -333,18 +333,22 @@ export default function StaffingAnalyticsPage() {
             <>
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={Array.from({ length: 7 }, (_, i) => {
+                  <LineChart data={(() => {
                     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
                     const base = staffing.nursesOnDuty
-                    const variance = Math.max(1, Math.round(base * 0.15))
-                    const predicted = base + Math.round((Math.random() - 0.4) * variance)
-                    return {
-                      day: days[i],
-                      predicted: Math.max(0, predicted),
-                      confidence: Math.round(75 + Math.random() * 20),
-                      risk: predicted < base * 0.8 ? "high" : predicted < base * 0.95 ? "medium" : "low",
-                    }
-                  })}>
+                    const offsets = [-0.1, 0.05, -0.2, 0.1, -0.05, 0.15, -0.15]
+                    const confOffsets = [10, 5, 18, 8, 12, 3, 15]
+                    return days.map((day, i) => {
+                      const variance = Math.max(1, Math.round(base * 0.15))
+                      const predicted = base + Math.round(offsets[i] * variance)
+                      return {
+                        day,
+                        predicted: Math.max(0, predicted),
+                        confidence: 75 + confOffsets[i],
+                        risk: predicted < base * 0.8 ? "high" : predicted < base * 0.95 ? "medium" : "low",
+                      }
+                    })
+                  })()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="#94a3b8" />
                     <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
@@ -366,12 +370,15 @@ export default function StaffingAnalyticsPage() {
                 </ResponsiveContainer>
               </div>
               <div className="grid grid-cols-7 gap-2 mt-4">
-                {Array.from({ length: 7 }, (_, i) => {
+                {(() => {
                   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
                   const base = staffing.nursesOnDuty
+                  const offsets = [-0.1, 0.05, -0.2, 0.1, -0.05, 0.15, -0.15]
+                  const confOffsets = [10, 5, 18, 8, 12, 3, 15]
+                  return days.map((day, i) => {
                   const variance = Math.max(1, Math.round(base * 0.15))
-                  const predicted = base + Math.round((Math.random() - 0.4) * variance)
-                  const confidence = Math.round(75 + Math.random() * 20)
+                  const predicted = base + Math.round(offsets[i] * variance)
+                  const confidence = 75 + confOffsets[i]
                   const risk: "low" | "medium" | "high" = predicted < base * 0.8 ? "high" : predicted < base * 0.95 ? "medium" : "low"
                   return (
                     <div key={days[i]} className={`rounded-lg border p-2 text-center ${riskColors[risk]}`}>
@@ -380,7 +387,8 @@ export default function StaffingAnalyticsPage() {
                       <p className="text-[10px]">{confidence}%</p>
                     </div>
                   )
-                })}
+                })
+                })()}
               </div>
             </>
           )}
