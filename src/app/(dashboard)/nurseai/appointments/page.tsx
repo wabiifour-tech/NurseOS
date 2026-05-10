@@ -20,10 +20,10 @@ import { toast } from 'sonner'
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = React.useState<'list' | 'calendar'>('list')
   const [dialogOpen, setDialogOpen] = React.useState(false)
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date('2026-03-04'))
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date())
   const [typeFilter, setTypeFilter] = React.useState('all')
 
-  const todayStr = '2026-03-04'
+  const todayStr = new Date().toISOString().split('T')[0]
   const todayAppointments = appointments.filter(a => a.date === todayStr)
   const upcomingAppointments = appointments.filter(a => a.date > todayStr)
 

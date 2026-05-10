@@ -13,9 +13,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
-  Pill, Search, Plus, AlertTriangle, Clock, CheckCircle, Syringe,
-  ShieldAlert, Package
+  Pill, Search, Plus, AlertTriangle, Clock, CheckCircle,
+  ShieldAlert, Package, Loader2
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { useAuthStore } from '@/lib/auth-store'
 
 export default function MedicationsPage() {
   const [searchQuery, setSearchQuery] = React.useState('')
