@@ -42,7 +42,9 @@ import {
   AlertCircle,
   ChevronRight,
   User,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 
 const statusConfig: Record<Referral["status"], { color: string; icon: React.ComponentType<{ className?: string }> }> = {
   Pending: { color: "bg-amber-50 text-amber-700 border-amber-200", icon: Clock },
@@ -60,6 +62,35 @@ const urgencyConfig: Record<Referral["urgency"], { color: string; dot: string }>
 export default function ReferralsPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("all")
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
+  const [formPatient, setFormPatient] = React.useState("")
+  const [formFromFacility, setFormFromFacility] = React.useState("")
+  const [formToFacility, setFormToFacility] = React.useState("")
+  const [formUrgency, setFormUrgency] = React.useState("")
+  const [formReason, setFormReason] = React.useState("")
+
+  const handleCreateReferral = async () => {
+    if (!formPatient || !formFromFacility || !formToFacility || !formUrgency) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+    setSubmitting(true)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800))
+      toast.success("Referral submitted successfully!")
+      setDialogOpen(false)
+      setFormPatient("")
+      setFormFromFacility("")
+      setFormToFacility("")
+      setFormUrgency("")
+      setFormReason("")
+    } catch {
+      toast.error("Failed to submit referral")
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const filtered = React.useMemo(() => {
     return referrals.filter(r => {
@@ -96,9 +127,9 @@ export default function ReferralsPage() {
             Manage patient referrals across facilities
           </p>
         </div>
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => setDialogOpen(true)}>
               <Plus className="size-4" />
               New Referral
             </Button>
@@ -112,13 +143,13 @@ export default function ReferralsPage() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="patient">Patient Name</Label>
-                <Input id="patient" placeholder="Enter patient name" />
+                <Label htmlFor="patient">Patient Name *</Label>
+                <Input id="patient" placeholder="Enter patient name" value={formPatient} onChange={e => setFormPatient(e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>From Facility</Label>
-                  <Select>
+                  <Label>From Facility *</Label>
+                  <Select value={formFromFacility} onValueChange={setFormFromFacility}>
                     <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="f001">Lagos University Teaching Hospital</SelectItem>
@@ -128,8 +159,8 @@ export default function ReferralsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>To Facility</Label>
-                  <Select>
+                  <Label>To Facility *</Label>
+                  <Select value={formToFacility} onValueChange={setFormToFacility}>
                     <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="f007">National Hospital, Abuja</SelectItem>
@@ -140,8 +171,8 @@ export default function ReferralsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Urgency</Label>
-                <Select>
+                <Label>Urgency *</Label>
+                <Select value={formUrgency} onValueChange={setFormUrgency}>
                   <SelectTrigger><SelectValue placeholder="Select urgency level" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="routine">Routine</SelectItem>
@@ -152,12 +183,15 @@ export default function ReferralsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reason">Reason for Referral</Label>
-                <Textarea id="reason" placeholder="Describe the clinical reason for referral" />
+                <Textarea id="reason" placeholder="Describe the clinical reason for referral" value={formReason} onChange={e => setFormReason(e.target.value)} />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline">Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">Submit Referral</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCreateReferral} disabled={submitting}>
+                {submitting && <Loader2 className="size-4 mr-2 animate-spin" />}
+                Submit Referral
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -53,7 +53,6 @@ export default function PatientsPage() {
   const [formPhone, setFormPhone] = React.useState('')
   const [formEmail, setFormEmail] = React.useState('')
   const [formAllergies, setFormAllergies] = React.useState('')
-  const [formDiagnosis, setFormDiagnosis] = React.useState('')
 
   // Fetch patients from API
   const fetchPatients = React.useCallback(async () => {
@@ -125,7 +124,6 @@ export default function PatientsPage() {
       setFormPhone('')
       setFormEmail('')
       setFormAllergies('')
-      setFormDiagnosis('')
       // Refresh patients list
       fetchPatients()
     } catch {

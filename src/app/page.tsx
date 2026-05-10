@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, Brain, Globe, BarChart3, Award, BookMarked,
-  ArrowRight, Check, Star, Users, Building2, Activity,
+  ArrowRight, Check, Users, Activity,
   Shield, Zap, ChevronDown, Menu, X, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -660,8 +660,7 @@ export default function LandingPage() {
           </div>
           <div className="border-t border-border pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              &copy; {new Date().getFullYear()} NurseOS. Made with{" "}
-              <Heart className="w-3 h-3 text-emerald-500 fill-emerald-500 inline" /> in Nigeria
+              &copy; {new Date().getFullYear()} NurseOS — Developed by Wabi The Tech Nurse
             </p>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs text-muted-foreground">

@@ -110,9 +110,8 @@ function PublicFooter() {
               NurseOS
             </span>
           </Link>
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            &copy; {new Date().getFullYear()} NurseOS — Made with{" "}
-            <Heart className="w-3 h-3 text-emerald-500 fill-emerald-500" /> in Nigeria
+          <p className="text-sm text-muted-foreground">
+            &copy; {new Date().getFullYear()} NurseOS — Developed by Wabi The Tech Nurse
           </p>
         </div>
       </div>

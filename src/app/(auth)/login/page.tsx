@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
@@ -63,17 +61,11 @@ export default function LoginPage() {
 
       // Use window.location for a hard redirect to ensure layout re-renders
       window.location.href = "/";
-    } catch {
-      // Fallback: allow demo login even if API fails
-      login({
-        id: "demo-user",
-        email: data.email,
-        firstName: "Nurse",
-        lastName: "User",
-        role: "NURSE",
-      });
-      toast.success("Welcome back to NurseOS! (Demo Mode)");
-      window.location.href = "/";
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("Unable to connect to the server. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
     }
   }
 

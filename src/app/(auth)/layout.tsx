@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Heart } from "lucide-react";
 
@@ -29,7 +28,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         {/* Footer text */}
         <p className="text-center text-sm text-muted-foreground mt-6">
-          &copy; {new Date().getFullYear()} NurseOS. Built by a Nurse. For the World.
+          &copy; {new Date().getFullYear()} NurseOS — Developed by Wabi The Tech Nurse
         </p>
       </div>
     </div>

@@ -184,11 +184,44 @@ export default function AnalyticsDashboardPage() {
     success: { color: "text-emerald-600 bg-emerald-50 border-emerald-200", icon: CheckCircle2 },
   }
 
-  const insights = fallbackInsights
-  const patientVolumeData = fallbackVolumeData
-  const diagnosisData = fallbackDiagnosisData
+  // Use API data when available, otherwise fall back to placeholder data
+  const insights = data?.topDiagnoses && data.topDiagnoses.length > 0
+    ? data.topDiagnoses.map((d, i) => ({
+        id: i + 1,
+        type: d.percentage > 25 ? ("warning" as const) : ("info" as const),
+        title: `${d.name} — ${d.percentage}% of cases`,
+        description: `${d.count} patients diagnosed with ${d.name}. This is ${d.percentage > 25 ? "above" : "within"} expected prevalence rates.`,
+        confidence: Math.min(95, 70 + d.count),
+      }))
+    : fallbackInsights
+
+  const patientVolumeData = data?.weeklyTrends && data.weeklyTrends.length > 0
+    ? data.weeklyTrends.map(t => ({
+        month: t.day,
+        inpatient: t.admissions,
+        outpatient: t.patients - t.admissions,
+        emergency: t.encounters - t.patients,
+      }))
+    : fallbackVolumeData
+
+  const diagnosisData = data?.topDiagnoses && data.topDiagnoses.length > 0
+    ? data.topDiagnoses.map(d => ({
+        name: d.name,
+        value: d.percentage,
+        fill: ["#10b981", "#14b8a6", "#059669", "#0d9488", "#047857", "#a7f3d0"][
+          data.topDiagnoses!.indexOf(d) % 6
+        ],
+      }))
+    : fallbackDiagnosisData
+
   const peakHoursData = fallbackPeakHours
-  const staffingData = fallbackStaffingData
+  const staffingData = data?.staffingMetrics
+    ? [
+        { department: "Morning", scheduled: data.staffingMetrics.shiftDistribution.morning, present: Math.round(data.staffingMetrics.shiftDistribution.morning * 0.9) },
+        { department: "Afternoon", scheduled: data.staffingMetrics.shiftDistribution.afternoon, present: Math.round(data.staffingMetrics.shiftDistribution.afternoon * 0.85) },
+        { department: "Night", scheduled: data.staffingMetrics.shiftDistribution.night, present: Math.round(data.staffingMetrics.shiftDistribution.night * 0.95) },
+      ]
+    : fallbackStaffingData
 
   if (loading) {
     return (
@@ -239,6 +272,11 @@ export default function AnalyticsDashboardPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Real-time insights and performance metrics
           </p>
+          {data?.isMockData && (
+            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 bg-amber-50 mt-1">
+              Showing sample data — add patients and facilities to see real analytics
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

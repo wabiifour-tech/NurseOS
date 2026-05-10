@@ -30,7 +30,9 @@ import {
   Calendar,
   User,
   Stethoscope,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 
 const typeConfig: Record<Consultation["type"], { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
   Video: { icon: Video, color: "bg-blue-50 text-blue-600 border-blue-200", label: "Video Call" },
@@ -47,6 +49,37 @@ const statusConfig: Record<Consultation["status"], { color: string; icon: React.
 
 export default function ConsultationsPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
+  const [formType, setFormType] = React.useState("")
+  const [formSpecialty, setFormSpecialty] = React.useState("")
+  const [formSubject, setFormSubject] = React.useState("")
+  const [formNotes, setFormNotes] = React.useState("")
+  const [formDate, setFormDate] = React.useState("")
+  const [formTime, setFormTime] = React.useState("")
+
+  const handleCreateConsultation = async () => {
+    if (!formType || !formSpecialty || !formSubject) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+    setSubmitting(true)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800))
+      toast.success("Consultation request submitted!")
+      setDialogOpen(false)
+      setFormType("")
+      setFormSpecialty("")
+      setFormSubject("")
+      setFormNotes("")
+      setFormDate("")
+      setFormTime("")
+    } catch {
+      toast.error("Failed to submit consultation request")
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const myRequests = consultations.filter(c => c.nurseFrom === "Nurse Adaora Nwosu")
   const incoming = consultations.filter(c => c.nurseTo === "Nurse Adaora Nwosu")
@@ -76,9 +109,9 @@ export default function ConsultationsPage() {
             Connect with specialists for clinical consultations
           </p>
         </div>
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => setDialogOpen(true)}>
               <Plus className="size-4" />
               Request Consultation
             </Button>
@@ -92,8 +125,8 @@ export default function ConsultationsPage() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Consultation Type</Label>
-                <Select>
+                <Label>Consultation Type *</Label>
+                <Select value={formType} onValueChange={setFormType}>
                   <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="video">Video Call</SelectItem>
@@ -103,8 +136,8 @@ export default function ConsultationsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Specialty</Label>
-                <Select>
+                <Label>Specialty *</Label>
+                <Select value={formSpecialty} onValueChange={setFormSpecialty}>
                   <SelectTrigger><SelectValue placeholder="Select specialty" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="neonatology">Neonatology</SelectItem>
@@ -118,26 +151,29 @@ export default function ConsultationsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subject">Subject</Label>
-                <Input id="subject" placeholder="Brief description of consultation topic" />
+                <Input id="subject" placeholder="Brief description of consultation topic" value={formSubject} onChange={e => setFormSubject(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Clinical Notes</Label>
-                <Textarea id="notes" placeholder="Describe the clinical question or concern" />
+                <Textarea id="notes" placeholder="Describe the clinical question or concern" value={formNotes} onChange={e => setFormNotes(e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Preferred Date</Label>
-                  <Input type="date" />
+                  <Input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Preferred Time</Label>
-                  <Input type="time" />
+                  <Input type="time" value={formTime} onChange={e => setFormTime(e.target.value)} />
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline">Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">Submit Request</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCreateConsultation} disabled={submitting}>
+                {submitting && <Loader2 className="size-4 mr-2 animate-spin" />}
+                Submit Request
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

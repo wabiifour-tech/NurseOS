@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Mail,
@@ -59,7 +58,6 @@ const roles = [
 ];
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -116,16 +114,9 @@ export default function RegisterPage() {
       window.location.href = "/";
     } catch (error) {
       console.error("Registration error:", error);
-      // Fallback: allow registration even if API fails (e.g. database not set up)
-      login({
-        id: "new-user",
-        email: data.email,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        role: data.role,
-      });
-      toast.success("Account created! Welcome to NurseOS. (Demo Mode)");
-      window.location.href = "/";
+      toast.error("Unable to connect to the server. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
