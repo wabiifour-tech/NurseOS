@@ -30,6 +30,7 @@ import {
   LogOut,
   HelpCircle,
   ChevronDown,
+  Loader2,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/auth-store"
 import Link from "next/link"
@@ -107,44 +108,18 @@ function DashboardHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative size-8">
               <Bell className="size-4 text-muted-foreground" />
-              <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
-                5
-              </span>
               <span className="sr-only">Notifications</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel className="flex items-center justify-between">
               <span>Notifications</span>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                5 new
-              </Badge>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="flex flex-col items-start gap-1 py-2.5">
-              <span className="text-sm font-medium">Early Warning Alert</span>
-              <span className="text-xs text-muted-foreground">
-                Patient Adebayo — vitals trending critical
+              <span className="text-sm text-muted-foreground">
+                No notifications yet. Start using NurseOS to see updates here.
               </span>
-              <span className="text-[10px] text-muted-foreground">2 min ago</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1 py-2.5">
-              <span className="text-sm font-medium">New Referral</span>
-              <span className="text-xs text-muted-foreground">
-                Dr. Okafor referred a patient from Cardiology
-              </span>
-              <span className="text-[10px] text-muted-foreground">15 min ago</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1 py-2.5">
-              <span className="text-sm font-medium">Medication Reminder</span>
-              <span className="text-xs text-muted-foreground">
-                3 patients due for medication in 30 min
-              </span>
-              <span className="text-[10px] text-muted-foreground">28 min ago</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-center justify-center text-emerald-600 font-medium">
-              View all notifications
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -203,6 +178,41 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  const { isAuthenticated, user } = useAuthStore()
+  const [hydrated, setHydrated] = React.useState(false)
+
+  React.useEffect(() => {
+    setHydrated(true)
+  }, [])
+
+  React.useEffect(() => {
+    // Only redirect after Zustand has hydrated from localStorage
+    if (hydrated && !isAuthenticated) {
+      window.location.href = "/login"
+    }
+  }, [hydrated, isAuthenticated])
+
+  // Don't render anything until hydration is complete
+  if (!hydrated) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-pulse">
+            <span className="text-white font-bold text-lg">N</span>
+          </div>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            <span className="text-sm">Loading NurseOS...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
+
   return (
     <SidebarProvider>
       <AppSidebar />

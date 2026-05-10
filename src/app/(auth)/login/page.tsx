@@ -57,10 +57,12 @@ export default function LoginPage() {
         firstName: result.user.firstName,
         lastName: result.user.lastName,
         role: result.user.role,
-      });
+      }, result.token);
 
       toast.success("Welcome back to NurseOS!");
-      router.push("/nurseai/patients");
+
+      // Use window.location for a hard redirect to ensure layout re-renders
+      window.location.href = "/";
     } catch {
       // Fallback: allow demo login even if API fails
       login({
@@ -70,8 +72,8 @@ export default function LoginPage() {
         lastName: "User",
         role: "NURSE",
       });
-      toast.success("Welcome back to NurseOS!");
-      router.push("/nurseai/patients");
+      toast.success("Welcome back to NurseOS! (Demo Mode)");
+      window.location.href = "/";
     }
   }
 

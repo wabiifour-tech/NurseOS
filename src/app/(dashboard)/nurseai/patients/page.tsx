@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { patients } from '@/lib/nurseai-data'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,52 +11,159 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Users, UserCheck, Stethoscope, AlertTriangle, Search, Plus, Phone, MapPin } from 'lucide-react'
+import { Users, UserCheck, Stethoscope, AlertTriangle, Search, Plus, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+interface Patient {
+  id: string
+  patientId: string
+  dateOfBirth: string | null
+  gender: string | null
+  bloodType: string | null
+  genotype: string | null
+  allergies: string
+  nationality: string | null
+  createdAt: string
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    displayName: string | null
+    email: string
+    phone: string | null
+    avatarUrl: string | null
+  } | null
+}
 
 export default function PatientsPage() {
+  const [patients, setPatients] = React.useState<Patient[]>([])
+  const [loading, setLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [genderFilter, setGenderFilter] = React.useState('all')
   const [bloodTypeFilter, setBloodTypeFilter] = React.useState('all')
-  const [wardFilter, setWardFilter] = React.useState('all')
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
 
-  const totalPatients = patients.length
-  const inpatient = patients.filter(p => p.status === 'Inpatient').length
-  const outpatient = patients.filter(p => p.status === 'Outpatient').length
-  const emergency = patients.filter(p => p.status === 'Emergency').length
+  // Form state
+  const [formFirstName, setFormFirstName] = React.useState('')
+  const [formLastName, setFormLastName] = React.useState('')
+  const [formAge, setFormAge] = React.useState('')
+  const [formGender, setFormGender] = React.useState('')
+  const [formBloodType, setFormBloodType] = React.useState('')
+  const [formPhone, setFormPhone] = React.useState('')
+  const [formEmail, setFormEmail] = React.useState('')
+  const [formAllergies, setFormAllergies] = React.useState('')
+  const [formDiagnosis, setFormDiagnosis] = React.useState('')
 
-  const wards = [...new Set(patients.map(p => p.ward))]
-  const bloodTypes = [...new Set(patients.map(p => p.bloodType))]
+  // Fetch patients from API
+  const fetchPatients = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      if (searchQuery) params.set('search', searchQuery)
+      if (genderFilter && genderFilter !== 'all') params.set('gender', genderFilter)
+      if (bloodTypeFilter && bloodTypeFilter !== 'all') params.set('bloodType', bloodTypeFilter)
+      params.set('limit', '50')
 
-  const filteredPatients = patients.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.primaryDiagnosis.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesGender = genderFilter === 'all' || p.gender === genderFilter
-    const matchesBloodType = bloodTypeFilter === 'all' || p.bloodType === bloodTypeFilter
-    const matchesWard = wardFilter === 'all' || p.ward === wardFilter
-    return matchesSearch && matchesGender && matchesBloodType && matchesWard
-  })
+      const res = await fetch(`/api/nurseai/patients?${params.toString()}`)
+      if (res.ok) {
+        const data = await res.json()
+        setPatients(data.patients || [])
+      }
+    } catch (error) {
+      console.error('Error fetching patients:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [searchQuery, genderFilter, bloodTypeFilter])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Inpatient': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      case 'Outpatient': return 'bg-sky-50 text-sky-700 border-sky-200'
-      case 'Emergency': return 'bg-red-50 text-red-700 border-red-200'
-      case 'Discharged': return 'bg-slate-50 text-slate-600 border-slate-200'
-      default: return 'bg-slate-50 text-slate-600 border-slate-200'
+  React.useEffect(() => {
+    fetchPatients()
+  }, [fetchPatients])
+
+  // Create patient
+  const handleCreatePatient = async () => {
+    if (!formFirstName || !formLastName) {
+      toast.error('First name and last name are required')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const dob = formAge ? new Date(new Date().getFullYear() - parseInt(formAge), 0, 1).toISOString() : null
+
+      const res = await fetch('/api/nurseai/patients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: formFirstName,
+          lastName: formLastName,
+          email: formEmail || undefined,
+          phone: formPhone || undefined,
+          dateOfBirth: dob,
+          gender: formGender || undefined,
+          bloodType: formBloodType || undefined,
+          allergies: formAllergies ? formAllergies.split(',').map(a => a.trim()) : [],
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to create patient')
+        setSubmitting(false)
+        return
+      }
+
+      toast.success(`Patient ${formFirstName} ${formLastName} registered successfully!`)
+      setDialogOpen(false)
+      // Reset form
+      setFormFirstName('')
+      setFormLastName('')
+      setFormAge('')
+      setFormGender('')
+      setFormBloodType('')
+      setFormPhone('')
+      setFormEmail('')
+      setFormAllergies('')
+      setFormDiagnosis('')
+      // Refresh patients list
+      fetchPatients()
+    } catch {
+      toast.error('Failed to create patient. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase()
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
   }
+
+  const getAge = (dob: string | null) => {
+    if (!dob) return '—'
+    const birth = new Date(dob)
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    const m = today.getMonth() - birth.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+    return age
+  }
+
+  const totalPatients = patients.length
+  const malePatients = patients.filter(p => p.gender === 'Male').length
+  const femalePatients = patients.filter(p => p.gender === 'Female').length
+
+  const bloodTypes = [...new Set(patients.map(p => p.bloodType).filter(Boolean))] as string[]
 
   const stats = [
     { label: 'Total Patients', value: totalPatients, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Inpatient', value: inpatient, icon: UserCheck, color: 'text-teal-600', bg: 'bg-teal-50' },
-    { label: 'Outpatient', value: outpatient, icon: Stethoscope, color: 'text-cyan-600', bg: 'bg-cyan-50' },
-    { label: 'Emergency', value: emergency, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+    { label: 'Male', value: malePatients, icon: UserCheck, color: 'text-teal-600', bg: 'bg-teal-50' },
+    { label: 'Female', value: femalePatients, icon: Stethoscope, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+    { label: 'New This Month', value: patients.filter(p => {
+      const created = new Date(p.createdAt)
+      const now = new Date()
+      return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear()
+    }).length, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   ]
 
   return (
@@ -69,12 +175,10 @@ export default function PatientsPage() {
           <p className="text-sm text-muted-foreground">Manage and view all patient records</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-              <Plus className="size-4" />
-              Add New Patient
-            </Button>
-          </DialogTrigger>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setDialogOpen(true)}>
+            <Plus className="size-4" />
+            Add New Patient
+          </Button>
           <DialogContent className="sm:max-w-[525px]">
             <DialogHeader>
               <DialogTitle>Register New Patient</DialogTitle>
@@ -83,22 +187,22 @@ export default function PatientsPage() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="e.g. Adaeze" />
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input id="firstName" placeholder="e.g. Adaeze" value={formFirstName} onChange={e => setFormFirstName(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="e.g. Okonkwo" />
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Input id="lastName" placeholder="e.g. Okonkwo" value={formLastName} onChange={e => setFormLastName(e.target.value)} />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="age">Age</Label>
-                  <Input id="age" type="number" placeholder="34" />
+                  <Input id="age" type="number" placeholder="34" value={formAge} onChange={e => setFormAge(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
-                  <Select>
+                  <Select value={formGender} onValueChange={setFormGender}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Male">Male</SelectItem>
@@ -108,7 +212,7 @@ export default function PatientsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="bloodType">Blood Type</Label>
-                  <Select>
+                  <Select value={formBloodType} onValueChange={setFormBloodType}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bt => (
@@ -120,35 +224,23 @@ export default function PatientsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" placeholder="+234 800 000 0000" />
+                <Input id="phone" placeholder="+234 800 000 0000" value={formPhone} onChange={e => setFormPhone(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Input id="address" placeholder="e.g. 23 Awolowo Rd, Ikoyi, Lagos" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="ward">Ward</Label>
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Select ward" /></SelectTrigger>
-                    <SelectContent>
-                      {wards.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="diagnosis">Primary Diagnosis</Label>
-                  <Input id="diagnosis" placeholder="e.g. Severe Malaria" />
-                </div>
+                <Label htmlFor="email">Email (optional)</Label>
+                <Input id="email" type="email" placeholder="patient@email.com" value={formEmail} onChange={e => setFormEmail(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="allergies">Allergies (comma-separated)</Label>
-                <Input id="allergies" placeholder="e.g. Penicillin, Sulfa drugs" />
+                <Input id="allergies" placeholder="e.g. Penicillin, Sulfa drugs" value={formAllergies} onChange={e => setFormAllergies(e.target.value)} />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setDialogOpen(false)}>Register Patient</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreatePatient} disabled={submitting}>
+                {submitting ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
+                Register Patient
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -178,7 +270,7 @@ export default function PatientsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, ID, or diagnosis..."
+                placeholder="Search by name, ID, or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -201,18 +293,7 @@ export default function PatientsPage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 {bloodTypes.sort().map(bt => (
-                  <SelectItem key={bt} value={bt}>{bt}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={wardFilter} onValueChange={setWardFilter}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="Ward" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Wards</SelectItem>
-                {wards.map(w => (
-                  <SelectItem key={w} value={w}>{w}</SelectItem>
+                  <SelectItem key={bt} value={bt!}>{bt}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -220,138 +301,143 @@ export default function PatientsPage() {
         </CardContent>
       </Card>
 
-      {/* Desktop Table */}
-      <Card className="border-0 shadow-sm hidden md:block">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-4">Name</TableHead>
-                <TableHead>Patient ID</TableHead>
-                <TableHead>Age</TableHead>
-                <TableHead>Gender</TableHead>
-                <TableHead>Blood Type</TableHead>
-                <TableHead>Ward</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Visit</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPatients.map(patient => (
-                <TableRow key={patient.id} className="cursor-pointer hover:bg-emerald-50/50 transition-colors">
-                  <TableCell className="pl-4">
-                    <Link href={`/nurseai/patients/${patient.id}`} className="flex items-center gap-3">
-                      <Avatar className="size-8 border border-emerald-200">
-                        <AvatarFallback className="bg-emerald-50 text-emerald-700 text-xs font-medium">
-                          {getInitials(patient.name)}
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-emerald-600" />
+        </div>
+      ) : (
+        <>
+          {/* Desktop Table */}
+          <Card className="border-0 shadow-sm hidden md:block">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-4">Name</TableHead>
+                    <TableHead>Patient ID</TableHead>
+                    <TableHead>Age</TableHead>
+                    <TableHead>Gender</TableHead>
+                    <TableHead>Blood Type</TableHead>
+                    <TableHead>Allergies</TableHead>
+                    <TableHead>Registered</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {patients.map(patient => (
+                    <TableRow key={patient.id} className="cursor-pointer hover:bg-emerald-50/50 transition-colors">
+                      <TableCell className="pl-4">
+                        <Link href={`/nurseai/patients/${patient.id}`} className="flex items-center gap-3">
+                          <Avatar className="size-8 border border-emerald-200">
+                            <AvatarFallback className="bg-emerald-50 text-emerald-700 text-xs font-medium">
+                              {patient.user ? getInitials(patient.user.firstName, patient.user.lastName) : 'PT'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium text-sm">
+                              {patient.user ? `${patient.user.firstName} ${patient.user.lastName}` : 'Unknown'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{patient.user?.email || '—'}</p>
+                          </div>
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/nurseai/patients/${patient.id}`} className="text-sm font-mono text-muted-foreground">
+                          {patient.patientId}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/nurseai/patients/${patient.id}`}>{getAge(patient.dateOfBirth)}</Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/nurseai/patients/${patient.id}`}>{patient.gender || '—'}</Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/nurseai/patients/${patient.id}`}>
+                          <Badge variant="outline" className="font-mono text-xs">{patient.bloodType || '—'}</Badge>
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/nurseai/patients/${patient.id}`} className="text-sm">
+                          {(() => {
+                            try {
+                              const allergies = JSON.parse(patient.allergies || '[]')
+                              return allergies.length > 0 ? allergies.join(', ') : 'None'
+                            } catch { return 'None' }
+                          })()}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/nurseai/patients/${patient.id}`} className="text-sm text-muted-foreground">
+                          {new Date(patient.createdAt).toLocaleDateString()}
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {patients.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Users className="size-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No patients yet</p>
+                  <p className="text-sm">Register your first patient to get started</p>
+                  <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setDialogOpen(true)}>
+                    <Plus className="size-4" />
+                    Add First Patient
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3">
+            {patients.map(patient => (
+              <Link key={patient.id} href={`/nurseai/patients/${patient.id}`}>
+                <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="size-10 border border-emerald-200">
+                        <AvatarFallback className="bg-emerald-50 text-emerald-700 text-sm font-medium">
+                          {patient.user ? getInitials(patient.user.firstName, patient.user.lastName) : 'PT'}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="font-medium text-sm">{patient.name}</p>
-                        <p className="text-xs text-muted-foreground">{patient.primaryDiagnosis}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">
+                          {patient.user ? `${patient.user.firstName} ${patient.user.lastName}` : 'Unknown'}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono">{patient.patientId}</p>
+                        <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                          <span>Age: <span className="text-foreground font-medium">{getAge(patient.dateOfBirth)}</span></span>
+                          <span>Gender: <span className="text-foreground font-medium">{patient.gender || '—'}</span></span>
+                          <span>Blood: <span className="text-foreground font-medium">{patient.bloodType || '—'}</span></span>
+                          <span>Added: <span className="text-foreground font-medium">{new Date(patient.createdAt).toLocaleDateString()}</span></span>
+                        </div>
                       </div>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/nurseai/patients/${patient.id}`} className="text-sm font-mono text-muted-foreground">
-                      {patient.patientId}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/nurseai/patients/${patient.id}`}>{patient.age}</Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/nurseai/patients/${patient.id}`}>{patient.gender}</Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/nurseai/patients/${patient.id}`}>
-                      <Badge variant="outline" className="font-mono text-xs">{patient.bloodType}</Badge>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/nurseai/patients/${patient.id}`} className="text-sm">{patient.ward}</Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/nurseai/patients/${patient.id}`}>
-                      <Badge variant="outline" className={`text-xs ${getStatusColor(patient.status)}`}>
-                        {patient.status}
-                      </Badge>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/nurseai/patients/${patient.id}`} className="text-sm text-muted-foreground">
-                      {patient.lastVisit}
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {filteredPatients.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <Users className="size-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No patients found</p>
-              <p className="text-sm">Try adjusting your search or filters</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Mobile Cards */}
-      <div className="md:hidden space-y-3">
-        {filteredPatients.map(patient => (
-          <Link key={patient.id} href={`/nurseai/patients/${patient.id}`}>
-            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="size-10 border border-emerald-200">
-                      <AvatarFallback className="bg-emerald-50 text-emerald-700 text-sm font-medium">
-                        {getInitials(patient.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium text-sm">{patient.name}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{patient.patientId}</p>
                     </div>
-                  </div>
-                  <Badge variant="outline" className={`text-xs ${getStatusColor(patient.status)}`}>
-                    {patient.status}
-                  </Badge>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <span>Age: <span className="text-foreground font-medium">{patient.age}</span></span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <span>Gender: <span className="text-foreground font-medium">{patient.gender}</span></span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <span>Blood: <span className="text-foreground font-medium">{patient.bloodType}</span></span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <MapPin className="size-3" />
-                    <span className="text-foreground font-medium truncate">{patient.ward.split(' - ')[1]}</span>
-                  </div>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground truncate">{patient.primaryDiagnosis}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {filteredPatients.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            <Users className="size-12 mx-auto mb-3 opacity-30" />
-            <p className="font-medium">No patients found</p>
-            <p className="text-sm">Try adjusting your search or filters</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+            {patients.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="size-12 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No patients yet</p>
+                <p className="text-sm">Register your first patient to get started</p>
+                <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => setDialogOpen(true)}>
+                  <Plus className="size-4" />
+                  Add First Patient
+                </Button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Results count */}
-      <p className="text-xs text-muted-foreground text-center">
-        Showing {filteredPatients.length} of {totalPatients} patients
-      </p>
+          {/* Results count */}
+          <p className="text-xs text-muted-foreground text-center">
+            Showing {patients.length} patient{patients.length !== 1 ? 's' : ''}
+          </p>
+        </>
+      )}
     </div>
   )
 }

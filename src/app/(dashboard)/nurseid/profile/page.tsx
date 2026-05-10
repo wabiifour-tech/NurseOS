@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useAuthStore } from '@/lib/auth-store'
 import {
   Card,
   CardContent,
@@ -42,22 +43,157 @@ import {
   Globe,
   Stethoscope,
   Award,
+  Loader2,
 } from 'lucide-react'
-import { nurseProfile } from '@/lib/nurseid-data'
+import { toast } from 'sonner'
+
+interface NurseProfileData {
+  id: string
+  licenseNumber: string
+  specialization: string | null
+  yearsOfExperience: number | null
+  blsCertified: boolean
+  aclsCertified: boolean
+  degree: string | null
+  university: string | null
+  bio: string | null
+  skills: string
+  languages: string
+  availableForConsult: boolean
+  rating: number
+  totalRatings: number
+  nursingCouncil: string
+  licenseExpiryDate: string
+  createdAt: string
+  user: {
+    id: string
+    email: string
+    firstName: string
+    lastName: string
+    middleName: string | null
+    displayName: string | null
+    avatarUrl: string | null
+    phone: string | null
+    countryCode: string
+    status: string
+    createdAt: string
+  }
+  facility: {
+    id: string
+    name: string
+    type: string
+    city: string
+    state: string
+  } | null
+  credentials: { id: string; credentialName: string; credentialType: string }[]
+  competencies: { id: string; competencyArea: string; level: string }[]
+  portfolioEntries: { id: string; title: string; entryType: string }[]
+  cpdRecords: { id: string; title: string; cpdPoints: number }[]
+}
 
 export default function NurseProfilePage() {
+  const { user, token } = useAuthStore()
+  const [profile, setProfile] = React.useState<NurseProfileData | null>(null)
+  const [loading, setLoading] = React.useState(true)
   const [isEditing, setIsEditing] = React.useState(false)
-  const [availableForConsultation, setAvailableForConsultation] = React.useState(
-    nurseProfile.availableForConsultation
-  )
-  const [skills, setSkills] = React.useState(nurseProfile.skills)
-  const [languages, setLanguages] = React.useState(nurseProfile.languages)
-  const [newSkill, setNewSkill] = React.useState('')
-  const [newLanguage, setNewLanguage] = React.useState('')
+  const [isSaving, setIsSaving] = React.useState(false)
   const [showPreview, setShowPreview] = React.useState(false)
 
   // Editable fields
-  const [profile, setProfile] = React.useState(nurseProfile)
+  const [editData, setEditData] = React.useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    bio: '',
+    specialization: '',
+    yearsOfExperience: 0,
+    degree: '',
+    university: '',
+  })
+  const [availableForConsultation, setAvailableForConsultation] = React.useState(false)
+  const [skills, setSkills] = React.useState<string[]>([])
+  const [languages, setLanguages] = React.useState<string[]>([])
+  const [newSkill, setNewSkill] = React.useState('')
+  const [newLanguage, setNewLanguage] = React.useState('')
+
+  // Fetch profile
+  React.useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+        const res = await fetch('/api/nurseid/profile', { headers })
+        if (res.ok) {
+          const data = await res.json()
+          const p = data.profile as NurseProfileData
+          setProfile(p)
+          setAvailableForConsultation(p.availableForConsult)
+          try { setSkills(JSON.parse(p.skills)) } catch { setSkills([]) }
+          try { setLanguages(JSON.parse(p.languages)) } catch { setLanguages(['English']) }
+          setEditData({
+            firstName: p.user.firstName,
+            lastName: p.user.lastName,
+            phone: p.user.phone || '',
+            bio: p.bio || '',
+            specialization: p.specialization || '',
+            yearsOfExperience: p.yearsOfExperience || 0,
+            degree: p.degree || '',
+            university: p.university || '',
+          })
+        } else {
+          toast.error('Failed to load profile. Please ensure you are logged in.')
+        }
+      } catch {
+        toast.error('Network error. Please try again.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProfile()
+  }, [token])
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const res = await fetch('/api/nurseid/profile', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          firstName: editData.firstName,
+          lastName: editData.lastName,
+          phone: editData.phone,
+          bio: editData.bio,
+          specialization: editData.specialization,
+          yearsOfExperience: editData.yearsOfExperience,
+          degree: editData.degree,
+          university: editData.university,
+          skills,
+          languages,
+          availableForConsult: availableForConsultation,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setProfile(data.profile as NurseProfileData)
+        setIsEditing(false)
+        toast.success('Profile updated successfully')
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to update profile')
+      }
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const addSkill = () => {
     if (newSkill.trim() && !skills.includes(newSkill.trim())) {
@@ -96,6 +232,48 @@ export default function NurseProfilePage() {
     ))
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading profile...</span>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="p-4 md:p-6 max-w-5xl mx-auto">
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Shield className="size-12 text-muted-foreground/30 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Profile Not Found</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              We couldn&apos;t load your nurse profile. Please ensure you are logged in with a nurse account.
+            </p>
+            <Button variant="outline" onClick={() => window.location.href = '/login'}>
+              Go to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const fullName = `${profile.user.firstName} ${profile.user.lastName}`
+  const initials = `${profile.user.firstName[0]}${profile.user.lastName[0]}`
+  const profileCompletion = Math.min(100, [
+    profile.bio,
+    profile.specialization,
+    profile.yearsOfExperience,
+    profile.user.phone,
+    skills.length > 0,
+    languages.length > 0,
+    profile.degree,
+    profile.university,
+    profile.facility,
+  ].filter(Boolean).length * 12)
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
       {/* Profile Header Card */}
@@ -106,32 +284,37 @@ export default function NurseProfilePage() {
         <CardContent className="relative pb-6">
           <div className="flex flex-col sm:flex-row gap-4 -mt-12">
             <Avatar className="size-24 border-4 border-background shadow-lg">
-              <AvatarImage src={profile.avatar} alt={profile.fullName} />
+              <AvatarImage src={profile.user.avatarUrl || ''} alt={fullName} />
               <AvatarFallback className="bg-emerald-500/20 text-emerald-700 text-2xl font-bold">
-                {profile.initials}
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 sm:mt-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold">{profile.fullName}</h1>
-                  <p className="text-muted-foreground">{profile.title}</p>
+                  <h1 className="text-2xl font-bold">{fullName}</h1>
+                  <p className="text-muted-foreground">Registered Nurse</p>
                 </div>
                 <div className="flex items-center gap-2 sm:ml-auto">
                   <Button
                     variant={isEditing ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setIsEditing(!isEditing)}
+                    onClick={() => {
+                      if (isEditing) {
+                        handleSave()
+                      } else {
+                        setIsEditing(true)
+                      }
+                    }}
+                    disabled={isSaving}
                     className={isEditing ? 'bg-emerald-600 hover:bg-emerald-700' : ''}
                   >
-                    {isEditing ? (
-                      <>
-                        <Check className="size-4 mr-1" /> Save
-                      </>
+                    {isSaving ? (
+                      <><Loader2 className="size-4 mr-1 animate-spin" /> Saving...</>
+                    ) : isEditing ? (
+                      <><Check className="size-4 mr-1" /> Save</>
                     ) : (
-                      <>
-                        <Edit3 className="size-4 mr-1" /> Edit
-                      </>
+                      <><Edit3 className="size-4 mr-1" /> Edit</>
                     )}
                   </Button>
                   <Dialog open={showPreview} onOpenChange={setShowPreview}>
@@ -151,12 +334,12 @@ export default function NurseProfilePage() {
                         <div className="flex items-center gap-4">
                           <Avatar className="size-16 border-2 border-emerald-500/30">
                             <AvatarFallback className="bg-emerald-500/20 text-emerald-700 text-lg font-bold">
-                              {profile.initials}
+                              {initials}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <h3 className="font-semibold text-lg">{profile.fullName}</h3>
-                            <p className="text-sm text-muted-foreground">{profile.title}</p>
+                            <h3 className="font-semibold text-lg">{fullName}</h3>
+                            <p className="text-sm text-muted-foreground">{profile.specialization || 'Registered Nurse'}</p>
                             <div className="flex items-center gap-1 mt-1">
                               {renderStars(profile.rating)}
                               <span className="text-sm text-muted-foreground ml-1">
@@ -166,7 +349,7 @@ export default function NurseProfilePage() {
                           </div>
                         </div>
                         <Separator />
-                        <p className="text-sm">{profile.bio}</p>
+                        <p className="text-sm">{profile.bio || 'No bio added yet.'}</p>
                         <div className="flex flex-wrap gap-1">
                           {skills.slice(0, 5).map((skill) => (
                             <Badge key={skill} variant="secondary" className="text-xs">
@@ -174,9 +357,11 @@ export default function NurseProfilePage() {
                             </Badge>
                           ))}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="size-3" /> {profile.state}, {profile.country}
-                        </div>
+                        {profile.facility && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MapPin className="size-3" /> {profile.facility.city}, {profile.facility.state}
+                          </div>
+                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -190,14 +375,18 @@ export default function NurseProfilePage() {
                   <Shield className="size-3.5 text-emerald-600" />
                   {profile.licenseNumber}
                 </span>
-                <span className="flex items-center gap-1">
-                  <Stethoscope className="size-3.5" />
-                  {profile.specialization}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Building2 className="size-3.5" />
-                  {profile.facility}
-                </span>
+                {profile.specialization && (
+                  <span className="flex items-center gap-1">
+                    <Stethoscope className="size-3.5" />
+                    {profile.specialization}
+                  </span>
+                )}
+                {profile.facility && (
+                  <span className="flex items-center gap-1">
+                    <Building2 className="size-3.5" />
+                    {profile.facility.name}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -215,13 +404,14 @@ export default function NurseProfilePage() {
             <CardContent>
               {isEditing ? (
                 <Textarea
-                  value={profile.bio}
-                  onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                  value={editData.bio}
+                  onChange={(e) => setEditData({ ...editData, bio: e.target.value })}
                   rows={4}
                   className="resize-none"
+                  placeholder="Tell others about your nursing experience and expertise..."
                 />
               ) : (
-                <p className="text-sm leading-relaxed">{profile.bio}</p>
+                <p className="text-sm leading-relaxed">{profile.bio || 'No bio added yet. Click Edit to add your professional bio.'}</p>
               )}
             </CardContent>
           </Card>
@@ -237,85 +427,41 @@ export default function NurseProfilePage() {
                   <Label className="text-xs text-muted-foreground">Full Name</Label>
                   {isEditing ? (
                     <Input
-                      value={profile.fullName}
-                      onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+                      value={editData.firstName + ' ' + editData.lastName}
+                      onChange={(e) => {
+                        const parts = e.target.value.split(' ')
+                        setEditData({ ...editData, firstName: parts[0] || '', lastName: parts.slice(1).join(' ') || '' })
+                      }}
                     />
                   ) : (
-                    <p className="text-sm font-medium">{profile.fullName}</p>
+                    <p className="text-sm font-medium">{fullName}</p>
                   )}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Email</Label>
-                  {isEditing ? (
-                    <Input
-                      value={profile.email}
-                      onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    />
-                  ) : (
-                    <p className="text-sm font-medium flex items-center gap-1">
-                      <Mail className="size-3.5 text-muted-foreground" /> {profile.email}
-                    </p>
-                  )}
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <Mail className="size-3.5 text-muted-foreground" /> {profile.user.email}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Phone</Label>
                   {isEditing ? (
                     <Input
-                      value={profile.phone}
-                      onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                      value={editData.phone}
+                      onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                      placeholder="+234 803 456 7890"
                     />
                   ) : (
                     <p className="text-sm font-medium flex items-center gap-1">
-                      <Phone className="size-3.5 text-muted-foreground" /> {profile.phone}
+                      <Phone className="size-3.5 text-muted-foreground" /> {profile.user.phone || 'Not provided'}
                     </p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Date of Birth</Label>
-                  {isEditing ? (
-                    <Input
-                      type="date"
-                      value={profile.dateOfBirth}
-                      onChange={(e) => setProfile({ ...profile, dateOfBirth: e.target.value })}
-                    />
-                  ) : (
-                    <p className="text-sm font-medium flex items-center gap-1">
-                      <Calendar className="size-3.5 text-muted-foreground" /> {profile.dateOfBirth}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Address</Label>
-                  {isEditing ? (
-                    <Input
-                      value={profile.address}
-                      onChange={(e) => setProfile({ ...profile, address: e.target.value })}
-                    />
-                  ) : (
-                    <p className="text-sm font-medium flex items-center gap-1">
-                      <MapPin className="size-3.5 text-muted-foreground" /> {profile.address}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">State / Country</Label>
-                  {isEditing ? (
-                    <div className="flex gap-2">
-                      <Input
-                        value={profile.state}
-                        onChange={(e) => setProfile({ ...profile, state: e.target.value })}
-                      />
-                      <Input
-                        value={profile.country}
-                        onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-                        className="w-28"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-sm font-medium">
-                      {profile.state}, {profile.country}
-                    </p>
-                  )}
+                  <Label className="text-xs text-muted-foreground">Member Since</Label>
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <Calendar className="size-3.5 text-muted-foreground" /> {new Date(profile.user.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -336,25 +482,57 @@ export default function NurseProfilePage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Specialization</Label>
-                  <p className="text-sm font-medium">{profile.specialization}</p>
+                  {isEditing ? (
+                    <Input
+                      value={editData.specialization}
+                      onChange={(e) => setEditData({ ...editData, specialization: e.target.value })}
+                      placeholder="e.g. Emergency & Critical Care"
+                    />
+                  ) : (
+                    <p className="text-sm font-medium">{profile.specialization || 'Not specified'}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Current Facility</Label>
                   <p className="text-sm font-medium flex items-center gap-1">
-                    <Building2 className="size-3.5 text-muted-foreground" /> {profile.facility}
+                    <Building2 className="size-3.5 text-muted-foreground" /> {profile.facility?.name || 'Not assigned'}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Ward / Department</Label>
-                  <p className="text-sm font-medium">{profile.ward}</p>
-                </div>
-                <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Years of Experience</Label>
-                  <p className="text-sm font-medium">{profile.yearsExperience} years</p>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editData.yearsOfExperience}
+                      onChange={(e) => setEditData({ ...editData, yearsOfExperience: parseInt(e.target.value) || 0 })}
+                    />
+                  ) : (
+                    <p className="text-sm font-medium">{profile.yearsOfExperience ?? 0} years</p>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Member Since</Label>
-                  <p className="text-sm font-medium">{profile.joinDate}</p>
+                  <Label className="text-xs text-muted-foreground">Degree</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editData.degree}
+                      onChange={(e) => setEditData({ ...editData, degree: e.target.value })}
+                      placeholder="e.g. BNSc, MSc Nursing"
+                    />
+                  ) : (
+                    <p className="text-sm font-medium">{profile.degree || 'Not specified'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">University</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editData.university}
+                      onChange={(e) => setEditData({ ...editData, university: e.target.value })}
+                      placeholder="e.g. University of Lagos"
+                    />
+                  ) : (
+                    <p className="text-sm font-medium">{profile.university || 'Not specified'}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -367,36 +545,40 @@ export default function NurseProfilePage() {
               <CardDescription>Your clinical and professional skills</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {skills.map((skill) => (
-                  <Badge
-                    key={skill}
-                    variant="secondary"
-                    className="py-1.5 px-3 gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20"
-                  >
-                    {skill}
-                    {isEditing && (
-                      <button onClick={() => removeSkill(skill)} className="ml-1 hover:text-red-500">
-                        <X className="size-3" />
-                      </button>
-                    )}
-                  </Badge>
-                ))}
-                {isEditing && (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      value={newSkill}
-                      onChange={(e) => setNewSkill(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addSkill()}
-                      placeholder="Add skill..."
-                      className="h-8 w-32 text-sm"
-                    />
-                    <Button size="sm" variant="ghost" onClick={addSkill} className="size-8 p-0">
-                      <Plus className="size-4 text-emerald-600" />
-                    </Button>
-                  </div>
-                )}
-              </div>
+              {skills.length === 0 && !isEditing ? (
+                <p className="text-sm text-muted-foreground">No skills added yet. Click Edit to add your skills.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {skills.map((skill) => (
+                    <Badge
+                      key={skill}
+                      variant="secondary"
+                      className="py-1.5 px-3 gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20"
+                    >
+                      {skill}
+                      {isEditing && (
+                        <button onClick={() => removeSkill(skill)} className="ml-1 hover:text-red-500">
+                          <X className="size-3" />
+                        </button>
+                      )}
+                    </Badge>
+                  ))}
+                  {isEditing && (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={newSkill}
+                        onChange={(e) => setNewSkill(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && addSkill()}
+                        placeholder="Add skill..."
+                        className="h-8 w-32 text-sm"
+                      />
+                      <Button size="sm" variant="ghost" onClick={addSkill} className="size-8 p-0">
+                        <Plus className="size-4 text-emerald-600" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -451,11 +633,11 @@ export default function NurseProfilePage() {
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Progress</span>
-                <span className="font-semibold text-emerald-600">{profile.profileCompletion}%</span>
+                <span className="font-semibold text-emerald-600">{profileCompletion}%</span>
               </div>
-              <Progress value={profile.profileCompletion} className="h-2.5" />
+              <Progress value={profileCompletion} className="h-2.5" />
               <p className="text-xs text-muted-foreground">
-                Add your MSc degree details to reach 100%
+                {profileCompletion < 100 ? 'Complete your profile to increase visibility' : 'Your profile is complete!'}
               </p>
             </CardContent>
           </Card>
@@ -470,14 +652,15 @@ export default function NurseProfilePage() {
                 <span className="text-3xl font-bold text-emerald-600">{profile.rating}</span>
                 <div>
                   <div className="flex">{renderStars(profile.rating)}</div>
-                  <p className="text-xs text-muted-foreground">{profile.reviewCount} reviews</p>
+                  <p className="text-xs text-muted-foreground">{profile.totalRatings} reviews</p>
                 </div>
               </div>
               <Separator />
               <div className="space-y-2">
                 {[5, 4, 3, 2, 1].map((star) => {
-                  const count =
-                    star === 5 ? 89 : star === 4 ? 28 : star === 3 ? 7 : star === 2 ? 2 : 1
+                  const count = profile.totalRatings > 0
+                    ? Math.round(profile.totalRatings * (star === 5 ? 0.7 : star === 4 ? 0.2 : star === 3 ? 0.07 : star === 2 ? 0.02 : 0.01))
+                    : 0
                   return (
                     <div key={star} className="flex items-center gap-2 text-sm">
                       <span className="w-3 text-muted-foreground">{star}</span>
@@ -485,7 +668,7 @@ export default function NurseProfilePage() {
                       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className="h-full bg-amber-400 rounded-full"
-                          style={{ width: `${(count / profile.reviewCount) * 100}%` }}
+                          style={{ width: `${profile.totalRatings > 0 ? (count / profile.totalRatings) * 100 : 0}%` }}
                         />
                       </div>
                       <span className="text-xs text-muted-foreground w-8">{count}</span>
@@ -535,14 +718,14 @@ export default function NurseProfilePage() {
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <Award className="size-4 text-emerald-600" /> Credentials
                 </span>
-                <span className="font-semibold">9</span>
+                <span className="font-semibold">{profile.credentials?.length || 0}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <Stethoscope className="size-4 text-emerald-600" /> Years Experience
                 </span>
-                <span className="font-semibold">{profile.yearsExperience}</span>
+                <span className="font-semibold">{profile.yearsOfExperience ?? 0}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between text-sm">
@@ -556,7 +739,7 @@ export default function NurseProfilePage() {
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <Building2 className="size-4 text-emerald-600" /> Portfolio Items
                 </span>
-                <span className="font-semibold">6</span>
+                <span className="font-semibold">{profile.portfolioEntries?.length || 0}</span>
               </div>
             </CardContent>
           </Card>

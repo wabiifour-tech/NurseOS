@@ -107,13 +107,16 @@ export default function RegisterPage() {
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
-        role: data.role,
-      });
+        role: result.originalRole || data.role,
+      }, result.token);
 
       toast.success("Account created! Welcome to NurseOS.");
-      router.push("/nurseai/patients");
-    } catch {
-      // Fallback: allow registration even if API fails
+
+      // Use window.location for a hard redirect to ensure layout re-renders
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Registration error:", error);
+      // Fallback: allow registration even if API fails (e.g. database not set up)
       login({
         id: "new-user",
         email: data.email,
@@ -121,8 +124,8 @@ export default function RegisterPage() {
         lastName: data.lastName,
         role: data.role,
       });
-      toast.success("Account created! Welcome to NurseOS.");
-      router.push("/nurseai/patients");
+      toast.success("Account created! Welcome to NurseOS. (Demo Mode)");
+      window.location.href = "/";
     }
   }
 

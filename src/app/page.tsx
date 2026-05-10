@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -138,11 +138,50 @@ const pricingTiers = [
   },
 ];
 
+// Pre-computed particle positions to avoid hydration mismatch with Math.random()
+const HERO_PARTICLES = [
+  { left: 12.5, top: 23.7, duration: 5.2, delay: 0.3 },
+  { left: 45.8, top: 67.3, duration: 4.8, delay: 1.1 },
+  { left: 78.2, top: 15.9, duration: 6.1, delay: 0.7 },
+  { left: 33.6, top: 82.4, duration: 3.9, delay: 1.8 },
+  { left: 91.4, top: 45.2, duration: 5.5, delay: 0.1 },
+  { left: 7.3, top: 56.8, duration: 4.3, delay: 1.4 },
+  { left: 62.1, top: 34.6, duration: 6.7, delay: 0.9 },
+  { left: 28.9, top: 71.2, duration: 3.6, delay: 1.6 },
+  { left: 85.7, top: 88.1, duration: 5.8, delay: 0.5 },
+  { left: 51.3, top: 9.4, duration: 4.1, delay: 1.2 },
+  { left: 19.7, top: 48.6, duration: 6.3, delay: 0.8 },
+  { left: 73.5, top: 62.9, duration: 3.4, delay: 1.9 },
+  { left: 40.2, top: 17.5, duration: 5.1, delay: 0.4 },
+  { left: 95.8, top: 73.8, duration: 4.7, delay: 1.0 },
+  { left: 14.1, top: 91.3, duration: 6.5, delay: 0.6 },
+  { left: 58.6, top: 26.7, duration: 3.8, delay: 1.5 },
+  { left: 82.4, top: 54.2, duration: 5.3, delay: 0.2 },
+  { left: 36.9, top: 38.5, duration: 4.5, delay: 1.3 },
+  { left: 69.7, top: 79.6, duration: 6.9, delay: 0.7 },
+  { left: 23.8, top: 5.9, duration: 3.7, delay: 1.7 },
+];
+
+const CTA_PARTICLES = [
+  { left: 15.3, top: 28.7, duration: 4.2, delay: 0.5 },
+  { left: 72.8, top: 12.4, duration: 3.8, delay: 1.2 },
+  { left: 43.1, top: 85.6, duration: 4.9, delay: 0.3 },
+  { left: 88.6, top: 47.2, duration: 3.5, delay: 1.8 },
+  { left: 6.4, top: 63.9, duration: 4.6, delay: 0.9 },
+  { left: 56.2, top: 31.5, duration: 3.2, delay: 1.4 },
+  { left: 34.7, top: 91.3, duration: 4.8, delay: 0.7 },
+  { left: 81.9, top: 18.6, duration: 3.9, delay: 1.1 },
+  { left: 21.5, top: 54.8, duration: 4.4, delay: 0.4 },
+  { left: 67.3, top: 76.1, duration: 3.6, delay: 1.6 },
+];
+
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
@@ -243,36 +282,39 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background */}
+        {/* Background - No nurse image, pure gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-teal-900 to-cyan-950" />
-        <div
-          className="absolute inset-0 opacity-20 bg-cover bg-center"
-          style={{ backgroundImage: "url(/nurseos-hero.png)" }}
-        />
+        {/* Decorative grid pattern instead of unknown person image */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)`,
+          backgroundSize: '40px 40px'
+        }} />
         <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-emerald-950/60" />
 
-        {/* Floating particles */}
-        <div className="absolute inset-0 overflow-hidden">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-1 h-1 bg-emerald-400/30 rounded-full"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-              }}
-              animate={{
-                y: [0, -30, 0],
-                opacity: [0.2, 0.6, 0.2],
-              }}
-              transition={{
-                duration: 3 + Math.random() * 4,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-              }}
-            />
-          ))}
-        </div>
+        {/* Floating particles - using pre-computed positions */}
+        {mounted && (
+          <div className="absolute inset-0 overflow-hidden">
+            {HERO_PARTICLES.map((p, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-1 h-1 bg-emerald-400/30 rounded-full"
+                style={{
+                  left: `${p.left}%`,
+                  top: `${p.top}%`,
+                }}
+                animate={{
+                  y: [0, -30, 0],
+                  opacity: [0.2, 0.6, 0.2],
+                }}
+                transition={{
+                  duration: p.duration,
+                  repeat: Infinity,
+                  delay: p.delay,
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
@@ -339,11 +381,11 @@ export default function LandingPage() {
             transition={{ duration: 0.8, delay: 0.8 }}
           >
             <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> HIPAA Aligned</span>
-            <span className="text-emerald-600">•</span>
+            <span className="text-emerald-600">&bull;</span>
             <span className="flex items-center gap-1.5"><Zap className="w-4 h-4" /> Offline-First</span>
-            <span className="text-emerald-600">•</span>
+            <span className="text-emerald-600">&bull;</span>
             <span className="flex items-center gap-1.5"><Globe className="w-4 h-4" /> Multilingual</span>
-            <span className="text-emerald-600">•</span>
+            <span className="text-emerald-600">&bull;</span>
             <span className="flex items-center gap-1.5"><Activity className="w-4 h-4" /> AI-Powered</span>
           </motion.div>
         </div>
@@ -455,7 +497,7 @@ export default function LandingPage() {
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               From individual nurses to national health systems — NurseOS grows with you.
-              All prices in Nigerian Naira (₦).
+              All prices in Nigerian Naira.
             </p>
           </motion.div>
 
@@ -522,20 +564,22 @@ export default function LandingPage() {
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-emerald-950 via-teal-900 to-cyan-950 relative overflow-hidden">
-        <div className="absolute inset-0">
-          {[...Array(10)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-emerald-400/20 rounded-full"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-              }}
-              animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.5, 0.2] }}
-              transition={{ duration: 3 + Math.random() * 2, repeat: Infinity, delay: Math.random() * 2 }}
-            />
-          ))}
-        </div>
+        {mounted && (
+          <div className="absolute inset-0">
+            {CTA_PARTICLES.map((p, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-2 h-2 bg-emerald-400/20 rounded-full"
+                style={{
+                  left: `${p.left}%`,
+                  top: `${p.top}%`,
+                }}
+                animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.5, 0.2] }}
+                transition={{ duration: p.duration, repeat: Infinity, delay: p.delay }}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 text-center">
           <motion.div {...fadeIn} initial="initial" whileInView="animate" viewport={{ once: true }}>

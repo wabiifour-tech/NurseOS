@@ -36,16 +36,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate role
-    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR']
-    if (!validRoles.includes(role.toUpperCase())) {
+    // Validate role - expanded to include all form roles
+    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER']
+    const normalizedRole = role.toUpperCase()
+    if (!validRoles.includes(normalizedRole)) {
       return NextResponse.json(
         { error: `Invalid role. Must be one of: ${validRoles.join(', ')}` },
         { status: 400 }
       )
     }
-
-    const normalizedRole = role.toUpperCase()
 
     // Check if user already exists
     const existingUser = await db.user.findUnique({
@@ -62,7 +61,11 @@ export async function POST(request: NextRequest) {
     // Hash the password
     const passwordHash = hashPassword(password)
 
-    // Create user
+    // Create user - map STUDENT and OTHER to NURSE role for DB enum compatibility
+    const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole) ? 'NURSE' :
+                   normalizedRole === 'DOCTOR' ? 'DOCTOR' :
+                   normalizedRole === 'ADMIN' ? 'ADMIN' : 'PATIENT'
+
     const user = await db.user.create({
       data: {
         email: email.toLowerCase(),
@@ -73,19 +76,17 @@ export async function POST(request: NextRequest) {
         displayName: `${firstName} ${lastName}`,
         phone: phone || null,
         countryCode: countryCode || 'NG',
-        role: normalizedRole,
+        role: dbRole,
         status: 'ACTIVE',
       },
     })
 
-    // If role is NURSE, create NurseProfile
-    if (normalizedRole === 'NURSE') {
-      const licenseNumber = `NMCN/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`
-
+    // If role is nursing-related, create NurseProfile
+    if (['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole)) {
       await db.nurseProfile.create({
         data: {
           userId: user.id,
-          licenseNumber,
+          licenseNumber: normalizedRole === 'STUDENT' ? `STU/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}` : `NMCN/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`,
           licenseIssuingBody: 'NMCN',
           licenseExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
           nursingCouncil: 'Nigeria',
@@ -116,11 +117,24 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Create session for auto-login
+    const token = randomUUID()
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 7)
+
+    await db.session.create({
+      data: {
+        userId: user.id,
+        token,
+        expiresAt,
+      },
+    })
+
     // Fetch the user with relations
     const fullUser = await db.user.findUnique({
       where: { id: user.id },
       include: {
-        nurseProfile: normalizedRole === 'NURSE',
+        nurseProfile: ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole),
         adminProfile: normalizedRole === 'ADMIN',
       },
     })
@@ -132,6 +146,8 @@ export async function POST(request: NextRequest) {
       {
         message: 'Registration successful',
         user: userWithoutPassword,
+        token,
+        originalRole: normalizedRole, // Return original role so frontend knows
       },
       { status: 201 }
     )
