@@ -59,7 +59,6 @@ interface RecentNote {
 }
 
 export default function ChartingPage() {
-  const { user } = useAuthStore()
   const [noteType, setNoteType] = React.useState('SOAP')
   const [selectedPatientId, setSelectedPatientId] = React.useState('')
   const [inputText, setInputText] = React.useState('')

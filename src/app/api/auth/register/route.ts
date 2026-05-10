@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createHash, randomUUID } from 'crypto'
 
+function generateLicenseSuffix(): string {
+  // Use crypto-safe randomUUID instead of Math.random() to avoid collisions
+  // Take first 8 hex chars of a UUID and convert to a 5-digit number
+  const hex = randomUUID().replace(/-/g, '').slice(0, 8)
+  const num = parseInt(hex, 16) % 100000
+  return String(num).padStart(5, '0')
+}
+
 function hashPassword(password: string): string {
   return createHash('sha256').update(password + 'nurseos-salt-2024').digest('hex')
 }
@@ -86,7 +94,7 @@ export async function POST(request: NextRequest) {
       await db.nurseProfile.create({
         data: {
           userId: user.id,
-          licenseNumber: normalizedRole === 'STUDENT' ? `STU/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}` : `NMCN/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`,
+          licenseNumber: normalizedRole === 'STUDENT' ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}` : `NMCN/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
           licenseIssuingBody: 'NMCN',
           licenseExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
           nursingCouncil: 'Nigeria',

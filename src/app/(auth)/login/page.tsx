@@ -59,8 +59,8 @@ export default function LoginPage() {
 
       toast.success("Welcome back to NurseOS!");
 
-      // Use window.location for a hard redirect to ensure layout re-renders
-      window.location.href = "/";
+      // Redirect to dashboard after successful login
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Unable to connect to the server. Please check your connection and try again.");

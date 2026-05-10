@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 import { Progress } from "@/components/ui/progress"
 import {
   ArrowRightLeft,
@@ -86,7 +87,7 @@ export default function NewReferralPage() {
   }
 
   const handleSubmit = () => {
-    alert("Referral submitted successfully!")
+    toast.success("Referral submitted successfully!")
   }
 
   return (

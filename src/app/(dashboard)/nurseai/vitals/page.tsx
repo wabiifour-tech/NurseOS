@@ -267,7 +267,7 @@ export default function VitalsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientId: formPatientId,
-          nurseId: user?.id,
+          nurseId: user?.id || 'unknown',
           temperature: formTemp ? parseFloat(formTemp) : null,
           heartRate: formHR ? parseInt(formHR) : null,
           respiratoryRate: formRR ? parseInt(formRR) : null,

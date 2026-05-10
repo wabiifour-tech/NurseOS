@@ -19,14 +19,35 @@ interface AuthState {
   updateUser: (data: Partial<User>) => void;
 }
 
+// Helper: set auth cookie for middleware (server-side auth check)
+function setAuthCookie(token: string) {
+  if (typeof document !== "undefined") {
+    document.cookie = `nurseos-token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+  }
+}
+
+// Helper: clear auth cookie
+function clearAuthCookie() {
+  if (typeof document !== "undefined") {
+    document.cookie = "nurseos-token=; path=/; max-age=0; SameSite=Lax";
+  }
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
       token: null,
       isAuthenticated: false,
-      login: (user: User, token?: string) => set({ user, token: token || null, isAuthenticated: true }),
-      logout: () => set({ user: null, token: null, isAuthenticated: false }),
+      login: (user: User, token?: string) => {
+        const authToken = token || user.id;
+        set({ user, token: authToken, isAuthenticated: true });
+        setAuthCookie(authToken);
+      },
+      logout: () => {
+        set({ user: null, token: null, isAuthenticated: false });
+        clearAuthCookie();
+      },
       updateUser: (data: Partial<User>) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...data } : null,

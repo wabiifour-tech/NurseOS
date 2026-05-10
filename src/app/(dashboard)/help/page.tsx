@@ -198,7 +198,7 @@ export default function HelpSupportPage() {
     {
       title: 'Dashboard',
       description: 'Overview of all NurseOS modules and recent activity',
-      href: '/',
+      href: '/dashboard',
       icon: LayoutDashboard,
       color: 'text-slate-600 bg-slate-500/10 border-slate-500/20',
     },

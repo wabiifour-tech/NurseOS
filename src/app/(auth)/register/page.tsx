@@ -101,17 +101,17 @@ export default function RegisterPage() {
 
       // Auto-login after registration
       login({
-        id: result.user?.id || "new-user",
-        email: data.email,
-        firstName: data.firstName,
-        lastName: data.lastName,
+        id: result.user?.id || crypto.randomUUID(),
+        email: result.user?.email || data.email,
+        firstName: result.user?.firstName || data.firstName,
+        lastName: result.user?.lastName || data.lastName,
         role: result.originalRole || data.role,
       }, result.token);
 
       toast.success("Account created! Welcome to NurseOS.");
 
-      // Use window.location for a hard redirect to ensure layout re-renders
-      window.location.href = "/";
+      // Redirect to dashboard after successful registration
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error("Registration error:", error);
       toast.error("Unable to connect to the server. Please check your connection and try again.");

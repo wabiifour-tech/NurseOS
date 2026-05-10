@@ -30,3 +30,43 @@ Stage Summary:
 - Fixed 2 CareGrid dialogs (referrals, consultations) with proper form state and submit handlers
 - Removed 6 unused imports across 5 files
 - Build: SUCCESS, all routes returning 200
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Deep scan and fix all null, undefined, broken references; fix auth dashboard redirect issue
+
+Work Log:
+- CRITICAL FIX: Resolved route conflict between `app/page.tsx` (landing page at `/`) and `app/(dashboard)/page.tsx` (dashboard also at `/`)
+  - Moved dashboard to `app/(dashboard)/dashboard/page.tsx` (serves `/dashboard`)
+  - Deleted conflicting `app/(dashboard)/page.tsx`
+- Fixed login redirect: `window.location.href = "/"` → `window.location.href = "/dashboard"`
+- Fixed register redirect: `window.location.href = "/"` → `window.location.href = "/dashboard"`
+- Fixed sidebar "Dashboard Home" link: `href="/"` → `href="/dashboard"`
+- Fixed sidebar logo link: `href="/"` → `href="/dashboard"`
+- Fixed sidebar active state: `pathname === "/"` → `pathname === "/dashboard"`
+- Created `src/proxy.ts` (Next.js 16 proxy/middleware) for server-side auth protection
+  - Protects all dashboard routes (redirects unauthenticated to `/login`)
+  - Redirects authenticated users away from auth pages (login/register) to `/dashboard`
+  - Uses cookie-based auth check (`nurseos-token` cookie)
+- Updated `src/lib/auth-store.ts` to set/clear `nurseos-token` cookie on login/logout
+  - Cookie set with 7-day expiry, SameSite=Lax
+  - Cookie cleared on logout
+- Fixed `src/app/api/auth/register/route.ts`: Replaced `Math.random()` with crypto-safe `randomUUID()` for license numbers
+- Fixed `src/app/(auth)/register/page.tsx`: Changed `result.user?.id || "new-user"` fallback to `crypto.randomUUID()`
+- Fixed `src/app/(dashboard)/help/page.tsx`: Changed `href: '/'` to `href: '/dashboard'` for Dashboard quick link
+- Fixed `src/app/(dashboard)/nurseai/medications/page.tsx`: Added fallback for `med.interactionDetail` undefined
+- Fixed `src/app/(dashboard)/nurseai/charting/page.tsx`: Removed unused `user` from `useAuthStore()` destructuring
+- Fixed `src/app/(dashboard)/nurseai/vitals/page.tsx`: Added guard for `user?.id` → `user?.id || 'unknown'`
+- Fixed `src/app/(dashboard)/caregrid/referrals/new/page.tsx`: Replaced `alert()` with `toast.success()`
+- Verified "Made with love emoji in Nigeria" text is NOT present anywhere - already says "Developed by Wabi The Tech Nurse"
+- Verified hydration mismatch from Math.random() is already fixed with pre-computed particle positions
+- Build: SUCCESS, all 49 routes compile, `/dashboard` route properly registered
+
+Stage Summary:
+- ROOT CAUSE of dashboard redirect issue: Both landing page and dashboard served at `/` — landing page always won
+- Solution: Dashboard now at `/dashboard`, all redirects and links updated
+- Added server-side auth protection via Next.js 16 proxy (cookie-based)
+- Fixed 10+ null/undefined/broken references across the codebase
+- Replaced Math.random() in register API with crypto-safe alternative
+- Build passes with 0 errors

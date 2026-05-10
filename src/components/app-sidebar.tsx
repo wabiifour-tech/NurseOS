@@ -220,11 +220,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              isActive={pathname === "/"}
+              isActive={pathname === "/dashboard"}
               tooltip="NurseOS"
               className="h-12 mb-1"
             >
-              <Link href="/" className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
                   <Heart className="size-5 text-white" />
                 </div>
@@ -242,15 +242,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              isActive={pathname === "/"}
+              isActive={pathname === "/dashboard"}
               tooltip="Dashboard"
               className={
-                pathname === "/"
+                pathname === "/dashboard"
                   ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 font-medium"
                   : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
               }
             >
-              <Link href="/">
+              <Link href="/dashboard">
                 <LayoutDashboard className="size-4" />
                 <span>Dashboard Home</span>
               </Link>

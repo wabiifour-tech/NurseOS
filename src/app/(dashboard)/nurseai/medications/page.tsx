@@ -221,7 +221,7 @@ export default function MedicationsPage() {
                 <div key={med.id} className="flex items-start gap-2 text-xs">
                   <div className="size-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
                   <div>
-                    <span className="font-medium">{med.patientName}</span> — <span className="font-semibold">{med.medicationName}</span>: {med.interactionDetail}
+                    <span className="font-medium">{med.patientName}</span> — <span className="font-semibold">{med.medicationName}</span>: {med.interactionDetail || 'Interaction detected — consult pharmacist for details'}
                   </div>
                 </div>
               ))}
