@@ -143,16 +143,40 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     setIsSavingProfile(true)
-    // Simulate save delay
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    updateUser({
-      firstName: profileForm.firstName,
-      lastName: profileForm.lastName,
-      email: profileForm.email,
-    })
-    setIsEditingProfile(false)
-    setIsSavingProfile(false)
-    toast.success('Profile updated successfully')
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id,
+          firstName: profileForm.firstName,
+          lastName: profileForm.lastName,
+          phone: profileForm.phone,
+        }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        toast.error(result.error || 'Failed to update profile')
+        setIsSavingProfile(false)
+        return
+      }
+
+      // Update local Zustand state with the new data
+      updateUser({
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        email: profileForm.email,
+      })
+      setIsEditingProfile(false)
+      setIsSavingProfile(false)
+      toast.success('Profile updated successfully')
+    } catch (error) {
+      console.error('Profile update error:', error)
+      toast.error('Failed to update profile. Please try again.')
+      setIsSavingProfile(false)
+    }
   }
 
   const handleChangePassword = async () => {
@@ -170,17 +194,41 @@ export default function SettingsPage() {
     }
 
     setIsChangingPassword(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsChangingPassword(false)
-    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
-    toast.success('Password changed successfully')
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id,
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        toast.error(result.error || 'Failed to change password')
+        setIsChangingPassword(false)
+        return
+      }
+
+      setIsChangingPassword(false)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      toast.success('Password changed successfully')
+    } catch (error) {
+      console.error('Password change error:', error)
+      toast.error('Failed to change password. Please try again.')
+      setIsChangingPassword(false)
+    }
   }
 
   const handleExportData = async () => {
     setIsExportingData(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    // Data export is a coming-soon feature
+    await new Promise((resolve) => setTimeout(resolve, 500))
     setIsExportingData(false)
-    toast.success('Data export started. You will receive a download link via email.')
+    toast.info('Data export is coming soon. This feature will allow you to download all your data from NurseOS.')
   }
 
   const handleDeleteAccount = () => {

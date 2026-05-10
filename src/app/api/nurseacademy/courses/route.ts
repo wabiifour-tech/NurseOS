@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseacademy/courses - List courses with filters
 export async function GET(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
@@ -92,6 +96,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/nurseacademy/courses - Create a new course
 export async function POST(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const body = await request.json()
 

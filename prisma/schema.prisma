@@ -88,6 +88,7 @@ model NurseProfile {
   articleComments        ArticleComment[]  @relation("ArticleComments")
   enrollments            Enrollment[]      @relation("Enrollments")
   simulationAttempts     SimulationAttempt[] @relation("SimulationAttempts")
+  appointments           Appointment[]     @relation("AppointmentNurse")
 
   @@index([licenseNumber])
 }
@@ -174,6 +175,8 @@ model Facility {
   incomingReferrals Referral[]         @relation("IncomingReferrals")
   analytics         FacilityAnalytics[]
   adminProfiles     AdminProfile[]
+  diseaseSurveillance DiseaseSurveillance[]
+  staffingPredictions StaffingPrediction[]
 
   @@index([type, city, state])
   @@index([isVerified])
@@ -510,6 +513,8 @@ model DiseaseSurveillance {
   aiPrediction      String?
   reportedAt        DateTime @default(now())
 
+  facility Facility @relation(fields: [facilityId], references: [id])
+
   @@index([diseaseName, region, reportedAt])
 }
 
@@ -523,6 +528,8 @@ model StaffingPrediction {
   confidence           Float?
   factors              String?
   createdAt            DateTime @default(now())
+
+  facility Facility @relation(fields: [facilityId], references: [id])
 
   @@index([facilityId, predictedDate])
 }
@@ -748,8 +755,9 @@ model Appointment {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  patient  PatientProfile @relation(fields: [patientId], references: [id])
-  facility Facility       @relation(fields: [facilityId], references: [id])
+  patient        PatientProfile @relation(fields: [patientId], references: [id])
+  facility       Facility       @relation(fields: [facilityId], references: [id])
+  attendingNurse NurseProfile?  @relation("AppointmentNurse", fields: [nurseId], references: [id])
 
   @@index([facilityId, appointmentDate])
 }

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import bcrypt from 'bcryptjs'
 
 // GET /api/nurseai/patients - List patients with optional search and pagination
 export async function GET(request: NextRequest) {
   try {
+    const authUser = await getAuthenticatedUser(request)
+    if (!authUser) return unauthorizedResponse()
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
     const page = parseInt(searchParams.get('page') || '1')
@@ -81,6 +86,9 @@ export async function GET(request: NextRequest) {
 // POST /api/nurseai/patients - Create a new patient
 export async function POST(request: NextRequest) {
   try {
+    const authUser = await getAuthenticatedUser(request)
+    if (!authUser) return unauthorizedResponse()
+
     const body = await request.json()
 
     // Validate required fields
@@ -98,8 +106,7 @@ export async function POST(request: NextRequest) {
     // Create user account for the patient (optional)
     let userId: string | undefined
     if (body.email) {
-      const { createHash } = await import('crypto')
-      const tempPassword = createHash('sha256').update(`patient-${Date.now()}`).digest('hex')
+      const tempPassword = await bcrypt.hash(`patient-${Date.now()}`, 10)
 
       const user = await db.user.create({
         data: {

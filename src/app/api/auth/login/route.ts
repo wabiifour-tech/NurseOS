@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { createHash, randomUUID } from 'crypto'
-
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'nurseos-salt-2024').digest('hex')
-}
+import { randomUUID } from 'crypto'
+import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,9 +33,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify password
-    const hashedInput = hashPassword(password)
-    if (hashedInput !== user.passwordHash) {
+    // Verify password using bcrypt
+    const passwordMatch = await bcrypt.compare(password, user.passwordHash)
+    if (!passwordMatch) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }

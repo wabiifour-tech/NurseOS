@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 // Sample/mock data for when the database is empty
 // These are clearly placeholder values — real data comes from the database
@@ -47,6 +48,9 @@ function getMockDashboardData() {
 
 // GET /api/nurseanalytics/dashboard - Return dashboard analytics data
 export async function GET(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const { searchParams } = new URL(request.url)
     const facilityId = searchParams.get('facilityId') || ''

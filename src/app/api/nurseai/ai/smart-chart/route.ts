@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
+import { db } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 // System prompts for different note types
 const SYSTEM_PROMPTS: Record<string, string> = {
@@ -44,6 +46,9 @@ Format your response as valid JSON with keys: vitals (object), intakeOutput (obj
 }
 
 export async function POST(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const body = await request.json()
     const { text, noteType = 'SOAP', patientContext, nurseId, recordId } = body
@@ -120,20 +125,18 @@ export async function POST(request: NextRequest) {
     // Save the AI interaction to the database if nurseId and recordId are provided
     if (nurseId && recordId) {
       try {
-        await import('@/lib/db').then(({ db }) =>
-          db.aIInteraction.create({
-            data: {
-              recordId,
-              nurseId,
-              interactionType: `SMART_CHART_${normalizedNoteType}`,
-              userInput: text.trim(),
-              aiOutput: JSON.stringify(structuredNote),
-              aiModel: 'z-ai-llm',
-              confidenceScore,
-              responseTimeMs: null,
-            },
-          })
-        )
+        await db.aIInteraction.create({
+          data: {
+            recordId,
+            nurseId,
+            interactionType: `SMART_CHART_${normalizedNoteType}`,
+            userInput: text.trim(),
+            aiOutput: JSON.stringify(structuredNote),
+            aiModel: 'z-ai-llm',
+            confidenceScore,
+            responseTimeMs: null,
+          },
+        })
       } catch (dbError) {
         // Don't fail the request if DB logging fails
         console.error('Failed to log AI interaction:', dbError)

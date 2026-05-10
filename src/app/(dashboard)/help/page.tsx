@@ -260,10 +260,11 @@ export default function HelpSupportPage() {
     }
 
     setIsSending(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    // Contact form submission is a coming-soon feature
+    await new Promise((resolve) => setTimeout(resolve, 500))
     setIsSending(false)
     setIsSent(true)
-    toast.success('Your message has been sent. We will respond within 24 hours.')
+    toast.info('Contact form is coming soon. For now, please email support@nurseos.com directly.')
 
     // Reset after showing success
     setTimeout(() => {

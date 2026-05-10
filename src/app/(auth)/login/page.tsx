@@ -63,16 +63,12 @@ function LoginForm() {
 
       toast.success("Welcome back to NurseOS!");
 
-      // Use router.push for client-side navigation (preserves Zustand state)
-      // Small delay to ensure Zustand persist has flushed to localStorage
-      setTimeout(() => {
-        router.push(callbackUrl);
-        router.refresh();
-      }, 100);
+      // Use window.location.href for reliable full-page navigation
+      // This ensures the cookie is sent with the request and middleware works correctly
+      window.location.href = callbackUrl;
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Unable to connect to the server. Please check your connection and try again.");
-    } finally {
       setIsLoading(false);
     }
   }

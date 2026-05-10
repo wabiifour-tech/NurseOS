@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client'
-import { createHash } from 'crypto'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'nurseos-salt-2024').digest('hex')
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10)
 }
 
 async function main() {
@@ -177,7 +177,7 @@ async function main() {
   const adminUser = await prisma.user.create({
     data: {
       email: 'admin@nurseos.ng',
-      passwordHash: hashPassword('Admin@2024'),
+      passwordHash: await hashPassword('Admin@2024'),
       firstName: 'Amina',
       lastName: 'Okonkwo',
       middleName: 'Blessing',
@@ -302,7 +302,7 @@ async function main() {
     const user = await prisma.user.create({
       data: {
         email: nd.email,
-        passwordHash: hashPassword('Nurse@2024'),
+        passwordHash: await hashPassword('Nurse@2024'),
         firstName: nd.firstName,
         lastName: nd.lastName,
         middleName: nd.middleName || null,
@@ -456,7 +456,7 @@ async function main() {
 
     let userId: string | undefined
     if (pd.email) {
-      const tempPassword = createHash('sha256').update(`patient-${Date.now()}-${i}`).digest('hex')
+      const tempPassword = await bcrypt.hash(`patient-${Date.now()}-${i}`, 10)
       const user = await prisma.user.create({
         data: {
           email: pd.email,

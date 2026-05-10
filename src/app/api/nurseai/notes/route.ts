@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseai/notes - List nursing notes
 export async function GET(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const { searchParams } = new URL(request.url)
     const recordId = searchParams.get('recordId') || ''
@@ -78,6 +82,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/nurseai/notes - Create a nursing note
 export async function POST(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const body = await request.json()
 

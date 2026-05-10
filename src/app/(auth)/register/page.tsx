@@ -112,16 +112,12 @@ export default function RegisterPage() {
 
       toast.success("Account created! Welcome to NurseOS.");
 
-      // Use router.push for client-side navigation (preserves Zustand state)
-      // Small delay to ensure Zustand persist has flushed to localStorage
-      setTimeout(() => {
-        router.push("/dashboard");
-        router.refresh();
-      }, 100);
+      // Use window.location.href for reliable full-page navigation
+      // This ensures the cookie is sent with the request and middleware works correctly
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error("Registration error:", error);
       toast.error("Unable to connect to the server. Please check your connection and try again.");
-    } finally {
       setIsLoading(false);
     }
   }

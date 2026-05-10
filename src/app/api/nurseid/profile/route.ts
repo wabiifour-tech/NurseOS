@@ -1,25 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-
-// Helper to verify session from Authorization header
-async function getAuthenticatedUser(request: NextRequest): Promise<{ id: string; role: string } | null> {
-  const authHeader = request.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null
-  }
-
-  const token = authHeader.substring(7)
-  const session = await db.session.findUnique({
-    where: { token },
-    include: { user: { select: { id: true, role: true, status: true } } },
-  })
-
-  if (!session || session.expiresAt < new Date() || session.user.status !== 'ACTIVE') {
-    return null
-  }
-
-  return { id: session.user.id, role: session.user.role }
-}
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseid/profile - Get current nurse's profile
 export async function GET(request: NextRequest) {

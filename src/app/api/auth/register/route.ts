@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { createHash, randomUUID } from 'crypto'
+import { randomUUID } from 'crypto'
+import bcrypt from 'bcryptjs'
 
 function generateLicenseSuffix(): string {
   // Use crypto-safe randomUUID instead of Math.random() to avoid collisions
@@ -10,9 +11,7 @@ function generateLicenseSuffix(): string {
   return String(num).padStart(5, '0')
 }
 
-function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'nurseos-salt-2024').digest('hex')
-}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,10 +35,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate password length
+    // Validate password strength (matching client-side Zod schema)
     if (password.length < 8) {
       return NextResponse.json(
         { error: 'Password must be at least 8 characters' },
+        { status: 400 }
+      )
+    }
+    if (!/[A-Z]/.test(password)) {
+      return NextResponse.json(
+        { error: 'Password must contain at least one uppercase letter' },
+        { status: 400 }
+      )
+    }
+    if (!/[0-9]/.test(password)) {
+      return NextResponse.json(
+        { error: 'Password must contain at least one number' },
         { status: 400 }
       )
     }
@@ -66,8 +77,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Hash the password
-    const passwordHash = hashPassword(password)
+    // Hash the password using bcrypt (10 salt rounds)
+    const passwordHash = await bcrypt.hash(password, 10)
 
     // Create user - map STUDENT and OTHER to NURSE role for DB enum compatibility
     const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole) ? 'NURSE' :

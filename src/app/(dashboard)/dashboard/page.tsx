@@ -7,7 +7,6 @@ import {
   Activity,
   ArrowRightLeft,
   Brain,
-  Calendar,
   UserPlus,
   PenTool,
   ArrowRight,
@@ -23,18 +22,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Area,
-  AreaChart,
-} from "recharts"
 import { useAuthStore } from "@/lib/auth-store"
 
 const quickActions = [
@@ -111,11 +98,6 @@ export default function DashboardPage() {
   const { user } = useAuthStore()
   const firstName = user?.firstName || "Nurse"
   const role = user?.role || "Nurse"
-  const [mounted, setMounted] = React.useState(false)
-
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
