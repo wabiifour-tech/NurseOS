@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, isDatabaseConnected, resetDbConnectionStatus } from '@/lib/db'
+import { NIGERIA_FACILITIES } from '@/lib/nigeria-facilities'
 import bcrypt from 'bcryptjs'
 
 async function hashPassword(password: string): Promise<string> {
@@ -93,68 +94,12 @@ export async function POST(request: NextRequest) {
 
     // ========== CREATE FACILITIES ==========
     log.push('Creating facilities...')
-    const facilities = await Promise.all([
-      db.facility.create({
-        data: {
-          name: 'Lagos University Teaching Hospital', type: 'HOSPITAL', level: 'TERTIARY',
-          address: 'Idi-Araba, Mushin', city: 'Lagos', state: 'Lagos', country: 'Nigeria',
-          latitude: 6.5244, longitude: 3.3792, phone: '+234-1-497-2550', email: 'info@luth.org.ng',
-          website: 'https://luth.org.ng', bedCapacity: 760, staffCount: 2850,
-          registrationNumber: 'FHN/LAG/001', accreditingBody: 'Federal Ministry of Health',
-          accreditationStatus: 'ACCREDITED', isVerified: true, isEmergencyCapable: true,
-          servicesOffered: JSON.stringify(['Emergency', 'Surgery', 'Pediatrics', 'Obstetrics', 'Cardiology', 'Oncology', 'Radiology', 'Laboratory']),
-          operatingHours: '24/7',
-        },
-      }),
-      db.facility.create({
-        data: {
-          name: 'National Hospital Abuja', type: 'HOSPITAL', level: 'TERTIARY',
-          address: 'Central District, Garki', city: 'Abuja', state: 'FCT', country: 'Nigeria',
-          latitude: 9.0579, longitude: 7.4951, phone: '+234-9-523-3111', email: 'info@nationalhospital.gov.ng',
-          website: 'https://nationalhospital.gov.ng', bedCapacity: 500, staffCount: 2100,
-          registrationNumber: 'FHN/FCT/001', accreditingBody: 'Federal Ministry of Health',
-          accreditationStatus: 'ACCREDITED', isVerified: true, isEmergencyCapable: true,
-          servicesOffered: JSON.stringify(['Emergency', 'Surgery', 'Pediatrics', 'Obstetrics', 'Neurosurgery', 'Nephrology', 'Cardiology', 'Orthopedics']),
-          operatingHours: '24/7',
-        },
-      }),
-      db.facility.create({
-        data: {
-          name: 'University College Hospital Ibadan', type: 'HOSPITAL', level: 'TERTIARY',
-          address: 'Queen Elizabeth Road, Mokola', city: 'Ibadan', state: 'Oyo', country: 'Nigeria',
-          latitude: 7.3775, longitude: 3.9470, phone: '+234-2-241-0088', email: 'info@uch-ibadan.org.ng',
-          bedCapacity: 650, staffCount: 2400, registrationNumber: 'FHN/OYO/001',
-          accreditingBody: 'Federal Ministry of Health', accreditationStatus: 'ACCREDITED',
-          isVerified: true, isEmergencyCapable: true,
-          servicesOffered: JSON.stringify(['Emergency', 'Surgery', 'Pediatrics', 'Obstetrics', 'Oncology', 'Dermatology', 'Psychiatry', 'Radiology']),
-          operatingHours: '24/7',
-        },
-      }),
-      db.facility.create({
-        data: {
-          name: 'Gwagwalada Primary Health Center', type: 'PRIMARY_HEALTH_CENTER', level: 'PRIMARY',
-          address: 'Gwagwalada Town', city: 'Gwagwalada', state: 'FCT', country: 'Nigeria',
-          phone: '+234-803-600-1234', bedCapacity: 30, staffCount: 45,
-          registrationNumber: 'PHC/FCT/GWA/001', accreditingBody: 'FCT Primary Health Care Board',
-          accreditationStatus: 'ACCREDITED', isVerified: true, isEmergencyCapable: false,
-          servicesOffered: JSON.stringify(['Antenatal Care', 'Immunization', 'Family Planning', 'Malaria Treatment', 'HIV Counseling']),
-          operatingHours: 'Mon-Fri 8:00-17:00, Sat 8:00-13:00',
-        },
-      }),
-      db.facility.create({
-        data: {
-          name: 'Rainbow Specialist Medical Center', type: 'SPECIALIST_CENTER', level: 'SECONDARY',
-          address: '52 Awolowo Road, Ikoyi', city: 'Lagos', state: 'Lagos', country: 'Nigeria',
-          latitude: 6.4485, longitude: 3.4267, phone: '+234-1-269-7800', email: 'info@rainbowspecialist.com',
-          bedCapacity: 80, staffCount: 180, registrationNumber: 'FHN/LAG/SPE/042',
-          accreditingBody: 'Lagos State Ministry of Health', accreditationStatus: 'ACCREDITED',
-          isVerified: true, isEmergencyCapable: true,
-          servicesOffered: JSON.stringify(['Cardiology', 'Endocrinology', 'Gastroenterology', 'Pulmonology', 'Rheumatology']),
-          operatingHours: 'Mon-Sat 8:00-20:00, Emergency 24/7',
-        },
-      }),
-    ])
-    log.push(`Created ${facilities.length} facilities`)
+    const facilities = []
+    for (const f of NIGERIA_FACILITIES) {
+      const facility = await db.facility.create({ data: f })
+      facilities.push(facility)
+    }
+    log.push(`Created ${facilities.length} facilities across ${new Set(NIGERIA_FACILITIES.map(f => f.state)).size} states + FCT`)
 
     // ========== CREATE ADMIN USER ==========
     log.push('Creating admin user...')
@@ -339,9 +284,11 @@ export async function POST(request: NextRequest) {
     ])
     log.push('Created notifications')
 
-    // ========== CREATE FACILITY ANALYTICS (7 days x 5 facilities) ==========
+    // ========== CREATE FACILITY ANALYTICS (7 days x major facilities) ==========
     const today = new Date()
-    for (const facility of facilities) {
+    // Create analytics for the first 20 facilities (representative sample)
+    const analyticsFacilities = facilities.slice(0, 20)
+    for (const facility of analyticsFacilities) {
       for (let d = 0; d < 7; d++) {
         const date = new Date(today)
         date.setDate(date.getDate() - d)
@@ -350,7 +297,7 @@ export async function POST(request: NextRequest) {
         })
       }
     }
-    log.push('Created facility analytics (7 days x 5 facilities)')
+    log.push(`Created facility analytics (7 days x ${analyticsFacilities.length} major facilities)`)
 
     resetDbConnectionStatus()
 
@@ -370,6 +317,7 @@ export async function POST(request: NextRequest) {
       },
       summary: {
         facilities: facilities.length,
+        states: [...new Set(NIGERIA_FACILITIES.map(f => f.state))].length,
         adminUsers: 1,
         nurseUsers: nurses.length,
         patients: patients.length,
@@ -383,7 +331,7 @@ export async function POST(request: NextRequest) {
         credentials: '6+',
         cpdRecords: '6+',
         notifications: 3,
-        facilityAnalytics: '35 (7 days x 5 facilities)',
+        facilityAnalytics: `${analyticsFacilities.length * 7} (7 days x ${analyticsFacilities.length} facilities)`,
       },
     })
   } catch (error: any) {
