@@ -14,6 +14,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import {
   Shield,
   AlertTriangle,
   AlertCircle,
@@ -97,6 +108,48 @@ export default function SurveillancePage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState(false)
   const [selectedDisease, setSelectedDisease] = React.useState<string>("")
+  const [reportDialogOpen, setReportDialogOpen] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
+  const [reportForm, setReportForm] = React.useState({
+    disease: '',
+    region: '',
+    cases: '',
+    notes: '',
+  })
+
+  const handleReportCase = async () => {
+    if (!reportForm.disease || !reportForm.region || !reportForm.cases) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/nurseanalytics/surveillance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          disease: reportForm.disease,
+          region: reportForm.region,
+          cases: parseInt(reportForm.cases),
+          alertLevel: 'Watch',
+          notes: reportForm.notes,
+        }),
+      })
+      if (res.ok) {
+        toast.success('Case reported successfully!')
+        setReportDialogOpen(false)
+        setReportForm({ disease: '', region: '', cases: '', notes: '' })
+        setTimeout(() => window.location.reload(), 500)
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to report case')
+      }
+    } catch {
+      toast.error('Failed to report case. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   React.useEffect(() => {
     async function fetchSurveillance() {
@@ -208,10 +261,47 @@ export default function SurveillancePage() {
             </Badge>
           )}
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-          <Plus className="size-4" />
-          Report Case
-        </Button>
+        <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => setReportDialogOpen(true)}>
+            <Plus className="size-4" />
+            Report Case
+          </Button>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Report Disease Case</DialogTitle>
+              <DialogDescription>
+                Submit a new disease surveillance case report
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="rpt-disease">Disease *</Label>
+                <Input id="rpt-disease" placeholder="e.g., Malaria, Cholera, Lassa Fever" value={reportForm.disease} onChange={(e) => setReportForm({ ...reportForm, disease: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="rpt-region">Region / State *</Label>
+                  <Input id="rpt-region" placeholder="e.g., Lagos" value={reportForm.region} onChange={(e) => setReportForm({ ...reportForm, region: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="rpt-cases">Number of Cases *</Label>
+                  <Input id="rpt-cases" type="number" placeholder="e.g., 5" value={reportForm.cases} onChange={(e) => setReportForm({ ...reportForm, cases: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="rpt-notes">Additional Notes</Label>
+                <Textarea id="rpt-notes" placeholder="Any additional details about the reported cases..." value={reportForm.notes} onChange={(e) => setReportForm({ ...reportForm, notes: e.target.value })} rows={3} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReportDialogOpen(false)}>Cancel</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleReportCase} disabled={submitting}>
+                {submitting && <Loader2 className="size-4 mr-2 animate-spin" />}
+                Submit Report
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Map Placeholder */}

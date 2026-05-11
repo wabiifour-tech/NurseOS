@@ -438,7 +438,35 @@ export default function SettingsPage() {
                 </AvatarFallback>
               </Avatar>
               {isEditingProfile && (
-                <Button variant="outline" size="sm" className="text-xs">
+                <Button variant="outline" size="sm" className="text-xs" onClick={() => {
+                  const input = document.createElement('input')
+                  input.type = 'file'
+                  input.accept = 'image/*'
+                  input.onchange = async (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0]
+                    if (!file) return
+                    if (file.size > 5 * 1024 * 1024) {
+                      toast.error('Image must be less than 5MB')
+                      return
+                    }
+                    const formData = new FormData()
+                    formData.append('avatar', file)
+                    formData.append('userId', user?.id || '')
+                    try {
+                      const res = await fetch('/api/auth/avatar', { method: 'POST', body: formData })
+                      if (res.ok) {
+                        toast.success('Photo uploaded successfully! It may take a moment to update.')
+                        setTimeout(() => window.location.reload(), 1000)
+                      } else {
+                        const data = await res.json()
+                        toast.error(data.error || 'Failed to upload photo')
+                      }
+                    } catch {
+                      toast.error('Failed to upload photo. Please try again.')
+                    }
+                  }
+                  input.click()
+                }}>
                   <Camera className="size-3.5 mr-1" /> Change Photo
                 </Button>
               )}

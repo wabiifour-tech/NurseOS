@@ -87,6 +87,7 @@ export default function ReportsPage() {
   const [error, setError] = React.useState(false)
   const [generateTemplate, setGenerateTemplate] = React.useState("")
   const [generateFormat, setGenerateFormat] = React.useState("pdf")
+  const [generateDialogOpen, setGenerateDialogOpen] = React.useState(false)
 
   React.useEffect(() => {
     async function fetchReports() {
@@ -201,9 +202,9 @@ export default function ReportsPage() {
             </Badge>
           )}
         </div>
-        <Dialog>
+        <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => setGenerateDialogOpen(true)}>
               <Plus className="size-4" />
               Generate New Report
             </Button>
@@ -270,7 +271,7 @@ export default function ReportsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline">Cancel</Button>
+              <Button variant="outline" onClick={() => setGenerateDialogOpen(false)}>Cancel</Button>
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => toast.info('Report generation is coming soon — this feature is being developed.')}>
                 <FileBarChart className="size-4" />
                 Generate Report
@@ -362,7 +363,7 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px]">Active</Badge>
-                  <Button size="sm" variant="ghost" className="text-xs h-7">
+                  <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => toast.info('Report scheduler configuration is coming soon — this feature is being developed.')}>
                     Configure
                   </Button>
                 </div>

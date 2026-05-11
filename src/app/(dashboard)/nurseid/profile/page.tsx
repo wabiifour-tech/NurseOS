@@ -367,7 +367,23 @@ export default function NurseProfilePage() {
                       </div>
                     </DialogContent>
                   </Dialog>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={async () => {
+                    const profileUrl = `${window.location.origin}/nurseid/profile`
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({ title: `${fullName} - NurseOS Profile`, url: profileUrl })
+                      } catch {
+                        // User cancelled share — do nothing
+                      }
+                    } else {
+                      try {
+                        await navigator.clipboard.writeText(profileUrl)
+                        toast.success('Profile link copied to clipboard!')
+                      } catch {
+                        toast.error('Failed to copy link')
+                      }
+                    }
+                  }}>
                     <Share2 className="size-4 mr-1" /> Share
                   </Button>
                 </div>

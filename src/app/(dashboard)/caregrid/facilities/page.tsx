@@ -8,6 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import {
   Building2,
   Search,
   MapPin,
@@ -55,6 +64,54 @@ export default function FacilitiesPage() {
   // Data states
   const [facilities, setFacilities] = React.useState<Facility[]>([])
   const [loading, setLoading] = React.useState(true)
+
+  // Add facility dialog
+  const [addDialogOpen, setAddDialogOpen] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
+  const [facilityForm, setFacilityForm] = React.useState({
+    name: '',
+    type: 'PRIMARY_HEALTH_CENTER',
+    address: '',
+    city: '',
+    state: '',
+    phone: '',
+    email: '',
+    bedCapacity: '',
+  })
+
+  const handleAddFacility = async () => {
+    if (!facilityForm.name || !facilityForm.address || !facilityForm.city || !facilityForm.state) {
+      toast.error('Please fill in all required fields (Name, Address, City, State)')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/caregrid/facilities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...facilityForm,
+          country: 'Nigeria',
+          bedCapacity: facilityForm.bedCapacity ? parseInt(facilityForm.bedCapacity) : null,
+        }),
+      })
+      if (res.ok) {
+        toast.success('Facility added successfully!')
+        setAddDialogOpen(false)
+        setFacilityForm({ name: '', type: 'PRIMARY_HEALTH_CENTER', address: '', city: '', state: '', phone: '', email: '', bedCapacity: '' })
+        // Refresh the list
+        setLoading(true)
+        setTimeout(() => window.location.reload(), 500)
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to add facility')
+      }
+    } catch {
+      toast.error('Failed to add facility. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   // Fetch facilities
   React.useEffect(() => {
@@ -109,10 +166,77 @@ export default function FacilitiesPage() {
             Browse and manage healthcare facilities across Nigeria
           </p>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-          <Plus className="size-4" />
-          Add Facility
-        </Button>
+        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => setAddDialogOpen(true)}>
+            <Plus className="size-4" />
+            Add Facility
+          </Button>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add New Facility</DialogTitle>
+              <DialogDescription>
+                Register a new healthcare facility in the system
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="fac-name">Facility Name *</Label>
+                <Input id="fac-name" placeholder="e.g., Lagos General Hospital" value={facilityForm.name} onChange={(e) => setFacilityForm({ ...facilityForm, name: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="fac-type">Type</Label>
+                  <Select value={facilityForm.type} onValueChange={(v) => setFacilityForm({ ...facilityForm, type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PRIMARY_HEALTH_CENTER">Primary Health Center</SelectItem>
+                      <SelectItem value="GENERAL_HOSPITAL">General Hospital</SelectItem>
+                      <SelectItem value="TEACHING_HOSPITAL">Teaching Hospital</SelectItem>
+                      <SelectItem value="SPECIALIST_HOSPITAL">Specialist Hospital</SelectItem>
+                      <SelectItem value="FEDERAL_MEDICAL_CENTER">Federal Medical Center</SelectItem>
+                      <SelectItem value="PRIVATE_CLINIC">Private Clinic</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="fac-beds">Bed Capacity</Label>
+                  <Input id="fac-beds" type="number" placeholder="e.g., 200" value={facilityForm.bedCapacity} onChange={(e) => setFacilityForm({ ...facilityForm, bedCapacity: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fac-address">Address *</Label>
+                <Input id="fac-address" placeholder="e.g., 15 Broad Street" value={facilityForm.address} onChange={(e) => setFacilityForm({ ...facilityForm, address: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="fac-city">City *</Label>
+                  <Input id="fac-city" placeholder="e.g., Lagos" value={facilityForm.city} onChange={(e) => setFacilityForm({ ...facilityForm, city: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="fac-state">State *</Label>
+                  <Input id="fac-state" placeholder="e.g., Lagos" value={facilityForm.state} onChange={(e) => setFacilityForm({ ...facilityForm, state: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="fac-phone">Phone</Label>
+                  <Input id="fac-phone" placeholder="e.g., +234 801 234 5678" value={facilityForm.phone} onChange={(e) => setFacilityForm({ ...facilityForm, phone: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="fac-email">Email</Label>
+                  <Input id="fac-email" type="email" placeholder="e.g., info@hospital.ng" value={facilityForm.email} onChange={(e) => setFacilityForm({ ...facilityForm, email: e.target.value })} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddFacility} disabled={submitting}>
+                {submitting && <Loader2 className="size-4 mr-2 animate-spin" />}
+                Add Facility
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats Cards */}

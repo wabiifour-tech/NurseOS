@@ -513,7 +513,7 @@ export default function CredentialsPage() {
                   {expiringSoonCreds.length === 1 ? 'expires' : 'expire'} soon. Renew to maintain your credentials.
                 </p>
               </div>
-              <Button size="sm" variant="outline" className="ml-auto shrink-0 border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-500/30 dark:text-orange-300 dark:hover:bg-orange-500/10">
+              <Button size="sm" variant="outline" className="ml-auto shrink-0 border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-500/30 dark:text-orange-300 dark:hover:bg-orange-500/10" onClick={() => window.open('https://wa.me/2347052356638', '_blank')}>
                 Renew
               </Button>
             </div>

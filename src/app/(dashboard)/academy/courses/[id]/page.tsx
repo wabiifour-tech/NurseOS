@@ -86,6 +86,7 @@ export default function CourseDetailPage() {
   const [courseDetail, setCourseDetail] = React.useState<CourseDetail | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [activeModule, setActiveModule] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     async function fetchCourse() {
@@ -272,7 +273,7 @@ export default function CourseDetailPage() {
                     <span className="text-sm font-semibold text-emerald-600">{enrollmentProgress}%</span>
                   </div>
                   <Progress value={enrollmentProgress} className="h-2.5" />
-                  <Button className="mt-3 bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto" size="sm">
+                  <Button className="mt-3 bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto" size="sm" onClick={() => toast.info('Course content player is coming soon — this feature is being developed.')}>
                     <Play className="size-4 mr-2" /> Continue Learning
                   </Button>
                 </div>
@@ -320,7 +321,16 @@ export default function CourseDetailPage() {
                             : 'Read through the course material and review the key points.'}
                         </p>
                         {isEnrolled && (
-                          <Button variant="outline" size="sm" className="ml-11 mt-2">
+                          <Button variant="outline" size="sm" className="ml-11 mt-2" onClick={() => {
+                            setActiveModule(mod.id)
+                            toast.info(
+                              mod.type === 'Quiz' || mod.type === 'QUIZ'
+                                ? 'Quiz module is coming soon — this feature is being developed.'
+                                : mod.type === 'Video' || mod.type === 'VIDEO'
+                                ? 'Video player is coming soon — this feature is being developed.'
+                                : 'Reading material viewer is coming soon — this feature is being developed.'
+                            )
+                          }}>
                             <Play className="size-3.5 mr-1.5" />
                             {mod.type === 'Quiz' || mod.type === 'QUIZ' ? 'Start Quiz' : mod.type === 'Video' || mod.type === 'VIDEO' ? 'Watch Video' : 'Read Material'}
                           </Button>

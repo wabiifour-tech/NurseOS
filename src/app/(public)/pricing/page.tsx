@@ -297,7 +297,7 @@ export default function PricingPage() {
                   Start Free Trial
                 </Button>
               </Link>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => window.open('https://wa.me/2347052356638', '_blank')}>
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Talk to Sales
               </Button>
