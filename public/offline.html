@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0D9488" />
+  <title>NurseOS — Offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0F172A;
+      color: #E2E8F0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .container {
+      text-align: center;
+      max-width: 480px;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 1.5rem;
+      background: #0D9488;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+    }
+    h1 {
+      font-size: 1.75rem;
+      margin-bottom: 0.75rem;
+      color: #F8FAFC;
+    }
+    p {
+      font-size: 1rem;
+      color: #94A3B8;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+    .retry-btn {
+      display: inline-block;
+      padding: 0.75rem 2rem;
+      background: #0D9488;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .retry-btn:hover { background: #0F766E; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🏥</div>
+    <h1>You're Offline</h1>
+    <p>
+      NurseOS needs an internet connection to access your healthcare data.
+      Please check your network connection and try again.
+    </p>
+    <a href="/" class="retry-btn">Try Again</a>
+  </div>
+</body>
+</html>

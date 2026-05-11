@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "prisma generate && (prisma db push --accept-data-loss 2>/dev/null || echo 'Schema push skipped — tables will be created via /api/setup on first request') && next build",
+    "build": "DIRECT_URL=${DIRECT_URL:-$POSTGRES_URL_NON_POOLING} prisma generate && (DIRECT_URL=${DIRECT_URL:-$POSTGRES_URL_NON_POOLING} prisma db push --accept-data-loss 2>/dev/null || echo 'Schema push skipped — tables will be created via /api/setup on first request') && next build",
     "start": "next start",
     "lint": "eslint .",
     "postinstall": "prisma generate",

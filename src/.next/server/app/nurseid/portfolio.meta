@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(dashboard)/layout,_N_T_/(dashboard)/nurseid/layout,_N_T_/(dashboard)/nurseid/portfolio/layout,_N_T_/(dashboard)/nurseid/portfolio/page,_N_T_/nurseid/portfolio"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KGRhc2hib2FyZCk/nurseid/portfolio/__PAGE__",
+    "/!KGRhc2hib2FyZCk/nurseid/portfolio",
+    "/!KGRhc2hib2FyZCk/nurseid",
+    "/!KGRhc2hib2FyZCk",
+    "/_index",
+    "/_head"
+  ]
+}

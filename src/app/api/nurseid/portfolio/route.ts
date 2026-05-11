@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseid/portfolio - List portfolio entries
 export async function GET(request: NextRequest) {
@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
-    const nurseId = new URL(request.url).searchParams.get('nurseId') || authUser.id
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ entries: [], message: 'No nurse profile found' })
+    }
+
+    const targetNurseId = new URL(request.url).searchParams.get('nurseId') || nurseId
 
     const entries = await db.portfolioEntry.findMany({
-      where: { nurseId },
+      where: { nurseId: targetNurseId },
       orderBy: { order: 'asc' },
     })
 
@@ -28,6 +33,11 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
+    }
+
     const body = await request.json()
 
     if (!body.title || !body.entryType || !body.description) {
@@ -39,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const entry = await db.portfolioEntry.create({
       data: {
-        nurseId: body.nurseId || authUser.id,
+        nurseId,
         title: body.title,
         entryType: body.entryType,
         description: body.description,

@@ -6,10 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider     = "postgresql"
-  url          = env("DATABASE_URL")
-  directUrl    = env("DIRECT_URL")
-  relationMode = "prisma"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ===== CORE USER & AUTH =====
@@ -110,6 +109,7 @@ model PatientProfile {
   id                       String    @id @default(cuid())
   userId                   String?   @unique
   patientId                String    @unique
+  facilityId               String?   // The facility this patient belongs to (multi-tenant isolation)
   dateOfBirth              DateTime?
   gender                   String?
   bloodType                String?
@@ -129,6 +129,7 @@ model PatientProfile {
   updatedAt                DateTime  @updatedAt
 
   user           User?           @relation(fields: [userId], references: [id])
+  facility       Facility?       @relation("PatientFacility", fields: [facilityId], references: [id])
   medicalRecords MedicalRecord[]
   appointments   Appointment[]
   vitals         VitalSign[]
@@ -139,6 +140,7 @@ model PatientProfile {
   consultations  Consultation[]
 
   @@index([patientId])
+  @@index([facilityId])
 }
 
 // ===== FACILITY & ORGANIZATION =====
@@ -171,6 +173,7 @@ model Facility {
 
   departments       Department[]
   staff             NurseProfile[]     @relation("NurseFacility")
+  patientProfiles   PatientProfile[]   @relation("PatientFacility")
   patients          MedicalRecord[]
   appointments      Appointment[]
   outgoingReferrals Referral[]         @relation("OutgoingReferrals")

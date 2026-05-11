@@ -94,65 +94,8 @@ interface DashboardData {
   isMockData: boolean
 }
 
-// Fallback data for charts when real data is sparse
-const fallbackVolumeData = [
-  { month: "Jan", inpatient: 320, outpatient: 580, emergency: 120 },
-  { month: "Feb", inpatient: 305, outpatient: 610, emergency: 135 },
-  { month: "Mar", inpatient: 340, outpatient: 625, emergency: 142 },
-  { month: "Apr", inpatient: 355, outpatient: 640, emergency: 128 },
-  { month: "May", inpatient: 375, outpatient: 660, emergency: 155 },
-  { month: "Jun", inpatient: 390, outpatient: 695, emergency: 148 },
-]
-
-const fallbackDiagnosisData = [
-  { name: "Malaria", value: 28, fill: "#10b981" },
-  { name: "Hypertension", value: 18, fill: "#14b8a6" },
-  { name: "Diabetes", value: 14, fill: "#059669" },
-  { name: "Respiratory", value: 12, fill: "#0d9488" },
-  { name: "Typhoid", value: 10, fill: "#047857" },
-  { name: "Others", value: 18, fill: "#a7f3d0" },
-]
-
-const fallbackPeakHours = [
-  { hour: "6AM", patients: 15 },
-  { hour: "7AM", patients: 28 },
-  { hour: "8AM", patients: 45 },
-  { hour: "9AM", patients: 62 },
-  { hour: "10AM", patients: 78 },
-  { hour: "11AM", patients: 85 },
-  { hour: "12PM", patients: 72 },
-  { hour: "1PM", patients: 55 },
-  { hour: "2PM", patients: 48 },
-  { hour: "3PM", patients: 42 },
-  { hour: "4PM", patients: 38 },
-  { hour: "5PM", patients: 32 },
-]
-
-const fallbackStaffingData = [
-  { department: "Emergency", scheduled: 15, present: 13 },
-  { department: "ICU", scheduled: 12, present: 11 },
-  { department: "Pediatrics", scheduled: 10, present: 10 },
-  { department: "Maternity", scheduled: 14, present: 12 },
-  { department: "Surgery", scheduled: 11, present: 9 },
-  { department: "Medical", scheduled: 13, present: 12 },
-]
-
-const fallbackInsights = [
-  {
-    id: 1,
-    type: "info" as const,
-    title: "Welcome to NurseAnalytics",
-    description: "Analytics data will populate as you add patients, facilities, and clinical records to the system.",
-    confidence: 100,
-  },
-  {
-    id: 2,
-    type: "success" as const,
-    title: "System Ready",
-    description: "All analytics modules are operational and ready to process data.",
-    confidence: 100,
-  },
-]
+// Color palette for charts
+const CHART_COLORS = ["#10b981", "#14b8a6", "#059669", "#0d9488", "#047857", "#a7f3d0"]
 
 const periodOptions = ["Daily", "Weekly", "Monthly", "Quarterly"]
 
@@ -193,7 +136,15 @@ export default function AnalyticsDashboardPage() {
         description: `${d.count} patients diagnosed with ${d.name}. This is ${d.percentage > 25 ? "above" : "within"} expected prevalence rates.`,
         confidence: Math.min(95, 70 + d.count),
       }))
-    : fallbackInsights
+    : [
+        {
+          id: 1,
+          type: "info" as const,
+          title: "Analytics Active",
+          description: `Tracking ${data?.overview?.totalPatients || 0} patients across ${data?.overview?.totalFacilities || 0} facilities with ${data?.overview?.totalNurses || 0} nurses. Data will become richer as more clinical records are added.`,
+          confidence: 100,
+        },
+      ]
 
   const patientVolumeData = data?.weeklyTrends && data.weeklyTrends.length > 0
     ? data.weeklyTrends.map(t => ({
@@ -202,26 +153,29 @@ export default function AnalyticsDashboardPage() {
         outpatient: t.patients - t.admissions,
         emergency: t.encounters - t.patients,
       }))
-    : fallbackVolumeData
+    : []
 
   const diagnosisData = data?.topDiagnoses && data.topDiagnoses.length > 0
-    ? data.topDiagnoses.map(d => ({
+    ? data.topDiagnoses.map((d, i) => ({
         name: d.name,
         value: d.percentage,
-        fill: ["#10b981", "#14b8a6", "#059669", "#0d9488", "#047857", "#a7f3d0"][
-          (data.topDiagnoses?.indexOf(d) ?? 0) % 6
-        ],
+        fill: CHART_COLORS[i % CHART_COLORS.length],
       }))
-    : fallbackDiagnosisData
+    : []
 
-  const peakHoursData = fallbackPeakHours
+  const peakHoursData = data?.weeklyTrends && data.weeklyTrends.length > 0
+    ? data.weeklyTrends.map(t => ({
+        hour: t.day,
+        patients: t.patients,
+      }))
+    : []
   const staffingData = data?.staffingMetrics
     ? [
         { department: "Morning", scheduled: data.staffingMetrics.shiftDistribution.morning, present: Math.round(data.staffingMetrics.shiftDistribution.morning * 0.9) },
         { department: "Afternoon", scheduled: data.staffingMetrics.shiftDistribution.afternoon, present: Math.round(data.staffingMetrics.shiftDistribution.afternoon * 0.85) },
         { department: "Night", scheduled: data.staffingMetrics.shiftDistribution.night, present: Math.round(data.staffingMetrics.shiftDistribution.night * 0.95) },
       ]
-    : fallbackStaffingData
+    : []
 
   if (loading) {
     return (
@@ -272,11 +226,7 @@ export default function AnalyticsDashboardPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Real-time insights and performance metrics
           </p>
-          {data?.isMockData && (
-            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 bg-amber-50 mt-1">
-              Showing sample data — add patients and facilities to see real analytics
-            </Badge>
-          )}
+
         </div>
         <div className="flex items-center gap-3">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
@@ -400,6 +350,7 @@ export default function AnalyticsDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
+              {patientVolumeData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={patientVolumeData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -419,6 +370,11 @@ export default function AnalyticsDashboardPage() {
                   <Area type="monotone" dataKey="emergency" stackId="1" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} name="Emergency" />
                 </AreaChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-sm text-muted-foreground">No volume data yet. Add patients and encounters to see trends.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -429,6 +385,7 @@ export default function AnalyticsDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
+              {diagnosisData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -459,6 +416,11 @@ export default function AnalyticsDashboardPage() {
                   />
                 </PieChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-sm text-muted-foreground">No diagnosis data yet. Create medical records to see distribution.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -472,6 +434,7 @@ export default function AnalyticsDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
+              {peakHoursData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={peakHoursData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -488,6 +451,11 @@ export default function AnalyticsDashboardPage() {
                   <Bar dataKey="patients" fill="#10b981" radius={[4, 4, 0, 0]} name="Patients" />
                 </BarChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-sm text-muted-foreground">No peak hours data yet. Data appears as patient encounters are recorded.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -498,6 +466,7 @@ export default function AnalyticsDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
+              {staffingData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={staffingData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -516,6 +485,11 @@ export default function AnalyticsDashboardPage() {
                   <Bar dataKey="present" fill="#10b981" radius={[0, 4, 4, 0]} name="Present" />
                 </BarChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px]">
+                  <p className="text-sm text-muted-foreground">No staffing data yet. Add nurses to see staffing overview.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

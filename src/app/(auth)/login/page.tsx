@@ -67,6 +67,9 @@ function LoginForm() {
         firstName: result.user.firstName,
         lastName: result.user.lastName,
         role: result.user.role,
+        facilityId: result.facilityId || null,
+        facilityName: result.facilityName || null,
+        nurseProfileId: result.nurseProfileId || null,
       }, result.token);
 
       toast.success("Welcome back to NurseOS!");

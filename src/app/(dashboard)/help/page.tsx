@@ -67,7 +67,7 @@ interface KeyboardShortcut {
 }
 
 export default function HelpSupportPage() {
-  const { user } = useAuthStore()
+  const { user, token } = useAuthStore()
 
   // Contact form state
   const [contactForm, setContactForm] = React.useState({
@@ -260,22 +260,41 @@ export default function HelpSupportPage() {
     }
 
     setIsSending(true)
-    // Contact form submission is a coming-soon feature
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setIsSending(false)
-    setIsSent(true)
-    toast.info('Contact form is coming soon. For now, please email support@nurseos.com directly.')
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
 
-    // Reset after showing success
-    setTimeout(() => {
-      setIsSent(false)
-      setContactForm({
-        name: user ? `${user.firstName} ${user.lastName}` : '',
-        email: user?.email || '',
-        subject: '',
-        message: '',
+      const res = await fetch('/api/caregrid/consultations', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          consultationType: 'SUPPORT',
+          subject: contactForm.subject,
+          description: `From: ${contactForm.name} (${contactForm.email})\n\n${contactForm.message}`,
+          status: 'REQUESTED',
+        }),
       })
-    }, 3000)
+
+      if (res.ok) {
+        setIsSent(true)
+        toast.success('Message sent! Our support team will respond within 24 hours.')
+        setTimeout(() => {
+          setIsSent(false)
+          setContactForm({
+            name: user ? `${user.firstName} ${user.lastName}` : '',
+            email: user?.email || '',
+            subject: '',
+            message: '',
+          })
+        }, 3000)
+      } else {
+        toast.error('Failed to send message. Please email support@nurseos.com directly.')
+      }
+    } catch {
+      toast.error('Failed to send message. Please try again or email support@nurseos.com')
+    } finally {
+      setIsSending(false)
+    }
   }
 
   return (

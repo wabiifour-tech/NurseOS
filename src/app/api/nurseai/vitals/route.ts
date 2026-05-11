@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
-// GET /api/nurseai/vitals - List vitals with optional filters
+// GET /api/nurseai/vitals - List vitals scoped to nurse's facility
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -14,7 +14,15 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
 
+    // 🔒 FACILITY ISOLATION: Require a facility assignment to view vitals
+    const facilityId = requireFacility(authUser)
+    if (facilityId instanceof Response) return facilityId
+
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Only show vitals for patients in the nurse's facility (mandatory)
+    where.patient = { facilityId }
+
     if (patientId) {
       where.patientId = patientId
     }
@@ -29,6 +37,7 @@ export async function GET(request: NextRequest) {
               patientId: true,
               dateOfBirth: true,
               gender: true,
+              facilityId: true,
               user: {
                 select: {
                   firstName: true,
@@ -77,6 +86,10 @@ export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
+  // 🔒 FACILITY ISOLATION: Require a facility assignment
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
+
   try {
     const body = await request.json()
 
@@ -88,7 +101,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify patient exists
+    // Verify patient exists AND belongs to the same facility
     const patient = await db.patientProfile.findUnique({
       where: { id: body.patientId },
     })
@@ -96,6 +109,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Patient not found' },
         { status: 404 }
+      )
+    }
+
+    // 🔒 Verify patient belongs to the nurse's facility
+    if (patient.facilityId && patient.facilityId !== facilityId) {
+      return NextResponse.json(
+        { error: 'You can only record vitals for patients in your facility.' },
+        { status: 403 }
       )
     }
 
@@ -146,7 +167,7 @@ export async function POST(request: NextRequest) {
       data: {
         patientId: body.patientId,
         recordId: body.recordId || null,
-        recordedByNurseId: body.nurseId || null,
+        recordedByNurseId: body.nurseId || authUser.nurseProfileId || null,
         temperature: body.temperature || null,
         heartRate: body.heartRate || null,
         respiratoryRate: body.respiratoryRate || null,

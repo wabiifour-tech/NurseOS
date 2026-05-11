@@ -192,8 +192,9 @@ export default function ReferralsPage() {
         const facilitiesData = await facilitiesRes.json()
         setFacilities(facilitiesData.facilities ?? facilitiesData ?? [])
       }
-    } catch {
+    } catch (err) {
       // Non-critical — form dropdowns will just be empty
+      console.error('Failed to load form data:', err)
     }
   }, [])
 

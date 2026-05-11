@@ -84,14 +84,30 @@ function getDateStr(isoDate: string): string {
   return new Date(isoDate).toISOString().split('T')[0]
 }
 
-function getTimeStr(isoDate: string): string {
+function formatTime(isoDate: string): string {
   const d = new Date(isoDate)
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const hours = d.getHours().toString().padStart(2, '0')
+  const minutes = d.getMinutes().toString().padStart(2, '0')
+  return `${hours}:${minutes}`
 }
+
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const DAYS_LONG = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
 function formatDateDisplay(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  return `${MONTHS_LONG[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+}
+
+function formatDateShort(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`
+}
+
+function formatDayName(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  return DAYS_LONG[d.getDay()]
 }
 
 // ---- Color helpers ----
@@ -123,7 +139,7 @@ const APPOINTMENT_TYPES = ['CONSULTATION', 'FOLLOW_UP', 'CHECK_UP', 'EMERGENCY',
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = React.useState<'list' | 'calendar'>('list')
   const [dialogOpen, setDialogOpen] = React.useState(false)
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date())
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined)
   const [typeFilter, setTypeFilter] = React.useState('all')
 
   // Data state
@@ -173,6 +189,7 @@ export default function AppointmentsPage() {
 
   React.useEffect(() => {
     fetchAppointments()
+    setSelectedDate(new Date())
   }, [fetchAppointments])
 
   // Fetch patients when dialog opens
@@ -238,7 +255,10 @@ export default function AppointmentsPage() {
   }
 
   // ---- Computed values ----
-  const todayStr = new Date().toISOString().split('T')[0]
+  const [todayStr, setTodayStr] = React.useState('')
+  React.useEffect(() => {
+    setTodayStr(new Date().toISOString().split('T')[0])
+  }, [])
   const todayAppointments = appointments.filter(a => getDateStr(a.appointmentDate) === todayStr)
   const upcomingAppointments = appointments.filter(a => getDateStr(a.appointmentDate) > todayStr)
 
@@ -485,7 +505,7 @@ export default function AppointmentsPage() {
                   <p className="text-sm text-muted-foreground text-center py-4">No appointments scheduled for today</p>
                 ) : (
                   [...todayAppointments]
-                    .sort((a, b) => getTimeStr(a.appointmentDate).localeCompare(getTimeStr(b.appointmentDate)))
+                    .sort((a, b) => formatTime(a.appointmentDate).localeCompare(formatTime(b.appointmentDate)))
                     .map((apt, idx) => (
                     <div key={apt.id} className="flex gap-3">
                       {/* Timeline */}
@@ -502,7 +522,7 @@ export default function AppointmentsPage() {
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold">{getTimeStr(apt.appointmentDate)}</span>
+                              <span className="text-sm font-semibold">{formatTime(apt.appointmentDate)}</span>
                               <span className="text-xs text-muted-foreground">{apt.durationMinutes} min</span>
                             </div>
                             <p className="text-sm font-medium mt-0.5">{getPatientName(apt)}</p>
@@ -548,7 +568,7 @@ export default function AppointmentsPage() {
                     .sort((a, b) => {
                       const dateComp = getDateStr(a.appointmentDate).localeCompare(getDateStr(b.appointmentDate))
                       if (dateComp !== 0) return dateComp
-                      return getTimeStr(a.appointmentDate).localeCompare(getTimeStr(b.appointmentDate))
+                      return formatTime(a.appointmentDate).localeCompare(formatTime(b.appointmentDate))
                     })
                     .map(apt => (
                     <div key={apt.id} className="p-3 rounded-lg border bg-muted/20 hover:bg-muted/30 transition-colors">
@@ -557,7 +577,7 @@ export default function AppointmentsPage() {
                           <p className="text-sm font-medium">{getPatientName(apt)}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-xs text-muted-foreground font-medium">{getDateStr(apt.appointmentDate)}</span>
-                            <span className="text-xs text-muted-foreground">at {getTimeStr(apt.appointmentDate)}</span>
+                            <span className="text-xs text-muted-foreground">at {formatTime(apt.appointmentDate)}</span>
                           </div>
                         </div>
                         <Badge variant="outline" className={`text-[10px] ${getStatusColor(apt.status)}`}>
@@ -662,8 +682,8 @@ export default function AppointmentsPage() {
                     const filteredApts = typeFilter === 'all' ? apts : apts.filter(a => a.type === typeFilter)
                     if (filteredApts.length === 0) return null
                     const dateObj = new Date(date + 'T00:00:00')
-                    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' })
-                    const monthDay = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    const dayName = formatDayName(date)
+                    const monthDay = formatDateShort(date)
                     return (
                       <div key={date}>
                         <div className="flex items-center gap-2 mb-2">
@@ -684,12 +704,12 @@ export default function AppointmentsPage() {
                         </div>
                         <div className="ml-4 space-y-2 pl-4 border-l-2 border-muted">
                           {[...filteredApts]
-                            .sort((a, b) => getTimeStr(a.appointmentDate).localeCompare(getTimeStr(b.appointmentDate)))
+                            .sort((a, b) => formatTime(a.appointmentDate).localeCompare(formatTime(b.appointmentDate)))
                             .map(apt => (
                             <div key={apt.id} className="p-3 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                               <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs font-mono font-semibold text-muted-foreground">{getTimeStr(apt.appointmentDate)}</span>
+                                  <span className="text-xs font-mono font-semibold text-muted-foreground">{formatTime(apt.appointmentDate)}</span>
                                   <p className="text-sm font-medium">{getPatientName(apt)}</p>
                                 </div>
                                 <Badge variant="outline" className={`text-[10px] ${getStatusColor(apt.status)}`}>

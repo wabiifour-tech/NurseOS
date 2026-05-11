@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/caregrid/consultations - List consultations
+// Cross-facility: shows consultations involving the nurse (as requester or consultant)
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -15,6 +16,16 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Show consultations where the nurse is either
+    // the requester or the consultant (cross-facility consultations are intentional)
+    if (authUser.nurseProfileId) {
+      where.OR = [
+        { requestingNurseId: authUser.nurseProfileId },
+        { consultingNurseId: authUser.nurseProfileId },
+      ]
+    }
+
     if (status) where.status = status
 
     const [consultations, total] = await Promise.all([
@@ -53,24 +64,47 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/caregrid/consultations - Create a consultation
+// Cross-facility: allows consulting nurses from other facilities
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+
     const body = await request.json()
 
-    if (!body.consultingNurseId || !body.subject || !body.description) {
+    // Support type allows missing consultingNurseId (for support requests)
+    const isSupportRequest = body.consultationType === 'SUPPORT'
+
+    if (!isSupportRequest && !body.consultingNurseId) {
       return NextResponse.json(
-        { error: 'Consulting nurse ID, subject, and description are required' },
+        { error: 'Consulting nurse ID is required for consultations' },
         { status: 400 }
       )
     }
 
+    if (!body.subject || !body.description) {
+      return NextResponse.json(
+        { error: 'Subject and description are required' },
+        { status: 400 }
+      )
+    }
+
+    // For support requests without a consulting nurse, find an available admin/support nurse
+    let consultingNurseId = body.consultingNurseId
+    if (!consultingNurseId) {
+      const supportNurse = await db.nurseProfile.findFirst({
+        where: { availableForConsult: true },
+        select: { id: true },
+      })
+      consultingNurseId = supportNurse?.id || 'system-support'
+    }
+
     const consultation = await db.consultation.create({
       data: {
-        requestingNurseId: body.requestingNurseId || authUser.id,
-        consultingNurseId: body.consultingNurseId,
+        requestingNurseId: nurseId || authUser.id,
+        consultingNurseId,
         patientId: body.patientId || null,
         recordId: body.recordId || null,
         consultationType: body.consultationType || body.type || 'CHAT',

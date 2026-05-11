@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
           "id" TEXT NOT NULL PRIMARY KEY,
           "userId" TEXT UNIQUE,
           "patientId" TEXT NOT NULL UNIQUE,
+          "facilityId" TEXT,
           "dateOfBirth" TIMESTAMP(3),
           "gender" TEXT,
           "bloodType" TEXT,
@@ -754,6 +755,7 @@ export async function POST(request: NextRequest) {
       `CREATE INDEX IF NOT EXISTS "NurseProfile_licenseNumber_idx" ON "NurseProfile"("licenseNumber")`,
       `CREATE INDEX IF NOT EXISTS "Notification_userId_idx" ON "Notification"("userId", "isRead", "createdAt")`,
       `CREATE INDEX IF NOT EXISTS "PatientProfile_patientId_idx" ON "PatientProfile"("patientId")`,
+      `CREATE INDEX IF NOT EXISTS "PatientProfile_facilityId_idx" ON "PatientProfile"("facilityId")`,
       `CREATE INDEX IF NOT EXISTS "Facility_type_city_state_idx" ON "Facility"("type", "city", "state")`,
       `CREATE INDEX IF NOT EXISTS "Facility_isVerified_idx" ON "Facility"("isVerified")`,
       `CREATE INDEX IF NOT EXISTS "MedicalRecord_patientId_idx" ON "MedicalRecord"("patientId", "encounterDate")`,
@@ -795,6 +797,7 @@ export async function POST(request: NextRequest) {
       `ALTER TABLE "NurseProfile" ADD CONSTRAINT "NurseProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
       `ALTER TABLE "AdminProfile" ADD CONSTRAINT "AdminProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
       `ALTER TABLE "PatientProfile" ADD CONSTRAINT "PatientProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
+      `ALTER TABLE "PatientProfile" ADD CONSTRAINT "PatientProfile_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
     ]
 
     for (const fk of fkConstraints) {

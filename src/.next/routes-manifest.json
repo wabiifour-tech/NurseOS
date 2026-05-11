@@ -1,0 +1,491 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/academy/courses/[id]",
+      "regex": "^/academy/courses/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/academy/courses/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/nurseacademy/courses/[id]",
+      "regex": "^/api/nurseacademy/courses/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/nurseacademy/courses/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/patients/[id]",
+      "regex": "^/api/nurseai/patients/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/nurseai/patients/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/nurseai/patients/[id]",
+      "regex": "^/nurseai/patients/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/nurseai/patients/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/about",
+      "regex": "^/about(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/about(?:/)?$"
+    },
+    {
+      "page": "/academy/certificates",
+      "regex": "^/academy/certificates(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/academy/certificates(?:/)?$"
+    },
+    {
+      "page": "/academy/courses",
+      "regex": "^/academy/courses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/academy/courses(?:/)?$"
+    },
+    {
+      "page": "/academy/my-learning",
+      "regex": "^/academy/my\\-learning(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/academy/my\\-learning(?:/)?$"
+    },
+    {
+      "page": "/academy/simulations",
+      "regex": "^/academy/simulations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/academy/simulations(?:/)?$"
+    },
+    {
+      "page": "/analytics",
+      "regex": "^/analytics(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/analytics(?:/)?$"
+    },
+    {
+      "page": "/analytics/patients",
+      "regex": "^/analytics/patients(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/analytics/patients(?:/)?$"
+    },
+    {
+      "page": "/analytics/reports",
+      "regex": "^/analytics/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/analytics/reports(?:/)?$"
+    },
+    {
+      "page": "/analytics/staffing",
+      "regex": "^/analytics/staffing(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/analytics/staffing(?:/)?$"
+    },
+    {
+      "page": "/analytics/surveillance",
+      "regex": "^/analytics/surveillance(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/analytics/surveillance(?:/)?$"
+    },
+    {
+      "page": "/api",
+      "regex": "^/api(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api(?:/)?$"
+    },
+    {
+      "page": "/api/auth/change-password",
+      "regex": "^/api/auth/change\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/change\\-password(?:/)?$"
+    },
+    {
+      "page": "/api/auth/forgot-password",
+      "regex": "^/api/auth/forgot\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/forgot\\-password(?:/)?$"
+    },
+    {
+      "page": "/api/auth/login",
+      "regex": "^/api/auth/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/login(?:/)?$"
+    },
+    {
+      "page": "/api/auth/profile",
+      "regex": "^/api/auth/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/profile(?:/)?$"
+    },
+    {
+      "page": "/api/auth/register",
+      "regex": "^/api/auth/register(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/register(?:/)?$"
+    },
+    {
+      "page": "/api/caregrid/consultations",
+      "regex": "^/api/caregrid/consultations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/caregrid/consultations(?:/)?$"
+    },
+    {
+      "page": "/api/caregrid/directory",
+      "regex": "^/api/caregrid/directory(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/caregrid/directory(?:/)?$"
+    },
+    {
+      "page": "/api/caregrid/facilities",
+      "regex": "^/api/caregrid/facilities(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/caregrid/facilities(?:/)?$"
+    },
+    {
+      "page": "/api/caregrid/knowledge",
+      "regex": "^/api/caregrid/knowledge(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/caregrid/knowledge(?:/)?$"
+    },
+    {
+      "page": "/api/caregrid/referrals",
+      "regex": "^/api/caregrid/referrals(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/caregrid/referrals(?:/)?$"
+    },
+    {
+      "page": "/api/health",
+      "regex": "^/api/health(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/health(?:/)?$"
+    },
+    {
+      "page": "/api/nurseacademy/certificates",
+      "regex": "^/api/nurseacademy/certificates(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseacademy/certificates(?:/)?$"
+    },
+    {
+      "page": "/api/nurseacademy/courses",
+      "regex": "^/api/nurseacademy/courses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseacademy/courses(?:/)?$"
+    },
+    {
+      "page": "/api/nurseacademy/my-learning",
+      "regex": "^/api/nurseacademy/my\\-learning(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseacademy/my\\-learning(?:/)?$"
+    },
+    {
+      "page": "/api/nurseacademy/simulations",
+      "regex": "^/api/nurseacademy/simulations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseacademy/simulations(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/ai/smart-chart",
+      "regex": "^/api/nurseai/ai/smart\\-chart(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseai/ai/smart\\-chart(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/appointments",
+      "regex": "^/api/nurseai/appointments(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseai/appointments(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/medications",
+      "regex": "^/api/nurseai/medications(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseai/medications(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/notes",
+      "regex": "^/api/nurseai/notes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseai/notes(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/patients",
+      "regex": "^/api/nurseai/patients(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseai/patients(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/records",
+      "regex": "^/api/nurseai/records(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseai/records(?:/)?$"
+    },
+    {
+      "page": "/api/nurseai/vitals",
+      "regex": "^/api/nurseai/vitals(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseai/vitals(?:/)?$"
+    },
+    {
+      "page": "/api/nurseanalytics/dashboard",
+      "regex": "^/api/nurseanalytics/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseanalytics/dashboard(?:/)?$"
+    },
+    {
+      "page": "/api/nurseid/competencies",
+      "regex": "^/api/nurseid/competencies(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseid/competencies(?:/)?$"
+    },
+    {
+      "page": "/api/nurseid/cpd",
+      "regex": "^/api/nurseid/cpd(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseid/cpd(?:/)?$"
+    },
+    {
+      "page": "/api/nurseid/credentials",
+      "regex": "^/api/nurseid/credentials(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseid/credentials(?:/)?$"
+    },
+    {
+      "page": "/api/nurseid/portfolio",
+      "regex": "^/api/nurseid/portfolio(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseid/portfolio(?:/)?$"
+    },
+    {
+      "page": "/api/nurseid/profile",
+      "regex": "^/api/nurseid/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/nurseid/profile(?:/)?$"
+    },
+    {
+      "page": "/api/seed",
+      "regex": "^/api/seed(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/seed(?:/)?$"
+    },
+    {
+      "page": "/api/setup",
+      "regex": "^/api/setup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/setup(?:/)?$"
+    },
+    {
+      "page": "/caregrid/consultations",
+      "regex": "^/caregrid/consultations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/caregrid/consultations(?:/)?$"
+    },
+    {
+      "page": "/caregrid/directory",
+      "regex": "^/caregrid/directory(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/caregrid/directory(?:/)?$"
+    },
+    {
+      "page": "/caregrid/facilities",
+      "regex": "^/caregrid/facilities(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/caregrid/facilities(?:/)?$"
+    },
+    {
+      "page": "/caregrid/knowledge",
+      "regex": "^/caregrid/knowledge(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/caregrid/knowledge(?:/)?$"
+    },
+    {
+      "page": "/caregrid/referrals",
+      "regex": "^/caregrid/referrals(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/caregrid/referrals(?:/)?$"
+    },
+    {
+      "page": "/caregrid/referrals/new",
+      "regex": "^/caregrid/referrals/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/caregrid/referrals/new(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/features",
+      "regex": "^/features(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/features(?:/)?$"
+    },
+    {
+      "page": "/forgot-password",
+      "regex": "^/forgot\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/forgot\\-password(?:/)?$"
+    },
+    {
+      "page": "/help",
+      "regex": "^/help(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/help(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/nurseai/appointments",
+      "regex": "^/nurseai/appointments(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseai/appointments(?:/)?$"
+    },
+    {
+      "page": "/nurseai/charting",
+      "regex": "^/nurseai/charting(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseai/charting(?:/)?$"
+    },
+    {
+      "page": "/nurseai/medications",
+      "regex": "^/nurseai/medications(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseai/medications(?:/)?$"
+    },
+    {
+      "page": "/nurseai/patients",
+      "regex": "^/nurseai/patients(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseai/patients(?:/)?$"
+    },
+    {
+      "page": "/nurseai/records",
+      "regex": "^/nurseai/records(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseai/records(?:/)?$"
+    },
+    {
+      "page": "/nurseai/vitals",
+      "regex": "^/nurseai/vitals(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseai/vitals(?:/)?$"
+    },
+    {
+      "page": "/nurseid/competencies",
+      "regex": "^/nurseid/competencies(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseid/competencies(?:/)?$"
+    },
+    {
+      "page": "/nurseid/cpd",
+      "regex": "^/nurseid/cpd(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseid/cpd(?:/)?$"
+    },
+    {
+      "page": "/nurseid/credentials",
+      "regex": "^/nurseid/credentials(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseid/credentials(?:/)?$"
+    },
+    {
+      "page": "/nurseid/portfolio",
+      "regex": "^/nurseid/portfolio(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseid/portfolio(?:/)?$"
+    },
+    {
+      "page": "/nurseid/profile",
+      "regex": "^/nurseid/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/nurseid/profile(?:/)?$"
+    },
+    {
+      "page": "/pricing",
+      "regex": "^/pricing(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/pricing(?:/)?$"
+    },
+    {
+      "page": "/register",
+      "regex": "^/register(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/register(?:/)?$"
+    },
+    {
+      "page": "/settings",
+      "regex": "^/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

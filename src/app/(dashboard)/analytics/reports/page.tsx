@@ -63,15 +63,19 @@ function EmptyState({ icon: Icon, title, description }: { icon: React.ComponentT
   )
 }
 
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 function getNextDate(frequency: string): string {
   const now = new Date()
   if (frequency === "Monthly") {
-    return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" })
+    const d = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
   }
   if (frequency === "Quarterly") {
     const quarter = Math.floor(now.getMonth() / 3) + 1
     const nextQuarterMonth = quarter * 3
-    return new Date(now.getFullYear(), nextQuarterMonth, 1).toLocaleDateString("en-NG", { month: "short", day: "numeric", year: "numeric" })
+    const d = new Date(now.getFullYear(), nextQuarterMonth, 1)
+    return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
   }
   return "N/A"
 }

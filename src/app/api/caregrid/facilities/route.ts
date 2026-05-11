@@ -94,10 +94,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/caregrid/facilities - Add a new facility
+// POST /api/caregrid/facilities - Add a new facility (admin only)
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
+
+  // 🔒 Only admins can create facilities
+  if (authUser.role !== 'ADMIN') {
+    return NextResponse.json(
+      { error: 'Only facility administrators can create new facilities.' },
+      { status: 403 }
+    )
+  }
 
   try {
     const body = await request.json()

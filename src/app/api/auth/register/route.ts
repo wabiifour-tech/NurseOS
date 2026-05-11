@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, password, firstName, lastName, middleName, role, phone, countryCode } = body
+    const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId } = body
 
     // Validate required fields
     if (!email || !password || !firstName || !lastName || !role) {
@@ -72,6 +72,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate facilityId if provided
+    let verifiedFacilityId: string | null = null
+    if (facilityId) {
+      const facility = await db.facility.findUnique({
+        where: { id: facilityId },
+        select: { id: true, name: true },
+      })
+      if (!facility) {
+        return NextResponse.json(
+          { error: 'Selected facility not found. Please choose a valid facility.' },
+          { status: 400 }
+        )
+      }
+      verifiedFacilityId = facility.id
+    }
+
     // Check if user already exists
     const existingUser = await db.user.findUnique({
       where: { email: email.toLowerCase() },
@@ -107,7 +123,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // If role is nursing-related, create NurseProfile
+    // If role is nursing-related, create NurseProfile with facility assignment
     if (['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole)) {
       await db.nurseProfile.create({
         data: {
@@ -118,16 +134,18 @@ export async function POST(request: NextRequest) {
           nursingCouncil: 'Nigeria',
           skills: '[]',
           languages: '["English"]',
+          currentFacilityId: verifiedFacilityId,
         },
       })
     }
 
-    // If role is ADMIN, create AdminProfile
+    // If role is ADMIN, create AdminProfile with facility assignment
     if (normalizedRole === 'ADMIN') {
       await db.adminProfile.create({
         data: {
           userId: user.id,
           accessLevel: 1,
+          facilityId: verifiedFacilityId,
         },
       })
     }
@@ -139,7 +157,7 @@ export async function POST(request: NextRequest) {
         action: 'USER_REGISTERED',
         resource: 'User',
         resourceId: user.id,
-        details: `New ${normalizedRole} registered: ${email}`,
+        details: `New ${normalizedRole} registered: ${email}${verifiedFacilityId ? ` at facility: ${verifiedFacilityId}` : ''}`,
       },
     })
 

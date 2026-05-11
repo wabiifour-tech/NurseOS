@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseid/competencies - List competencies
 export async function GET(request: NextRequest) {
@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
-    const nurseId = new URL(request.url).searchParams.get('nurseId') || authUser.id
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ competencies: [], message: 'No nurse profile found' })
+    }
+
+    const targetNurseId = new URL(request.url).searchParams.get('nurseId') || nurseId
 
     const competencies = await db.competency.findMany({
-      where: { nurseId },
+      where: { nurseId: targetNurseId },
       orderBy: { updatedAt: 'desc' },
     })
 
@@ -28,6 +33,11 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
+    }
+
     const body = await request.json()
 
     if (!body.competencyArea || !body.level) {
@@ -39,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const competency = await db.competency.create({
       data: {
-        nurseId: body.nurseId || authUser.id,
+        nurseId,
         competencyArea: body.competencyArea,
         level: body.level,
         assessedBy: body.assessedBy || null,

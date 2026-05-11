@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseid/credentials - List credentials
 export async function GET(request: NextRequest) {
@@ -8,12 +8,17 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ credentials: [], message: 'No nurse profile found' })
+    }
+
     const { searchParams } = new URL(request.url)
-    const nurseId = searchParams.get('nurseId') || authUser.id
+    const targetNurseId = searchParams.get('nurseId') || nurseId
     const limit = parseInt(searchParams.get('limit') || '50')
 
     const credentials = await db.credential.findMany({
-      where: { nurseId },
+      where: { nurseId: targetNurseId },
       orderBy: { issueDate: 'desc' },
       take: limit,
     })
@@ -31,6 +36,11 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
+    }
+
     const body = await request.json()
 
     if (!body.credentialName || !body.credentialType || !body.issuingBody) {
@@ -42,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const credential = await db.credential.create({
       data: {
-        nurseId: body.nurseId || authUser.id,
+        nurseId,
         credentialName: body.credentialName,
         credentialType: body.credentialType,
         issuingBody: body.issuingBody,

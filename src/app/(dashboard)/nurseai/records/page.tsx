@@ -203,8 +203,9 @@ export default function RecordsPage() {
           fullName: p.fullName,
         }))
       )
-    } catch {
+    } catch (err) {
       /* non-critical */
+      console.error('Failed to load patients for form:', err)
     }
   }, [])
 

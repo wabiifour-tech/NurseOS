@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Mail,
   Lock,
@@ -15,6 +15,7 @@ import {
   Loader2,
   User,
   Briefcase,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ const registerSchema = z
     firstName: z.string().min(2, "First name must be at least 2 characters"),
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
+    facilityId: z.string().optional(),
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")
@@ -58,10 +60,20 @@ const roles = [
   { value: "other", label: "Other Healthcare Worker" },
 ];
 
+interface FacilityOption {
+  id: string;
+  name: string;
+  type: string;
+  city: string;
+  state: string;
+}
+
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [facilities, setFacilities] = useState<FacilityOption[]>([]);
+  const [loadingFacilities, setLoadingFacilities] = useState(true);
   const login = useAuthStore((state) => state.login);
   const router = useRouter();
 
@@ -73,10 +85,28 @@ export default function RegisterPage() {
     formState: { errors },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { role: "" },
+    defaultValues: { role: "", facilityId: "" },
   });
 
   const selectedRole = watch("role");
+
+  // Fetch facilities for the dropdown
+  useEffect(() => {
+    async function fetchFacilities() {
+      try {
+        const res = await fetch("/api/caregrid/facilities?limit=200");
+        if (res.ok) {
+          const data = await res.json();
+          setFacilities(data.facilities || []);
+        }
+      } catch {
+        // Silently fail — facility selection is optional
+      } finally {
+        setLoadingFacilities(false);
+      }
+    }
+    fetchFacilities();
+  }, []);
 
   async function onSubmit(data: RegisterForm) {
     setIsLoading(true);
@@ -90,6 +120,7 @@ export default function RegisterPage() {
           firstName: data.firstName,
           lastName: data.lastName,
           role: data.role.toUpperCase(),
+          facilityId: data.facilityId || undefined,
         }),
       });
 
@@ -109,13 +140,16 @@ export default function RegisterPage() {
         return
       }
 
-      // Auto-login after registration
+      // Auto-login after registration with facility context
       login({
         id: result.user?.id || crypto.randomUUID(),
         email: result.user?.email || data.email,
         firstName: result.user?.firstName || data.firstName,
         lastName: result.user?.lastName || data.lastName,
         role: result.originalRole || data.role,
+        facilityId: result.user?.nurseProfile?.currentFacilityId || result.user?.adminProfile?.facilityId || null,
+        facilityName: result.user?.nurseProfile?.facility?.name || result.user?.adminProfile?.facility?.name || null,
+        nurseProfileId: result.user?.nurseProfile?.id || null,
       }, result.token);
 
       toast.success("Account created! Welcome to NurseOS.");
@@ -159,6 +193,37 @@ export default function RegisterPage() {
           </Select>
           {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
         </div>
+
+        {/* Facility selection */}
+        {selectedRole && selectedRole !== "other" && (
+          <div className="space-y-2">
+            <Label htmlFor="facilityId">
+              Healthcare Facility
+              <span className="text-muted-foreground text-xs ml-1">(select where you work)</span>
+            </Label>
+            <Select
+              onValueChange={(value) => setValue("facilityId", value === "__none__" ? "" : value)}
+            >
+              <SelectTrigger className="w-full">
+                <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your facility"} />
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                <SelectItem value="__none__">Not listed / Skip for now</SelectItem>
+                {facilities
+                  .sort((a, b) => a.state.localeCompare(b.state))
+                  .map((facility) => (
+                    <SelectItem key={facility.id} value={facility.id}>
+                      {facility.name} — {facility.city}, {facility.state}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Your data will be isolated to this facility. You can update this later in settings.
+            </p>
+          </div>
+        )}
 
         {/* Name fields */}
         <div className="grid grid-cols-2 gap-3">

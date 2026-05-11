@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
-// GET /api/nurseai/medications - List medication orders
+// GET /api/nurseai/medications - List medication orders scoped to nurse's facility
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -15,7 +15,15 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
 
+    // 🔒 FACILITY ISOLATION: Require a facility assignment to view medications
+    const facilityId = requireFacility(authUser)
+    if (facilityId instanceof Response) return facilityId
+
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Only show medications for patients in the nurse's facility (mandatory)
+    where.patient = { facilityId }
+
     if (patientId) where.patientId = patientId
     if (status) where.status = status
 
@@ -56,6 +64,10 @@ export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
+  // 🔒 FACILITY ISOLATION: Require a facility assignment
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
+
   try {
     const body = await request.json()
 
@@ -66,7 +78,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify the medical record exists
+    // Verify the medical record exists and belongs to the nurse's facility
     const medicalRecord = await db.medicalRecord.findUnique({
       where: { id: body.recordId },
     })
@@ -74,6 +86,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Medical record not found. A valid record ID is required to create medication orders.' },
         { status: 404 }
+      )
+    }
+
+    // 🔒 Verify record belongs to the nurse's facility
+    if (medicalRecord.facilityId !== facilityId) {
+      return NextResponse.json(
+        { error: 'You can only create medication orders for records in your facility.' },
+        { status: 403 }
       )
     }
 

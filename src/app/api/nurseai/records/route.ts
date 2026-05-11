@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
 const VALID_ENCOUNTER_TYPES = [
   'ADMISSION',
@@ -16,7 +16,7 @@ const VALID_ENCOUNTER_TYPES = [
 
 const VALID_STATUSES = ['ACTIVE', 'DISCHARGED', 'PENDING', 'CLOSED', 'CRITICAL']
 
-// GET /api/nurseai/records
+// GET /api/nurseai/records - List medical records scoped to nurse's facility
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -29,7 +29,14 @@ export async function GET(request: NextRequest) {
     const encounterType = searchParams.get('encounterType')
     const search = searchParams.get('search')
 
+    // 🔒 FACILITY ISOLATION: Require a facility assignment to view records
+    const facilityId = requireFacility(authUser)
+    if (facilityId instanceof Response) return facilityId
+
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Only show records from the nurse's facility (mandatory)
+    where.facilityId = facilityId
 
     if (status && VALID_STATUSES.includes(status.toUpperCase())) {
       where.status = status.toUpperCase()
@@ -78,6 +85,7 @@ export async function GET(request: NextRequest) {
     const formattedRecords = records.map((r) => ({
       id: r.id,
       patientId: r.patientId,
+      facilityId: r.facilityId,
       encounterType: r.encounterType,
       chiefComplaint: r.chiefComplaint,
       status: r.status,
@@ -121,10 +129,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/nurseai/records
+// POST /api/nurseai/records - Create medical record scoped to nurse's facility
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
+
+  // 🔒 FACILITY ISOLATION: Require a facility assignment
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
 
   try {
     const body = await request.json()
@@ -137,7 +149,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify patient exists
+    // Verify patient exists AND belongs to the same facility
     const patient = await db.patientProfile.findUnique({
       where: { id: patientId },
     })
@@ -145,6 +157,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Patient not found' },
         { status: 404 }
+      )
+    }
+
+    // 🔒 Verify patient belongs to the nurse's facility
+    if (patient.facilityId && patient.facilityId !== facilityId) {
+      return NextResponse.json(
+        { error: 'You can only create records for patients in your facility.' },
+        { status: 403 }
       )
     }
 
@@ -158,19 +178,11 @@ export async function POST(request: NextRequest) {
         ? status.toUpperCase()
         : 'ACTIVE'
 
-    // Get first facility as default
-    const facility = await db.facility.findFirst()
-    if (!facility) {
-      return NextResponse.json(
-        { error: 'No facility found. Please seed facilities first.' },
-        { status: 500 }
-      )
-    }
-
+    // Use the nurse's facility instead of the broken findFirst()
     const record = await db.medicalRecord.create({
       data: {
         patientId,
-        facilityId: facility.id,
+        facilityId, // 🔒 Auto-assign to nurse's facility
         encounterType: encType,
         chiefComplaint,
         status: recStatus,
@@ -199,6 +211,7 @@ export async function POST(request: NextRequest) {
         record: {
           id: record.id,
           patientId: record.patientId,
+          facilityId: record.facilityId,
           encounterType: record.encounterType,
           chiefComplaint: record.chiefComplaint,
           status: record.status,

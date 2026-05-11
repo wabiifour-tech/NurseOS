@@ -250,10 +250,28 @@ export default function CredentialsPage() {
     }
   }
 
-  const copyHash = (hash: string) => {
-    navigator.clipboard.writeText(hash)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const copyHash = async (hash: string) => {
+    try {
+      await navigator.clipboard.writeText(hash)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for browsers/contexts where Clipboard API is unavailable
+      try {
+        const textarea = document.createElement('textarea')
+        textarea.value = hash
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        toast.error('Failed to copy to clipboard')
+      }
+    }
   }
 
   // Compute stats from real data

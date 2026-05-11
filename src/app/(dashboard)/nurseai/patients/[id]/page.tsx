@@ -281,24 +281,20 @@ export default function PatientDetailPage() {
     }
   })()
 
+  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—'
-    return new Date(dateStr).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    })
+    const d = new Date(dateStr)
+    return `${d.getDate().toString().padStart(2, '0')} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
   }
 
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return '—'
-    return new Date(dateStr).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const d = new Date(dateStr)
+    const hours = d.getHours().toString().padStart(2, '0')
+    const minutes = d.getMinutes().toString().padStart(2, '0')
+    return `${d.getDate().toString().padStart(2, '0')} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}, ${hours}:${minutes}`
   }
 
   const getAge = (dob: string | null) => {
@@ -373,20 +369,20 @@ export default function PatientDetailPage() {
   // Chart data
   const vitalsChartData = [...patient.vitals]
     .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
-    .map(v => ({
-      time: new Date(v.recordedAt).toLocaleString('en-GB', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      temperature: v.temperature,
-      heartRate: v.heartRate,
-      bpSystolic: v.bloodPressureSystolic,
-      bpDiastolic: v.bloodPressureDiastolic,
-      spO2: v.oxygenSaturation,
-      respiratoryRate: v.respiratoryRate,
-    }))
+    .map(v => {
+      const d = new Date(v.recordedAt)
+      const hours = d.getHours().toString().padStart(2, '0')
+      const minutes = d.getMinutes().toString().padStart(2, '0')
+      return {
+        time: `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${hours}:${minutes}`,
+        temperature: v.temperature,
+        heartRate: v.heartRate,
+        bpSystolic: v.bloodPressureSystolic,
+        bpDiastolic: v.bloodPressureDiastolic,
+        spO2: v.oxygenSaturation,
+        respiratoryRate: v.respiratoryRate,
+      }
+    })
 
   // Helpers
   const getMedStatusColor = (status: string) => {

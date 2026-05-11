@@ -59,6 +59,7 @@ interface RecentNote {
 }
 
 export default function ChartingPage() {
+  const { user } = useAuthStore()
   const [noteType, setNoteType] = React.useState('SOAP')
   const [selectedPatientId, setSelectedPatientId] = React.useState('')
   const [inputText, setInputText] = React.useState('')
@@ -103,7 +104,7 @@ export default function ChartingPage() {
           setRecentNotes(data.notes || [])
         }
       } catch {
-        // silently fail for notes
+        toast.error('Failed to load recent notes')
       } finally {
         setNotesLoading(false)
       }
@@ -202,19 +203,80 @@ export default function ChartingPage() {
     if (!generatedNote) return
     setIsSaving(true)
     try {
-      // For now, just mark as accepted locally since we need a medical record ID
-      // In a full workflow, this would create a medical record + nursing note
+      // Find or create a medical record for the patient
+      let recordId: string | null = null
+
+      if (selectedPatientId) {
+        // Try to find an existing active medical record for this patient
+        const recordsRes = await fetch(`/api/nurseai/records?limit=10&status=ACTIVE&search=`)
+        if (recordsRes.ok) {
+          const recordsData = await recordsRes.json()
+          const existingRecord = (recordsData.records || []).find(
+            (r: { patientId: string }) => r.patientId === selectedPatientId
+          )
+          if (existingRecord) {
+            recordId = existingRecord.id
+          }
+        }
+
+        // If no active record, create one
+        if (!recordId) {
+          const createRecordRes = await fetch('/api/nurseai/records', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              patientId: selectedPatientId,
+              chiefComplaint: inputText.trim().slice(0, 200) || 'AI-assisted charting',
+              encounterType: 'CONSULTATION',
+              status: 'ACTIVE',
+            }),
+          })
+          if (createRecordRes.ok) {
+            const recordData = await createRecordRes.json()
+            recordId = recordData.record?.id || recordData.id
+          }
+        }
+      }
+
+      if (!recordId || !user?.id) {
+        // If we can't get a recordId or nurseId, save locally and inform the user
+        setNoteStatus('accepted')
+        toast.success('Note accepted locally. Select a patient to persist to the database.')
+        setIsSaving(false)
+        return
+      }
+
+      // POST the nursing note
+      const res = await fetch('/api/nurseai/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recordId,
+          nurseId: user.id,
+          noteType,
+          content: generatedNote.trim(),
+          aiGenerated: true,
+          aiPrompt: inputText.trim(),
+          isSigned: false,
+        }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        throw new Error(errData?.error || 'Failed to save note')
+      }
+
       setNoteStatus('accepted')
       toast.success('Note accepted and saved successfully')
 
       // Refresh recent notes
-      const res = await fetch('/api/nurseai/notes?limit=10')
-      if (res.ok) {
-        const data = await res.json()
+      const notesRes = await fetch('/api/nurseai/notes?limit=10')
+      if (notesRes.ok) {
+        const data = await notesRes.json()
         setRecentNotes(data.notes || [])
       }
-    } catch {
-      toast.error('Failed to save note')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save note')
     } finally {
       setIsSaving(false)
     }
@@ -575,7 +637,7 @@ export default function ChartingPage() {
                           {note.noteType}
                         </Badge>
                         <span className="text-[10px] text-muted-foreground">
-                          {new Date(note.createdAt).toLocaleDateString()}
+                          {(() => { const d = new Date(note.createdAt); return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}` })()}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2">{note.content.slice(0, 80)}...</p>

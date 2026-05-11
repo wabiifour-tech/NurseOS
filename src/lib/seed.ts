@@ -827,6 +827,92 @@ async function main() {
   }
   console.log('✅ Created course modules.\n')
 
+  // ========== BULK IMPORT COURSES FROM JSON ==========
+  const courseCountBeforeImport = await prisma.course.count()
+  if (courseCountBeforeImport < 280) {
+    console.log('📚 Bulk importing courses from JSON files...')
+    try {
+      const fs = await import('fs')
+      const path = await import('path')
+
+      interface CourseData {
+        title: string; slug: string; description: string; category: string;
+        level: string; durationMinutes: number; cpdPoints: number;
+        language: string; tags: string[]; isFree: boolean; price: number | null;
+        enrollmentCount: number; rating: number; totalRatings: number;
+        modules: [string, string, string, number][];
+      }
+
+      const part1Path = path.join(process.cwd(), 'src/data/courses_part1.json')
+      const part2Path = path.join(process.cwd(), 'src/data/courses_part2.json')
+
+      let allCourses: CourseData[] = []
+      if (fs.existsSync(part1Path)) {
+        allCourses = [...allCourses, ...JSON.parse(fs.readFileSync(part1Path, 'utf-8'))]
+      }
+      if (fs.existsSync(part2Path)) {
+        allCourses = [...allCourses, ...JSON.parse(fs.readFileSync(part2Path, 'utf-8'))]
+      }
+
+      console.log(`  Loaded ${allCourses.length} courses from JSON files`)
+
+      const existingSlugs = new Set(
+        (await prisma.course.findMany({ select: { slug: true } })).map(c => c.slug)
+      )
+
+      let imported = 0
+      let skipped = 0
+      const validLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT']
+
+      for (const cd of allCourses) {
+        if (existingSlugs.has(cd.slug)) { skipped++; continue }
+
+        try {
+          const level = validLevels.includes(cd.level) ? cd.level : 'INTERMEDIATE'
+          const course = await prisma.course.create({
+            data: {
+              title: cd.title, slug: cd.slug, description: cd.description,
+              category: cd.category, level, durationMinutes: cd.durationMinutes,
+              cpdPoints: cd.cpdPoints, language: cd.language || 'en',
+              tags: JSON.stringify(cd.tags || []), isPublished: true,
+              isFree: cd.isFree, price: cd.price,
+              enrollmentCount: cd.enrollmentCount || 0,
+              rating: cd.rating || 0, totalRatings: cd.totalRatings || 0,
+            },
+          })
+
+          if (cd.modules && Array.isArray(cd.modules)) {
+            for (let m = 0; m < cd.modules.length; m++) {
+              const mod = cd.modules[m]
+              if (Array.isArray(mod) && mod.length >= 3) {
+                await prisma.courseModule.create({
+                  data: {
+                    courseId: course.id, title: mod[0], description: mod[1],
+                    order: m + 1, contentType: mod[2] || 'TEXT',
+                    durationMinutes: mod[3] || 30, isRequired: true,
+                  },
+                })
+              }
+            }
+          }
+
+          existingSlugs.add(cd.slug)
+          imported++
+          if (imported % 50 === 0) console.log(`  Imported ${imported} courses so far...`)
+        } catch (err: any) {
+          if (err.code !== 'P2002') console.error(`  Error: ${cd.title}: ${err.message}`)
+        }
+      }
+
+      const totalAfterImport = await prisma.course.count()
+      console.log(`✅ Bulk import done: ${imported} imported, ${skipped} skipped. Total: ${totalAfterImport}\n`)
+    } catch (importErr: any) {
+      console.error(`⚠️ Bulk course import error: ${importErr.message}\n`)
+    }
+  } else {
+    console.log(`⏭  Courses already at ${courseCountBeforeImport}, skipping bulk import.\n`)
+  }
+
   // ========== CREATE ENROLLMENTS ==========
   console.log('🎓 Creating enrollments...')
   for (let i = 0; i < Math.min(nurses.length, 4); i++) {

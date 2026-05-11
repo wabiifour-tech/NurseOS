@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
-// GET /api/nurseai/notes - List nursing notes
+// GET /api/nurseai/notes - List nursing notes scoped to nurse's facility
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -16,7 +16,15 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
 
+    // 🔒 FACILITY ISOLATION: Require a facility assignment to view notes
+    const facilityId = requireFacility(authUser)
+    if (facilityId instanceof Response) return facilityId
+
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Only show notes for records in the nurse's facility (mandatory)
+    where.medicalRecord = { facilityId }
+
     if (recordId) {
       where.recordId = recordId
     }
@@ -24,7 +32,8 @@ export async function GET(request: NextRequest) {
       where.nurseId = nurseId
     }
     if (patientId) {
-      where.medicalRecord = { patientId }
+      // Add patientId filter within the facility-scoped medical record
+      where.medicalRecord = { facilityId, patientId }
     }
 
     const [notes, total] = await Promise.all([
@@ -43,6 +52,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               patientId: true,
+              facilityId: true,
               patient: {
                 select: {
                   id: true,
@@ -85,6 +95,10 @@ export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
+  // 🔒 FACILITY ISOLATION: Require a facility assignment
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
+
   try {
     const body = await request.json()
 
@@ -123,7 +137,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify medical record exists
+    // Verify medical record exists and belongs to nurse's facility
     const medicalRecord = await db.medicalRecord.findUnique({
       where: { id: body.recordId },
     })
@@ -131,6 +145,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Medical record not found' },
         { status: 404 }
+      )
+    }
+
+    // 🔒 Verify record belongs to the nurse's facility
+    if (medicalRecord.facilityId !== facilityId) {
+      return NextResponse.json(
+        { error: 'You can only create notes for records in your facility.' },
+        { status: 403 }
       )
     }
 
@@ -158,6 +180,7 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             patientId: true,
+            facilityId: true,
             patient: {
               select: {
                 id: true,
