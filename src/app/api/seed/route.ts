@@ -53,17 +53,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if already seeded
+    const log: string[] = []
+
+    // Check if already seeded (unless force=true)
+    const body = await request.json().catch(() => ({}))
+    const force = body?.force === true || new URL(request.url).searchParams.get('force') === 'true'
     const existingUsers = await db.user.count()
-    if (existingUsers > 0) {
+    if (existingUsers > 0 && !force) {
       return NextResponse.json({
-        message: 'Database already has data. Seeding skipped.',
+        message: 'Database already has data. Seeding skipped. Use ?force=true to re-seed.',
         status: 'already_seeded',
         existingUsers,
       })
     }
 
-    const log: string[] = []
+    // If force mode, delete all existing data in correct order (reverse of creation)
+    if (force && existingUsers > 0) {
+      log.push('Force mode: clearing existing data...')
+      const tableNames = [
+        'StaffingPrediction', 'DiseaseSurveillance', 'FacilityAnalytics',
+        'ArticleComment', 'KnowledgeArticle', 'Consultation', 'Referral',
+        'Enrollment', 'SimulationAttempt', 'Simulation', 'CourseModule', 'Course',
+        'LabOrder', 'MedicationOrder', 'AIInteraction', 'NursingNote', 'VitalSign',
+        'MedicalRecord', 'Appointment', 'VisitRecord',
+        'CPDRecord', 'PortfolioEntry', 'Competency', 'Credential',
+        'Department', 'Notification', 'AuditLog', 'Session',
+        'AdminProfile', 'PatientProfile', 'NurseProfile',
+        'User', 'Facility',
+      ]
+      for (const table of tableNames) {
+        try {
+          await db.$executeRawUnsafe(`DELETE FROM "${table}"`)
+        } catch {
+          // Table might not have data, ignore
+        }
+      }
+      log.push('Cleared existing data')
+    }
 
     // ========== CREATE FACILITIES ==========
     log.push('Creating facilities...')
