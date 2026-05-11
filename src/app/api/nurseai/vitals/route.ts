@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
 // GET /api/nurseai/vitals - List vitals scoped to nurse's facility
 export async function GET(request: NextRequest) {
@@ -14,12 +14,14 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
 
+    // 🔒 FACILITY ISOLATION: Require a facility assignment to view vitals
+    const facilityId = requireFacility(authUser)
+    if (facilityId instanceof Response) return facilityId
+
     const where: Record<string, unknown> = {}
 
-    // 🔒 FACILITY ISOLATION: Only show vitals for patients in the nurse's facility
-    if (authUser.facilityId) {
-      where.patient = { facilityId: authUser.facilityId }
-    }
+    // 🔒 FACILITY ISOLATION: Only show vitals for patients in the nurse's facility (mandatory)
+    where.patient = { facilityId }
 
     if (patientId) {
       where.patientId = patientId
@@ -85,9 +87,8 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  if (!authUser.facilityId) {
-    return noFacilityResponse()
-  }
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
 
   try {
     const body = await request.json()
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 🔒 Verify patient belongs to the nurse's facility
-    if (patient.facilityId && patient.facilityId !== authUser.facilityId) {
+    if (patient.facilityId && patient.facilityId !== facilityId) {
       return NextResponse.json(
         { error: 'You can only record vitals for patients in your facility.' },
         { status: 403 }

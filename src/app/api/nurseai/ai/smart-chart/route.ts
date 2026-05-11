@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
 
 // System prompts for different note types
 const SYSTEM_PROMPTS: Record<string, string> = {
@@ -48,6 +48,10 @@ Format your response as valid JSON with keys: vitals (object), intakeOutput (obj
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
+
+  // 🔒 FACILITY ISOLATION: Require a facility assignment to use AI charting
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
 
   try {
     const body = await request.json()
@@ -125,6 +129,21 @@ export async function POST(request: NextRequest) {
     // Save the AI interaction to the database if nurseId and recordId are provided
     if (nurseId && recordId) {
       try {
+        // 🔒 FACILITY ISOLATION: Verify the medical record belongs to the nurse's facility
+        const medicalRecord = await db.medicalRecord.findUnique({
+          where: { id: recordId },
+          select: { facilityId: true },
+        })
+        if (!medicalRecord) {
+          return NextResponse.json(
+            { error: 'Medical record not found' },
+            { status: 404 }
+          )
+        }
+        if (medicalRecord.facilityId !== facilityId) {
+          return crossFacilityDeniedResponse()
+        }
+
         await db.aIInteraction.create({
           data: {
             recordId,

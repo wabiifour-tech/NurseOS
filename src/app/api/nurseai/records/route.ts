@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
 const VALID_ENCOUNTER_TYPES = [
   'ADMISSION',
@@ -29,12 +29,14 @@ export async function GET(request: NextRequest) {
     const encounterType = searchParams.get('encounterType')
     const search = searchParams.get('search')
 
+    // 🔒 FACILITY ISOLATION: Require a facility assignment to view records
+    const facilityId = requireFacility(authUser)
+    if (facilityId instanceof Response) return facilityId
+
     const where: Record<string, unknown> = {}
 
-    // 🔒 FACILITY ISOLATION: Only show records from the nurse's facility
-    if (authUser.facilityId) {
-      where.facilityId = authUser.facilityId
-    }
+    // 🔒 FACILITY ISOLATION: Only show records from the nurse's facility (mandatory)
+    where.facilityId = facilityId
 
     if (status && VALID_STATUSES.includes(status.toUpperCase())) {
       where.status = status.toUpperCase()
@@ -133,9 +135,8 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  if (!authUser.facilityId) {
-    return noFacilityResponse()
-  }
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
 
   try {
     const body = await request.json()
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 🔒 Verify patient belongs to the nurse's facility
-    if (patient.facilityId && patient.facilityId !== authUser.facilityId) {
+    if (patient.facilityId && patient.facilityId !== facilityId) {
       return NextResponse.json(
         { error: 'You can only create records for patients in your facility.' },
         { status: 403 }
@@ -181,7 +182,7 @@ export async function POST(request: NextRequest) {
     const record = await db.medicalRecord.create({
       data: {
         patientId,
-        facilityId: authUser.facilityId, // 🔒 Auto-assign to nurse's facility
+        facilityId, // 🔒 Auto-assign to nurse's facility
         encounterType: encType,
         chiefComplaint,
         status: recStatus,

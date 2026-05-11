@@ -31,6 +31,8 @@ import {
   HelpCircle,
   ChevronDown,
   Loader2,
+  Building2,
+  AlertTriangle,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/auth-store"
 import Link from "next/link"
@@ -81,6 +83,8 @@ function DashboardHeader() {
   const firstName = user?.firstName || "Nurse"
   const lastName = user?.lastName || ""
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+  const facilityName = user?.facilityName
+  const hasFacility = !!user?.facilityId
 
   const handleSignOut = () => {
     logout()
@@ -103,6 +107,27 @@ function DashboardHeader() {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        {/* Facility Badge */}
+        {hasFacility ? (
+          <Badge
+            variant="outline"
+            className="gap-1.5 text-[11px] px-2.5 py-0.5 font-medium border-teal-500/30 bg-teal-500/10 text-teal-600 max-w-[200px] truncate"
+            title={facilityName || 'Unknown Facility'}
+          >
+            <Building2 className="size-3 shrink-0" />
+            <span className="truncate">{facilityName || 'Facility'}</span>
+          </Badge>
+        ) : (
+          <Link href="/settings">
+            <Badge
+              variant="outline"
+              className="gap-1.5 text-[11px] px-2.5 py-0.5 font-medium border-amber-500/30 bg-amber-500/10 text-amber-600 cursor-pointer hover:bg-amber-500/20 transition-colors"
+            >
+              <AlertTriangle className="size-3 shrink-0" />
+              <span>No Facility</span>
+            </Badge>
+          </Link>
+        )}
         <OnlineStatus />
 
         {/* Notifications */}

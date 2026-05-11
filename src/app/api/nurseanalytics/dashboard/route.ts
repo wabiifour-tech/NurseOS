@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
 // GET /api/nurseanalytics/dashboard - Return dashboard analytics data scoped to the user's facility
 export async function GET(request: NextRequest) {
@@ -8,18 +8,18 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
-    // 🔒 FACILITY ISOLATION: Use the authenticated user's facility
-    // If user has no facility, show global data (for superadmins)
-    const facilityId = authUser.facilityId
+    // 🔒 FACILITY ISOLATION: Require a facility assignment to view analytics
+    const facilityId = requireFacility(authUser)
+    if (facilityId instanceof Response) return facilityId
 
-    // Build facility-scoped where clauses
-    const patientWhere = facilityId ? { facilityId } : {}
-    const recordWhere = facilityId ? { facilityId } : {}
-    const appointmentWhere = facilityId ? { facilityId } : {}
-    const referralFromWhere = facilityId ? { fromFacilityId: facilityId } : {}
-    const referralToWhere = facilityId ? { toFacilityId: facilityId } : {}
-    const surveillanceWhere = facilityId ? { facilityId } : {}
-    const staffingWhere = facilityId ? { facilityId } : {}
+    // Build facility-scoped where clauses (facility is now guaranteed)
+    const patientWhere = { facilityId }
+    const recordWhere = { facilityId }
+    const appointmentWhere = { facilityId }
+    const referralFromWhere = { fromFacilityId: facilityId }
+    const referralToWhere = { toFacilityId: facilityId }
+    const surveillanceWhere = { facilityId }
+    const staffingWhere = { facilityId }
 
     // Aggregate real data from the database, scoped to facility
     const [
@@ -37,15 +37,15 @@ export async function GET(request: NextRequest) {
       staffingPredictions,
     ] = await Promise.all([
       db.patientProfile.count({ where: patientWhere }),
-      db.facility.count(facilityId ? { where: { id: facilityId } } : {}),
-      db.nurseProfile.count(facilityId ? { where: { currentFacilityId: facilityId } } : {}),
+      db.facility.count({ where: { id: facilityId } }),
+      db.nurseProfile.count({ where: { currentFacilityId: facilityId } }),
       db.medicalRecord.count({ where: { ...recordWhere, status: 'ACTIVE' } }),
-      db.vitalSign.count(facilityId ? { where: { patient: { facilityId } } } : {}),
-      db.medicationOrder.count(facilityId ? { where: { patient: { facilityId } } } : {}),
-      db.labOrder.count(facilityId ? { where: { patient: { facilityId } } } : {}),
+      db.vitalSign.count({ where: { patient: { facilityId } } }),
+      db.medicationOrder.count({ where: { patient: { facilityId } } }),
+      db.labOrder.count({ where: { patient: { facilityId } } }),
       db.appointment.count({ where: appointmentWhere }),
-      db.referral.count({ where: facilityId ? { OR: [{ fromFacilityId: facilityId }, { toFacilityId: facilityId }] } : {} }),
-      db.consultation.count(facilityId ? { where: { requestingNurse: { currentFacilityId: facilityId } } } : {}),
+      db.referral.count({ where: { OR: [{ fromFacilityId: facilityId }, { toFacilityId: facilityId }] } }),
+      db.consultation.count({ where: { requestingNurse: { currentFacilityId: facilityId } } }),
       db.diseaseSurveillance.findMany({
         where: surveillanceWhere,
         orderBy: { reportedAt: 'desc' },
@@ -60,24 +60,24 @@ export async function GET(request: NextRequest) {
 
     // Compute real metrics from vitals
     const abnormalVitals = await db.vitalSign.count({
-      where: { isAbnormal: true, ...(facilityId ? { patient: { facilityId } } : {}) },
+      where: { isAbnormal: true, patient: { facilityId } },
     })
     const avgEWS = await db.vitalSign.aggregate({
-      where: facilityId ? { patient: { facilityId } } : {},
+      where: { patient: { facilityId } },
       _avg: { earlyWarningScore: true },
     })
 
     // Compute medication stats
     const activeMedOrders = await db.medicationOrder.count({
-      where: { status: 'ACTIVE', ...(facilityId ? { patient: { facilityId } } : {}) },
+      where: { status: 'ACTIVE', patient: { facilityId } },
     })
     const pendingMedOrders = await db.medicationOrder.count({
-      where: { status: 'PENDING', ...(facilityId ? { patient: { facilityId } } : {}) },
+      where: { status: 'PENDING', patient: { facilityId } },
     })
 
     // Compute lab order stats
     const abnormalLabs = await db.labOrder.count({
-      where: { isAbnormal: true, ...(facilityId ? { patient: { facilityId } } : {}) },
+      where: { isAbnormal: true, patient: { facilityId } },
     })
 
     // Compute appointment stats
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
 
     // Compute bed occupancy rate from facility
     const facilityStats = await db.facility.aggregate({
-      where: facilityId ? { id: facilityId } : {},
+      where: { id: facilityId },
       _sum: { bedCapacity: true, staffCount: true },
       _avg: { bedCapacity: true },
     })

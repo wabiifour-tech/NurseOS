@@ -35,6 +35,9 @@ import {
   Phone,
   Camera,
   Save,
+  Building2,
+  AlertTriangle,
+  MapPin,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -58,6 +61,13 @@ export default function SettingsPage() {
     phone: '',
     bio: '',
   })
+
+  // Facility selection state
+  const [facilities, setFacilities] = React.useState<Array<{ id: string; name: string; type: string; city: string; state: string }>>([])
+  const [isLoadingFacilities, setIsLoadingFacilities] = React.useState(false)
+  const [selectedFacilityId, setSelectedFacilityId] = React.useState(user?.facilityId || '')
+  const [isSavingFacility, setIsSavingFacility] = React.useState(false)
+  const [facilitySearch, setFacilitySearch] = React.useState('')
 
   // Update profile form when user data changes
   React.useEffect(() => {
@@ -227,6 +237,63 @@ export default function SettingsPage() {
       console.error('Profile update error:', error)
       toast.error('Failed to update profile. Please try again.')
       setIsSavingProfile(false)
+    }
+  }
+
+  // Load facilities for the dropdown
+  const loadFacilities = async () => {
+    setIsLoadingFacilities(true)
+    try {
+      const res = await fetch('/api/caregrid/facilities?limit=200')
+      const data = await res.json()
+      if (res.ok) {
+        setFacilities(data.facilities || [])
+      }
+    } catch (error) {
+      console.error('Error loading facilities:', error)
+      toast.error('Failed to load facilities')
+    } finally {
+      setIsLoadingFacilities(false)
+    }
+  }
+
+  // Load facilities on mount
+  React.useEffect(() => {
+    loadFacilities()
+  }, [])
+
+  // Save facility selection
+  const handleSaveFacility = async () => {
+    setIsSavingFacility(true)
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id,
+          facilityId: selectedFacilityId || null,
+        }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        toast.error(result.error || 'Failed to update facility')
+        setIsSavingFacility(false)
+        return
+      }
+
+      // Update local Zustand state with the new facility
+      updateUser({
+        facilityId: selectedFacilityId || null,
+        facilityName: result.facilityName || null,
+      })
+      setIsSavingFacility(false)
+      toast.success(selectedFacilityId ? 'Facility updated successfully' : 'Facility assignment removed')
+    } catch (error) {
+      console.error('Facility update error:', error)
+      toast.error('Failed to update facility. Please try again.')
+      setIsSavingFacility(false)
     }
   }
 
@@ -464,6 +531,162 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Facility Assignment */}
+      <Card className={`border-2 ${!user?.facilityId ? 'border-amber-500/30' : 'border-emerald-500/10'}`}>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Building2 className="size-5 text-emerald-600" />
+            <CardTitle>Facility Assignment</CardTitle>
+            {!user?.facilityId && (
+              <Badge variant="outline" className="gap-1 text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
+                <AlertTriangle className="size-3" />
+                Required
+              </Badge>
+            )}
+          </div>
+          <CardDescription>
+            {!user?.facilityId
+              ? 'You must select a facility to access patient data, records, and clinical tools. Your data will be isolated to this facility.'
+              : 'Your data is isolated to this facility. You can only see patients and records from your assigned facility.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Current Facility */}
+            {user?.facilityId && user?.facilityName && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
+                <Building2 className="size-5 text-emerald-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 truncate">{user.facilityName}</p>
+                  <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">Currently assigned facility</p>
+                </div>
+                <Check className="size-4 text-emerald-600 shrink-0" />
+              </div>
+            )}
+
+            {/* No Facility Warning */}
+            {!user?.facilityId && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+                <AlertTriangle className="size-5 text-amber-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300">No facility assigned</p>
+                  <p className="text-xs text-amber-600/70 dark:text-amber-400/70">You cannot access patient data until you select a facility.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Facility Selector */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Select Your Facility</Label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Search facilities by name, city, or state..."
+                  value={facilitySearch}
+                  onChange={(e) => setFacilitySearch(e.target.value)}
+                  className="h-9 pr-8"
+                />
+                {facilitySearch && (
+                  <button
+                    type="button"
+                    onClick={() => setFacilitySearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Facility List */}
+              <div className="max-h-[240px] overflow-y-auto space-y-1 border rounded-lg p-1">
+                {isLoadingFacilities ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading facilities...</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Clear selection option */}
+                    {user?.facilityId && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFacilityId('')}
+                        className={`w-full text-left p-2.5 rounded-md transition-colors text-sm flex items-center gap-2 ${
+                          selectedFacilityId === '' ? 'bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20' : 'hover:bg-muted'
+                        }`}
+                      >
+                        <AlertTriangle className="size-4 text-amber-500 shrink-0" />
+                        <div>
+                          <p className="font-medium text-amber-600">Remove facility assignment</p>
+                          <p className="text-xs text-muted-foreground">You will lose access to patient data</p>
+                        </div>
+                      </button>
+                    )}
+                    {facilities
+                      .filter((f) => {
+                        if (!facilitySearch) return true
+                        const q = facilitySearch.toLowerCase()
+                        return f.name.toLowerCase().includes(q) || f.city.toLowerCase().includes(q) || f.state.toLowerCase().includes(q)
+                      })
+                      .map((facility) => (
+                        <button
+                          key={facility.id}
+                          type="button"
+                          onClick={() => setSelectedFacilityId(facility.id)}
+                          className={`w-full text-left p-2.5 rounded-md transition-colors text-sm flex items-center gap-2 ${
+                            selectedFacilityId === facility.id
+                              ? 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20'
+                              : 'hover:bg-muted'
+                          }`}
+                        >
+                          <Building2 className={`size-4 shrink-0 ${selectedFacilityId === facility.id ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-medium truncate ${selectedFacilityId === facility.id ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>
+                              {facility.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <MapPin className="size-3" />
+                              {facility.city}, {facility.state}
+                              {facility.type && <span className="ml-1">• {facility.type.replace(/_/g, ' ')}</span>}
+                            </p>
+                          </div>
+                          {selectedFacilityId === facility.id && <Check className="size-4 text-emerald-600 shrink-0" />}
+                        </button>
+                      ))}
+                    {facilities.length === 0 && !isLoadingFacilities && (
+                      <div className="text-center py-6 text-sm text-muted-foreground">
+                        No facilities found. Please contact your administrator.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Save Facility Button */}
+            {selectedFacilityId !== (user?.facilityId || '') && (
+              <div className="flex items-center gap-3 pt-2">
+                <Button
+                  onClick={handleSaveFacility}
+                  disabled={isSavingFacility}
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {isSavingFacility ? (
+                    <><Loader2 className="size-4 mr-1 animate-spin" /> Saving...</>
+                  ) : (
+                    <><Building2 className="size-4 mr-1" /> Update Facility</>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {selectedFacilityId ? 'You will only see data from this facility.' : 'Removing facility will restrict your access to clinical data.'}
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

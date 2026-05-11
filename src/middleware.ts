@@ -14,12 +14,28 @@ const publicRoutes = [
 // Auth routes - redirect to dashboard if already authenticated
 const authRoutes = ['/login', '/register', '/forgot-password']
 
+// Routes that are accessible even without a facility assignment
+// (e.g., facility selection page, knowledge base, courses, personal profile)
+const noFacilityRequiredRoutes = [
+  '/select-facility',
+  '/settings',
+  '/nurseid',     // Personal credentials/portfolio
+  '/academy',     // Global courses
+  '/caregrid/knowledge',  // Global knowledge base
+]
+
 // Check if a path is public (doesn't require auth)
 const isPublicPath = (pathname: string): boolean => {
   if (publicRoutes.includes(pathname)) return true
   if (pathname.startsWith('/api/')) return true
   if (pathname.startsWith('/_next/')) return true
   if (pathname.includes('.')) return true // static files
+  return false
+}
+
+// Check if a path is accessible without a facility assignment
+const isNoFacilityRequiredPath = (pathname: string): boolean => {
+  if (noFacilityRequiredRoutes.some(route => pathname.startsWith(route))) return true
   return false
 }
 

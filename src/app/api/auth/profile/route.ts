@@ -8,7 +8,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { firstName, lastName, phone, bio } = body
+    const { firstName, lastName, phone, bio, facilityId } = body
 
     // Use the authenticated user's ID from the session, not from the request body
     const userId = authUser.id
@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // Build update data
+    // Build update data for User model
     const updateData: Record<string, unknown> = {}
     if (firstName !== undefined) updateData.firstName = firstName
     if (lastName !== undefined) updateData.lastName = lastName
@@ -38,7 +38,47 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
     })
 
-    // Create audit log
+    // 🔒 FACILITY ISOLATION: Handle facility assignment update
+    if (facilityId !== undefined) {
+      // Validate that the facility exists
+      if (facilityId) {
+        const facility = await db.facility.findUnique({
+          where: { id: facilityId },
+        })
+        if (!facility) {
+          return NextResponse.json(
+            { error: 'Facility not found' },
+            { status: 404 }
+          )
+        }
+      }
+
+      // Update the nurse's current facility
+      if (user.role === 'NURSE') {
+        await db.nurseProfile.update({
+          where: { userId },
+          data: { currentFacilityId: facilityId || null },
+        })
+      } else if (user.role === 'ADMIN') {
+        await db.adminProfile.update({
+          where: { userId },
+          data: { facilityId: facilityId || null },
+        })
+      }
+
+      // Create audit log for facility change
+      await db.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'FACILITY_UPDATED',
+          resource: 'NurseProfile',
+          resourceId: userId,
+          details: `Facility assignment changed to: ${facilityId || 'None'}`,
+        },
+      })
+    }
+
+    // Create audit log for profile update
     await db.auditLog.create({
       data: {
         userId: user.id,
@@ -49,12 +89,25 @@ export async function PATCH(request: NextRequest) {
       },
     })
 
+    // Get the updated facility info for the response
+    let updatedFacilityId = facilityId !== undefined ? facilityId : authUser.facilityId
+    let facilityName: string | null = null
+    if (updatedFacilityId) {
+      const facility = await db.facility.findUnique({
+        where: { id: updatedFacilityId },
+        select: { name: true },
+      })
+      facilityName = facility?.name || null
+    }
+
     // Return user data without password hash
     const { passwordHash: _, ...userWithoutPassword } = updatedUser
 
     return NextResponse.json({
       message: 'Profile updated successfully',
       user: userWithoutPassword,
+      facilityId: updatedFacilityId,
+      facilityName,
     })
   } catch (error) {
     console.error('Profile update error:', error)

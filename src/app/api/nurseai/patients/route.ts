@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
 import { randomUUID } from 'crypto'
 
 // GET /api/nurseai/patients - List patients scoped to the nurse's facility
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
+
+  // 🔒 FACILITY ISOLATION: Require a facility assignment to view patients
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
 
   try {
     const { searchParams } = new URL(request.url)
@@ -17,10 +21,8 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {}
 
-    // 🔒 FACILITY ISOLATION: Only show patients from the nurse's facility
-    if (authUser.facilityId) {
-      where.facilityId = authUser.facilityId
-    }
+    // 🔒 FACILITY ISOLATION: Only show patients from the nurse's facility (mandatory)
+    where.facilityId = facilityId
 
     if (search) {
       where.OR = [
@@ -101,9 +103,8 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment to create patients
-  if (!authUser.facilityId) {
-    return noFacilityResponse()
-  }
+  const facilityId = requireFacility(authUser)
+  if (facilityId instanceof Response) return facilityId
 
   try {
     const body = await request.json()
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId,
         patientId,
-        facilityId: authUser.facilityId, // 🔒 Auto-assign to nurse's facility
+        facilityId, // 🔒 Auto-assign to nurse's facility
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         gender: gender || null,
         bloodType: bloodType || null,

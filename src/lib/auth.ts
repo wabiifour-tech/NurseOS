@@ -118,3 +118,28 @@ export function noFacilityResponse() {
     { status: 403 }
   )
 }
+
+/**
+ * Helper to return a 403 Forbidden response when accessing cross-facility data
+ */
+export function crossFacilityDeniedResponse() {
+  return Response.json(
+    { error: 'You do not have access to this resource. It belongs to a different facility.' },
+    { status: 403 }
+  )
+}
+
+/**
+ * Require that the authenticated user has a facility assignment.
+ * Returns the facilityId if assigned, or a 403 response if not.
+ *
+ * Usage in API routes:
+ *   const facilityId = requireFacility(authUser)
+ *   if (facilityId instanceof Response) return facilityId
+ */
+export function requireFacility(authUser: AuthUser): string | Response {
+  if (!authUser.facilityId) {
+    return noFacilityResponse()
+  }
+  return authUser.facilityId
+}
