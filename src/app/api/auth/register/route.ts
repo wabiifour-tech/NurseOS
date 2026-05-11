@@ -150,6 +150,20 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // If role is PATIENT, create PatientProfile with auto-generated patient ID
+    if (normalizedRole === 'PATIENT') {
+      await db.patientProfile.create({
+        data: {
+          userId: user.id,
+          patientId: `PT/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
+          facilityId: verifiedFacilityId,
+          dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null,
+          gender: body.gender || null,
+          allergies: '[]',
+        },
+      })
+    }
+
     // Create audit log
     await db.auditLog.create({
       data: {
@@ -180,6 +194,7 @@ export async function POST(request: NextRequest) {
       include: {
         nurseProfile: ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole),
         adminProfile: normalizedRole === 'ADMIN',
+        patientProfile: normalizedRole === 'PATIENT',
       },
     })
 
@@ -193,7 +208,12 @@ export async function POST(request: NextRequest) {
         token,
         originalRole: normalizedRole, // Return original role so frontend knows
       },
-      { status: 201 }
+      {
+        status: 201,
+        headers: {
+          'Set-Cookie': `nurseos-token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`,
+        },
+      }
     )
   } catch (error: any) {
     console.error('Registration error:', error)

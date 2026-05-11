@@ -375,6 +375,29 @@ export default function CourseDetailPage() {
 
               <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
+                onClick={async () => {
+                  if (isEnrolled) {
+                    toast.info('Continue learning from where you left off')
+                    return
+                  }
+                  try {
+                    const res = await fetch('/api/nurseacademy/enrollments', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ courseId: course.id }),
+                    })
+                    const data = await res.json()
+                    if (res.ok) {
+                      toast.success('Enrolled successfully!')
+                      // Refresh to show enrolled state
+                      setTimeout(() => window.location.reload(), 1000)
+                    } else {
+                      toast.error(data.error || 'Failed to enroll')
+                    }
+                  } catch {
+                    toast.error('Failed to enroll. Please try again.')
+                  }
+                }}
               >
                 {isEnrolled ? (
                   <>

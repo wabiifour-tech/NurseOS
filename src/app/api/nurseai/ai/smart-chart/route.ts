@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { text, noteType = 'SOAP', patientContext, nurseId, recordId } = body
+    const { text, noteType = 'SOAP', patientContext, recordId } = body
 
     // Validate required fields
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
       ? Math.min(1, Math.max(0, structuredNote.confidenceScore))
       : 0.7
 
-    // Save the AI interaction to the database if nurseId and recordId are provided
-    if (nurseId && recordId) {
+    // Save the AI interaction to the database if recordId is provided
+    if (authUser.nurseProfileId && recordId) {
       try {
         // 🔒 FACILITY ISOLATION: Verify the medical record belongs to the nurse's facility
         const medicalRecord = await db.medicalRecord.findUnique({
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
         await db.aIInteraction.create({
           data: {
             recordId,
-            nurseId,
+            nurseId: authUser.nurseProfileId,
             interactionType: `SMART_CHART_${normalizedNoteType}`,
             userInput: text.trim(),
             aiOutput: JSON.stringify(structuredNote),

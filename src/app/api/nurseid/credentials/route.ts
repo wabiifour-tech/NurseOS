@@ -17,8 +17,14 @@ export async function GET(request: NextRequest) {
     const targetNurseId = searchParams.get('nurseId') || nurseId
     const limit = parseInt(searchParams.get('limit') || '50')
 
+    // 🔒 Access control: other nurses can only see public credentials
+    const where: Record<string, unknown> = { nurseId: targetNurseId }
+    if (targetNurseId !== nurseId) {
+      where.isPublic = true
+    }
+
     const credentials = await db.credential.findMany({
-      where: { nurseId: targetNurseId },
+      where,
       orderBy: { issueDate: 'desc' },
       take: limit,
     })

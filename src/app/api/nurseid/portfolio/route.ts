@@ -15,8 +15,14 @@ export async function GET(request: NextRequest) {
 
     const targetNurseId = new URL(request.url).searchParams.get('nurseId') || nurseId
 
+    // 🔒 Access control: other nurses can only see public portfolio entries
+    const where: Record<string, unknown> = { nurseId: targetNurseId }
+    if (targetNurseId !== nurseId) {
+      where.isPublic = true
+    }
+
     const entries = await db.portfolioEntry.findMany({
-      where: { nurseId: targetNurseId },
+      where,
       orderBy: { order: 'asc' },
     })
 

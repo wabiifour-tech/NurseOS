@@ -238,8 +238,8 @@ export default function ChartingPage() {
         }
       }
 
-      if (!recordId || !user?.id) {
-        // If we can't get a recordId or nurseId, save locally and inform the user
+      if (!recordId) {
+        // If we can't get a recordId, save locally and inform the user
         setNoteStatus('accepted')
         toast.success('Note accepted locally. Select a patient to persist to the database.')
         setIsSaving(false)
@@ -252,7 +252,6 @@ export default function ChartingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recordId,
-          nurseId: user.id,
           noteType,
           content: generatedNote.trim(),
           aiGenerated: true,
