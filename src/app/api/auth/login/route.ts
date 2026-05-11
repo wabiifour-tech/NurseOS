@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, isDatabaseConnected } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
   try {
+    // Check database connection first
+    const dbConnected = await isDatabaseConnected()
+    if (!dbConnected) {
+      return NextResponse.json(
+        { error: 'Database is not configured yet. Please set up a PostgreSQL database in your Vercel project (Dashboard → Storage → Create Postgres). Then redeploy the app.', errorType: 'DB_NOT_CONFIGURED' },
+        { status: 503 }
+      )
+    }
+
     const body = await request.json()
     const { email, password } = body
 
@@ -89,8 +98,16 @@ export async function POST(request: NextRequest) {
       token,
       expiresAt,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error)
+    // Check if it's a database connection error
+    const errorMsg = error?.message || ''
+    if (errorMsg.includes('connect') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('P1001') || errorMsg.includes('server is not reachable')) {
+      return NextResponse.json(
+        { error: 'Database is not configured yet. Please set up a PostgreSQL database in your Vercel project (Dashboard → Storage → Create Postgres). Then redeploy the app.', errorType: 'DB_NOT_CONFIGURED' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'An error occurred during login. Please try again.' },
       { status: 500 }

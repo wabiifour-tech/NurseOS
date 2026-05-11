@@ -48,9 +48,17 @@ function LoginForm() {
       const result = await res.json();
 
       if (!res.ok) {
-        toast.error(result.error || "Invalid email or password");
-        setIsLoading(false);
-        return;
+        // Show specific database config message if DB is not set up
+        if (result.errorType === 'DB_NOT_CONFIGURED') {
+          toast.error('Database not configured', {
+            description: 'Please set up a PostgreSQL database in Vercel Dashboard → Storage → Create Postgres, then redeploy.',
+            duration: 10000,
+          })
+        } else {
+          toast.error(result.error || 'Invalid email or password')
+        }
+        setIsLoading(false)
+        return
       }
 
       login({
