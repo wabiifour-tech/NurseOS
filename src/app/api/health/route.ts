@@ -29,10 +29,11 @@ export async function GET() {
     status: tablesExist ? 'ok' : 'schema_not_pushed',
     database: 'connected',
     tablesExist,
-    schemaError,
+    schemaError: tablesExist ? null : schemaError,
     message: tablesExist
       ? 'NurseOS API is running, database is connected, and schema is ready.'
-      : 'Database is connected but tables do not exist yet. Visit /api/setup to push the database schema, or run `npx prisma db push` locally.',
+      : 'Database is connected but tables do not exist yet. Send a POST request to /api/setup to create the tables, then try again.',
+    setupUrl: tablesExist ? null : '/api/setup',
     timestamp: new Date().toISOString(),
   })
 }

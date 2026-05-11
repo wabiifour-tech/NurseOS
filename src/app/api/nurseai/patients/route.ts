@@ -5,6 +5,9 @@ import { randomUUID } from 'crypto'
 
 // GET /api/nurseai/patients
 export async function GET(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   try {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 50))

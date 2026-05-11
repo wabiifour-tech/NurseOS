@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
             createdAt: true,
           },
         },
-        credentials: { orderBy: { issuedDate: 'desc' } },
+        credentials: { orderBy: { issueDate: 'desc' } },
         competencies: { orderBy: { updatedAt: 'desc' } },
-        portfolio: { orderBy: { date: 'desc' } },
-        cpdRecords: { orderBy: { completedDate: 'desc' } },
+        portfolioEntries: { orderBy: { createdAt: 'desc' } },
+        cpdRecords: { orderBy: { dateCompleted: 'desc' } },
       },
     })
 
@@ -66,12 +66,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     const updateData: Record<string, unknown> = {}
-    if (body.specialty !== undefined) updateData.specialty = body.specialty
+    if (body.specialization !== undefined) updateData.specialization = body.specialization
     if (body.skills !== undefined) updateData.skills = JSON.stringify(body.skills)
     if (body.languages !== undefined) updateData.languages = JSON.stringify(body.languages)
     if (body.yearsOfExperience !== undefined) updateData.yearsOfExperience = body.yearsOfExperience
-    if (body.education !== undefined) updateData.education = JSON.stringify(body.education)
-    if (body.certifications !== undefined) updateData.certifications = JSON.stringify(body.certifications)
+    if (body.degree !== undefined) updateData.degree = body.degree
+    if (body.university !== undefined) updateData.university = body.university
+    if (body.graduationYear !== undefined) updateData.graduationYear = body.graduationYear
     if (body.bio !== undefined) updateData.bio = body.bio
     if (body.availableForConsult !== undefined) updateData.availableForConsult = body.availableForConsult
 
