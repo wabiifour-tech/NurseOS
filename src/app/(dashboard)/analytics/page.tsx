@@ -107,7 +107,14 @@ export default function AnalyticsDashboardPage() {
   React.useEffect(() => {
     async function fetchDashboard() {
       try {
-        const res = await fetch('/api/nurseanalytics/dashboard')
+        const periodMap: Record<string, string> = {
+          'Daily': 'DAILY',
+          'Weekly': 'WEEKLY',
+          'Monthly': 'MONTHLY',
+          'Quarterly': 'QUARTERLY',
+        }
+        const periodParam = periodMap[selectedPeriod] || 'MONTHLY'
+        const res = await fetch(`/api/nurseanalytics/dashboard?period=${periodParam}`)
         if (res.ok) {
           const d = await res.json()
           setData(d)
@@ -119,7 +126,7 @@ export default function AnalyticsDashboardPage() {
       }
     }
     fetchDashboard()
-  }, [])
+  }, [selectedPeriod])
 
   const insightTypeConfig = {
     warning: { color: "text-amber-600 bg-amber-50 border-amber-200", icon: AlertTriangle },

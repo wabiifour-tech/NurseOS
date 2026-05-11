@@ -112,17 +112,64 @@ export default function ChartingPage() {
     fetchNotes()
   }, [])
 
-  const handleMicToggle = () => {
+  const handleMicToggle = React.useCallback(() => {
     if (isListening) {
+      // Stop listening
       setIsListening(false)
-    } else {
-      setIsListening(true)
-      setTimeout(() => {
-        setInputText(prev => prev + (prev ? ' ' : '') + 'Patient is resting comfortably, vitals are stable, no new complaints reported, wound site is clean and dry, tolerating oral intake well.')
-        setIsListening(false)
-      }, 2000)
+      if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
+        const SpeechRecognition = (window as unknown as { webkitSpeechRecognition: typeof SpeechRecognition }).webkitSpeechRecognition
+        const recognition = new SpeechRecognition()
+        recognition.stop()
+      }
+      return
     }
-  }
+
+    // Try to use the Web Speech API
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      const SpeechRecognitionAPI = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition || (window as unknown as { webkitSpeechRecognition: typeof SpeechRecognition }).webkitSpeechRecognition
+      const recognition = new SpeechRecognitionAPI()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
+
+      let finalTranscript = ''
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let interimTranscript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' '
+          } else {
+            interimTranscript += transcript
+          }
+        }
+        if (finalTranscript) {
+          setInputText(prev => prev + finalTranscript)
+          finalTranscript = ''
+        }
+      }
+
+      recognition.onerror = () => {
+        setIsListening(false)
+        toast.error('Voice recognition error. Please try again or type manually.')
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+      }
+
+      setIsListening(true)
+      recognition.start()
+    } else {
+      // Fallback for browsers without Speech API
+      setIsListening(true)
+      toast.info('Voice recognition not supported in this browser. Please type your notes manually.', { duration: 4000 })
+      setTimeout(() => {
+        setIsListening(false)
+      }, 1000)
+    }
+  }, [isListening])
 
   const handleGenerate = async () => {
     if (!inputText.trim()) return

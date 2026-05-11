@@ -37,6 +37,9 @@ import {
 import { useAuthStore } from "@/lib/auth-store"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
+import { ThemeProvider } from "@/components/theme-provider"
+import { PWAInstallBanner } from "@/components/pwa-install-banner"
 
 function OnlineStatus() {
   const [isOnline, setIsOnline] = React.useState(true)
@@ -213,6 +216,9 @@ export default function DashboardLayout({
   const router = useRouter()
   const [hydrated, setHydrated] = React.useState(false)
 
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts()
+
   React.useEffect(() => {
     // Wait for Zustand persist to hydrate from localStorage
     // useAuthStore.persist.hasHydrated() returns true once rehydration is complete
@@ -256,14 +262,17 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <DashboardHeader />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <ThemeProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <DashboardHeader />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+      <PWAInstallBanner />
+    </ThemeProvider>
   )
 }

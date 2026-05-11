@@ -42,6 +42,7 @@ import {
   Lightbulb,
   BookOpen,
   Users,
+  MessageCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useAuthStore } from '@/lib/auth-store'
@@ -264,14 +265,15 @@ export default function HelpSupportPage() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
 
-      const res = await fetch('/api/caregrid/consultations', {
+      const res = await fetch('/api/support', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          consultationType: 'SUPPORT',
+          name: contactForm.name,
+          email: contactForm.email,
           subject: contactForm.subject,
-          description: `From: ${contactForm.name} (${contactForm.email})\n\n${contactForm.message}`,
-          status: 'REQUESTED',
+          message: contactForm.message,
+          userId: user?.id || null,
         }),
       })
 
@@ -322,18 +324,27 @@ export default function HelpSupportPage() {
             <div className="flex-1">
               <h3 className="text-sm font-semibold">Need quick help?</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Browse our FAQ below, contact support, or use keyboard shortcut{' '}
-                <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background border rounded shadow-sm">Ctrl + /</kbd>{' '}
-                to find what you need.
+                Browse our FAQ below, contact support, or reach out directly on WhatsApp.
               </p>
             </div>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Mail className="size-3.5" /> support@nurseos.com
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="size-3.5" /> 24hr response
-              </span>
+            <div className="flex items-center gap-3">
+              <a
+                href="https://wa.me/2347052356638"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm"
+              >
+                <MessageCircle className="size-3.5" />
+                Chat on WhatsApp
+              </a>
+              <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Mail className="size-3" /> support@nurseos.com
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="size-3" /> 24hr response
+                </span>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -404,23 +415,59 @@ export default function HelpSupportPage() {
         </CardContent>
       </Card>
 
-      {/* Contact Support Section */}
+      {/* Contact Our Team / Support Section */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <MessageSquare className="size-5 text-emerald-600" />
-            <CardTitle>Contact Support</CardTitle>
+            <CardTitle>Contact Our Team</CardTitle>
           </div>
-          <CardDescription>Can&apos;t find what you&apos;re looking for? Send us a message</CardDescription>
+          <CardDescription>Can&apos;t find what you&apos;re looking for? Send us a message or chat directly on WhatsApp</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* WhatsApp CTA - Prominent */}
+          <div className="mb-6 p-4 rounded-lg bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex size-10 items-center justify-center rounded-full bg-green-500">
+                <MessageCircle className="size-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-green-800 dark:text-green-200">Chat with us on WhatsApp</h3>
+                <p className="text-xs text-green-700/80 dark:text-green-300/80 mt-0.5">
+                  Get instant support from our team. We typically respond within minutes during business hours.
+                </p>
+              </div>
+              <a
+                href="https://wa.me/2347052356638"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-500 text-white hover:bg-green-600 transition-colors shadow-md hover:shadow-lg"
+              >
+                <MessageCircle className="size-4" />
+                Contact Our Team
+              </a>
+            </div>
+          </div>
+          {/* Or send a support message */}
+          <div className="mb-3">
+            <p className="text-xs text-muted-foreground text-center">Or send us a detailed message below:</p>
+          </div>
           {isSent ? (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <CheckCircle2 className="size-12 text-emerald-500" />
               <h3 className="text-lg font-semibold">Message Sent!</h3>
               <p className="text-sm text-muted-foreground text-center max-w-sm">
-                Thank you for reaching out. Our support team will get back to you within 24 hours.
+                Thank you for reaching out. Our support team will get back to you within 24 hours. For urgent issues, reach us on WhatsApp.
               </p>
+              <a
+                href="https://wa.me/2347052356638"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-green-500 text-white hover:bg-green-600 transition-colors mt-2"
+              >
+                <MessageCircle className="size-3.5" />
+                Chat on WhatsApp
+              </a>
             </div>
           ) : (
             <form onSubmit={handleContactSubmit} className="space-y-4">

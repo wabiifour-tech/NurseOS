@@ -557,7 +557,7 @@ export default function LandingPage() {
 
           <div className="text-center mt-8">
             <p className="text-sm text-muted-foreground">
-              Need Enterprise or National deployment? <Link href="/register" className="text-emerald-600 hover:underline font-medium">Contact our team</Link> for custom pricing.
+              Need Enterprise or National deployment? <a href="https://wa.me/2347052356638" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline font-medium">Contact our team</a> for custom pricing.
             </p>
           </div>
         </div>

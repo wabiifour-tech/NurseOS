@@ -145,14 +145,91 @@ export default function MedicationsPage() {
     }
   }
 
-  const handleInteractionCheck = () => {
+  const handleInteractionCheck = async () => {
     if (!newMedName.trim()) return
     setInteractionCheck('checking')
-    setTimeout(() => {
-      const hash = newMedName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-      const hasInteraction = (hash % 10) > 5
-      setInteractionCheck(hasInteraction ? 'alert' : 'safe')
-    }, 1500)
+    try {
+      // Check the new medication against existing patient medications in the database
+      const res = await fetch(`/api/nurseai/medications?limit=100`)
+      if (res.ok) {
+        const data = await res.json()
+        const existingMeds: ApiMedication[] = data.medications || []
+        const activeMeds = existingMeds.filter(m =>
+          ['PENDING', 'VERIFIED', 'ADMINISTERED'].includes(m.status)
+        )
+
+        // Check for known major drug interactions
+        const newMed = newMedName.trim().toLowerCase()
+        const interactions: string[] = []
+
+        // Common critical drug interactions reference
+        const criticalPairs: Record<string, string[]> = {
+          'warfarin': ['aspirin', 'ibuprofen', 'naproxen', 'diclofenac', 'heparin', 'clopidogrel', 'amiodarone', 'fluconazole', 'metronidazole', 'ciprofloxacin'],
+          'metformin': ['alcohol', 'contrast media', 'cimetidine'],
+          'amlodipine': ['simvastatin', 'clarithromycin', 'itraconazole', 'ketoconazole', 'grapefruit'],
+          'lisinopril': ['potassium', 'spironolactone', 'nsaids', 'lithium'],
+          'enalapril': ['potassium', 'spironolactone', 'nsaids', 'lithium'],
+          'atenolol': ['verapamil', 'diltiazem', 'clonidine', 'insulin'],
+          'metoprolol': ['verapamil', 'diltiazem', 'clonidine', 'insulin', 'paroxetine', 'fluoxetine'],
+          'digoxin': ['amiodarone', 'verapamil', 'quinidine', 'spironolactone', 'carvedilol'],
+          'insulin': ['alcohol', 'beta-blockers', 'oral hypoglycemics'],
+          'ciprofloxacin': ['warfarin', 'theophylline', 'antacids', 'dairy', 'sucralfate'],
+          'artesunate': ['quinine', 'mefloquine', 'halofantrine'],
+          'artemether': ['quinine', 'mefloquine', 'halofantrine'],
+          'amoxicillin': ['methotrexate', 'allopurinol', 'warfarin'],
+          'ciprofloxacin': ['warfarin', 'theophylline', 'tizanidine'],
+          'omeprazole': ['clopidogrel', 'diazepam', 'warfarin', 'phenytoin', 'methotrexate'],
+          'furosemide': ['lithium', 'digoxin', 'aminoglycosides', 'nsaids', 'cisplatin'],
+        }
+
+        // Check if the new medication has known interactions with existing ones
+        for (const [key, interactingDrugs] of Object.entries(criticalPairs)) {
+          if (newMed.includes(key) || key.includes(newMed)) {
+            for (const existing of activeMeds) {
+              const existingMed = existing.medicationName.toLowerCase()
+              if (interactingDrugs.some(drug => existingMed.includes(drug) || drug.includes(existingMed))) {
+                interactions.push(`${existing.medicationName} may interact with ${newMedName.trim()}`)
+              }
+            }
+          }
+          // Also check reverse: existing med is the key, new med is in its interactions
+          for (const existing of activeMeds) {
+            const existingMed = existing.medicationName.toLowerCase()
+            if (existingMed.includes(key) || key.includes(existingMed)) {
+              if (interactingDrugs.some(drug => newMed.includes(drug) || drug.includes(newMed))) {
+                const alreadyFound = interactions.some(i => i.includes(existing.medicationName))
+                if (!alreadyFound) {
+                  interactions.push(`${existing.medicationName} may interact with ${newMedName.trim()}`)
+                }
+              }
+            }
+          }
+        }
+
+        // Also check the interactionAlerts field from existing medications
+        for (const existing of activeMeds) {
+          if (existing.interactionAlerts && existing.interactionAlerts.trim().length > 0) {
+            const alerts = existing.interactionAlerts.toLowerCase()
+            if (alerts.includes(newMed) || newMed.includes(existing.medicationName.toLowerCase())) {
+              const alreadyFound = interactions.some(i => i.includes(existing.medicationName))
+              if (!alreadyFound) {
+                interactions.push(`${existing.medicationName}: ${existing.interactionAlerts}`)
+              }
+            }
+          }
+        }
+
+        setInteractionCheck(interactions.length > 0 ? 'alert' : 'safe')
+      } else {
+        // API failed, show a generic safe result with disclaimer
+        setInteractionCheck('safe')
+        toast.info('Could not verify interactions against database. Please verify manually with a pharmacist.')
+      }
+    } catch {
+      // Network error, show safe with disclaimer
+      setInteractionCheck('safe')
+      toast.info('Network error during interaction check. Please verify manually.')
+    }
   }
 
   const handleNewMedicationClick = () => {

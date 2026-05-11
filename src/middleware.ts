@@ -17,11 +17,11 @@ const authRoutes = ['/login', '/register', '/forgot-password']
 // Routes that are accessible even without a facility assignment
 // (e.g., facility selection page, knowledge base, courses, personal profile)
 const noFacilityRequiredRoutes = [
-  '/select-facility',
   '/settings',
   '/nurseid',     // Personal credentials/portfolio
   '/academy',     // Global courses
   '/caregrid/knowledge',  // Global knowledge base
+  '/help',        // Help & support
 ]
 
 // Check if a path is public (doesn't require auth)
