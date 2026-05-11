@@ -29,8 +29,20 @@ export async function POST(request: NextRequest) {
     const user = await db.user.findUnique({
       where: { email: email.toLowerCase() },
       include: {
-        nurseProfile: true,
-        adminProfile: true,
+        nurseProfile: {
+          include: {
+            facility: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+        adminProfile: {
+          include: {
+            facility: {
+              select: { id: true, name: true },
+            },
+          },
+        },
         patientProfile: true,
       },
     })
@@ -89,7 +101,20 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Return user data without password hash
+    // Resolve facility info from nurse or admin profile
+    const facilityId =
+      user.nurseProfile?.currentFacilityId ||
+      user.adminProfile?.facilityId ||
+      null
+
+    const facilityName =
+      user.nurseProfile?.facility?.name ||
+      user.adminProfile?.facility?.name ||
+      null
+
+    const nurseProfileId = user.nurseProfile?.id || null
+
+    // Return user data without password hash, plus facility info
     const { passwordHash: _, ...userWithoutPassword } = user
 
     return NextResponse.json({
@@ -97,6 +122,10 @@ export async function POST(request: NextRequest) {
       user: userWithoutPassword,
       token,
       expiresAt,
+      // Top-level facility context for easy client access
+      facilityId,
+      facilityName,
+      nurseProfileId,
     })
   } catch (error: any) {
     console.error('Login error:', error)

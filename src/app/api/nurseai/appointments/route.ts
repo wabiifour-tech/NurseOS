@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
 
-// GET /api/nurseai/appointments - List appointments
+// GET /api/nurseai/appointments - List appointments scoped to nurse's facility
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -17,6 +17,12 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Only show appointments in the nurse's facility
+    if (authUser.facilityId) {
+      where.facilityId = authUser.facilityId
+    }
+
     if (patientId) where.patientId = patientId
     if (status) where.status = status
     if (date) where.appointmentDate = new Date(date)
@@ -58,9 +64,12 @@ export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
-  try {
-    const nurseId = await getNurseProfileId(authUser.id)
+  // 🔒 FACILITY ISOLATION: Require a facility assignment
+  if (!authUser.facilityId) {
+    return noFacilityResponse()
+  }
 
+  try {
     const body = await request.json()
 
     if (!body.patientId || !body.appointmentDate) {
@@ -79,30 +88,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get first facility as default if not provided
-    let facilityId = body.facilityId
-    if (!facilityId) {
-      const facility = await db.facility.findFirst()
-      if (!facility) {
-        return NextResponse.json(
-          { error: 'No facility found. Please seed facilities first.' },
-          { status: 500 }
-        )
-      }
-      facilityId = facility.id
-    }
-
+    // 🔒 Always assign to the nurse's facility
     const appointment = await db.appointment.create({
       data: {
         patientId: body.patientId,
-        facilityId,
+        facilityId: authUser.facilityId,
         appointmentDate: new Date(body.appointmentDate),
         durationMinutes: body.durationMinutes || 30,
         type: body.type || 'CONSULTATION',
         status,
         reason: body.reason || null,
         notes: body.notes || null,
-        nurseId: body.nurseId || nurseId || authUser.id,
+        nurseId: body.nurseId || authUser.nurseProfileId || authUser.id,
       },
       include: {
         patient: {

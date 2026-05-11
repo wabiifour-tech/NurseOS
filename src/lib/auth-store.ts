@@ -8,6 +8,9 @@ interface User {
   lastName: string;
   role: string;
   avatarUrl?: string;
+  facilityId?: string | null;
+  facilityName?: string | null;
+  nurseProfileId?: string | null;
 }
 
 interface AuthState {

@@ -162,6 +162,15 @@ export async function POST(request: NextRequest) {
       { firstName: 'Adaeze', lastName: 'Eze', email: 'adaeze.eze@email.com', dateOfBirth: '1990-09-18', gender: 'FEMALE', bloodType: 'A-', genotype: 'AA', allergies: ['Ibuprofen'], emergencyContactName: 'Obinna Eze', emergencyContactPhone: '+234-803-111-0006', emergencyContactRelation: 'Brother', stateOfOrigin: 'Enugu', occupation: 'Pharmacist', insuranceProvider: 'AXA Mansard', insuranceNumber: 'AXA/2024/55678' },
     ]
 
+    // 🔒 Assign patients to facilities (matching their medical record facilities)
+    const patientFacilityAssignments = [
+      facilities[0].id, // Emeka → LUTH (has records at facility[0])
+      facilities[0].id, // Aisha → LUTH (has records at facility[0])
+      facilities[0].id, // Oluwaseun → LUTH
+      facilities[0].id, // Fatima → LUTH
+      facilities[1].id, // Chukwuma → AKTH (has records at facility[1])
+      facilities[0].id, // Adaeze → LUTH
+    ]
     const patients = []
     for (let i = 0; i < patientData.length; i++) {
       const pd = patientData[i]
@@ -174,7 +183,7 @@ export async function POST(request: NextRequest) {
         userId = user.id
       }
       const patient = await db.patientProfile.create({
-        data: { userId, patientId, dateOfBirth: pd.dateOfBirth ? new Date(pd.dateOfBirth) : null, gender: pd.gender, bloodType: pd.bloodType, genotype: pd.genotype, allergies: JSON.stringify(pd.allergies), emergencyContactName: pd.emergencyContactName, emergencyContactPhone: pd.emergencyContactPhone, emergencyContactRelation: pd.emergencyContactRelation, nationality: 'Nigerian', stateOfOrigin: pd.stateOfOrigin, occupation: pd.occupation, insuranceProvider: pd.insuranceProvider || null, insuranceNumber: pd.insuranceNumber || null },
+        data: { userId, patientId, facilityId: patientFacilityAssignments[i] || facilities[0].id, dateOfBirth: pd.dateOfBirth ? new Date(pd.dateOfBirth) : null, gender: pd.gender, bloodType: pd.bloodType, genotype: pd.genotype, allergies: JSON.stringify(pd.allergies), emergencyContactName: pd.emergencyContactName, emergencyContactPhone: pd.emergencyContactPhone, emergencyContactRelation: pd.emergencyContactRelation, nationality: 'Nigerian', stateOfOrigin: pd.stateOfOrigin, occupation: pd.occupation, insuranceProvider: pd.insuranceProvider || null, insuranceNumber: pd.insuranceNumber || null },
       })
       patients.push(patient)
     }

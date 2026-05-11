@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
 
 // GET /api/caregrid/referrals - List referrals
+// Shows referrals FROM and TO the nurse's facility (cross-facility visibility for referrals is intentional)
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -10,16 +11,29 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || ''
-    const fromFacilityId = searchParams.get('fromFacilityId') || ''
-    const toFacilityId = searchParams.get('toFacilityId') || ''
+    const direction = searchParams.get('direction') || '' // 'outgoing', 'incoming', or '' (both)
     const limit = parseInt(searchParams.get('limit') || '50')
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Show referrals where the nurse's facility is either
+    // the source or the destination (both sides need visibility for referral workflow)
+    if (authUser.facilityId) {
+      if (direction === 'outgoing') {
+        where.fromFacilityId = authUser.facilityId
+      } else if (direction === 'incoming') {
+        where.toFacilityId = authUser.facilityId
+      } else {
+        where.OR = [
+          { fromFacilityId: authUser.facilityId },
+          { toFacilityId: authUser.facilityId },
+        ]
+      }
+    }
+
     if (status) where.status = status
-    if (fromFacilityId) where.fromFacilityId = fromFacilityId
-    if (toFacilityId) where.toFacilityId = toFacilityId
 
     const [referrals, total] = await Promise.all([
       db.referral.findMany({
@@ -56,9 +70,15 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/caregrid/referrals - Create a referral
+// Cross-facility: referral FROM nurse's facility TO another facility
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
+
+  // 🔒 FACILITY ISOLATION: Require a facility to create referrals
+  if (!authUser.facilityId) {
+    return noFacilityResponse()
+  }
 
   try {
     const nurseId = await getNurseProfileId(authUser.id)
@@ -75,13 +95,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 🔒 Verify the patient belongs to the nurse's facility before referring
+    const patient = await db.patientProfile.findUnique({
+      where: { id: body.patientId },
+    })
+    if (!patient) {
+      return NextResponse.json(
+        { error: 'Patient not found' },
+        { status: 404 }
+      )
+    }
+    if (patient.facilityId && patient.facilityId !== authUser.facilityId) {
+      return NextResponse.json(
+        { error: 'You can only refer patients from your own facility.' },
+        { status: 403 }
+      )
+    }
+
+    // 🔒 Ensure referral is to a DIFFERENT facility (cross-facility referral)
+    if (body.toFacilityId === authUser.facilityId) {
+      return NextResponse.json(
+        { error: 'Cannot refer a patient to the same facility. Use consultations instead.' },
+        { status: 400 }
+      )
+    }
+
     const validStatuses = ['PENDING', 'ACCEPTED', 'REJECTED', 'COMPLETED', 'CANCELLED']
     const status = body.status?.toUpperCase() || 'PENDING'
 
     const referral = await db.referral.create({
       data: {
         patientId: body.patientId,
-        fromFacilityId: body.fromFacilityId || null,
+        fromFacilityId: authUser.facilityId, // 🔒 Auto-assign to nurse's facility
         toFacilityId: body.toFacilityId,
         referringNurseId: body.referringNurseId || nurseId,
         reason: body.reason || null,

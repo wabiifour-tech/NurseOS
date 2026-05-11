@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
 import { randomUUID } from 'crypto'
 
-// GET /api/nurseai/patients
+// GET /api/nurseai/patients - List patients scoped to the nurse's facility
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -16,6 +16,12 @@ export async function GET(request: NextRequest) {
     const bloodType = searchParams.get('bloodType')
 
     const where: Record<string, unknown> = {}
+
+    // 🔒 FACILITY ISOLATION: Only show patients from the nurse's facility
+    if (authUser.facilityId) {
+      where.facilityId = authUser.facilityId
+    }
+
     if (search) {
       where.OR = [
         { user: { firstName: { contains: search } } },
@@ -53,6 +59,7 @@ export async function GET(request: NextRequest) {
     const formatted = patients.map((p) => ({
       id: p.id,
       patientId: p.patientId,
+      facilityId: p.facilityId,
       firstName: p.user?.firstName ?? '',
       lastName: p.user?.lastName ?? '',
       displayName: p.user?.displayName ?? null,
@@ -88,10 +95,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/nurseai/patients - Register a new patient
+// POST /api/nurseai/patients - Register a new patient (scoped to nurse's facility)
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
+
+  // 🔒 FACILITY ISOLATION: Require a facility assignment to create patients
+  if (!authUser.facilityId) {
+    return noFacilityResponse()
+  }
 
   try {
     const body = await request.json()
@@ -130,11 +142,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create patient profile
+    // Create patient profile scoped to the nurse's facility
     const patient = await db.patientProfile.create({
       data: {
         userId,
         patientId,
+        facilityId: authUser.facilityId, // 🔒 Auto-assign to nurse's facility
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         gender: gender || null,
         bloodType: bloodType || null,
@@ -160,6 +173,7 @@ export async function POST(request: NextRequest) {
     const formatted = {
       id: patient.id,
       patientId: patient.patientId,
+      facilityId: patient.facilityId,
       firstName: patient.user?.firstName ?? firstName,
       lastName: patient.user?.lastName ?? lastName,
       displayName: patient.user?.displayName ?? null,
