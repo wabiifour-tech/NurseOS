@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(dashboard)/layout,_N_T_/(dashboard)/academy/layout,_N_T_/(dashboard)/academy/certificates/layout,_N_T_/(dashboard)/academy/certificates/page,_N_T_/academy/certificates"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KGRhc2hib2FyZCk/academy/certificates/__PAGE__",
+    "/!KGRhc2hib2FyZCk/academy/certificates",
+    "/!KGRhc2hib2FyZCk/academy",
+    "/!KGRhc2hib2FyZCk",
+    "/_index",
+    "/_head"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(dashboard)/layout,_N_T_/(dashboard)/academy/layout,_N_T_/(dashboard)/academy/my-learning/layout,_N_T_/(dashboard)/academy/my-learning/page,_N_T_/academy/my-learning"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KGRhc2hib2FyZCk/academy/my-learning/__PAGE__",
+    "/!KGRhc2hib2FyZCk/academy/my-learning",
+    "/!KGRhc2hib2FyZCk/academy",
+    "/!KGRhc2hib2FyZCk",
+    "/_index",
+    "/_head"
+  ]
+}
