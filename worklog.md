@@ -28,3 +28,30 @@ Stage Summary:
 - 161 Nigerian healthcare facilities seeded across all facility types
 - App is production-ready with real data, no mock data remaining
 - Known "coming soon" features properly communicated: 2FA, forgot password email, data export, blockchain verification, report generation
+---
+Task ID: 1
+Agent: Main Agent
+Task: Push NurseOS to GitHub and deploy to Vercel with working Neon PostgreSQL
+
+Work Log:
+- Checked git status: all previous commits already pushed to origin/main
+- Discovered critical bug: Prisma schema was set to `provider = "sqlite"` but Vercel uses Neon PostgreSQL
+- Changed `prisma/schema.prisma` datasource from SQLite to PostgreSQL with `directUrl` for Neon
+- Updated `package.json` build script to fallback DIRECT_URL from POSTGRES_URL_NON_POOLING
+- Updated `src/lib/db.ts` to explicitly set `datasourceUrl` from DATABASE_URL
+- Updated `.env` with PostgreSQL placeholders (local dev needs Neon URL)
+- Regenerated Prisma client for PostgreSQL (`npx prisma generate`)
+- Verified build passes with zero errors
+- Committed and pushed to GitHub (2 commits: PostgreSQL migration + force-seed support)
+- Added `?force=true` parameter to `/api/seed` endpoint for re-seeding
+- Vercel auto-deployed from GitHub push
+- Prisma schema was pushed to Neon during Vercel build (`prisma db push`)
+- Seeded Neon database via `POST /api/seed?force=true`
+- Verified login API works with seeded data
+
+Stage Summary:
+- **Root cause fixed**: Prisma was configured for SQLite, needed PostgreSQL for Neon
+- **Database**: Neon PostgreSQL connected, schema pushed, 11 users + 5 facilities + all related data seeded
+- **Deployment**: nurse-os.vercel.app is live and functional
+- **Test accounts work**: chidinma.eze@nurseos.ng / Nurse@2024, admin@nurseos.ng / Admin@2024
+- **GitHub**: All changes pushed to https://github.com/wabiifour-tech/NurseOS
