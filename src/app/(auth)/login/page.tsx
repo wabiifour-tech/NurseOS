@@ -50,8 +50,8 @@ function LoginForm() {
       if (!res.ok) {
         // Show specific database config message if DB is not set up
         if (result.errorType === 'DB_NOT_CONFIGURED') {
-          toast.error('Database not configured', {
-            description: 'Please set up a PostgreSQL database in Vercel Dashboard → Storage → Create Postgres, then redeploy.',
+          toast.error('Database tables not set up', {
+            description: 'Please visit your-app.vercel.app/api/setup to create the database tables, then try again.',
             duration: 10000,
           })
         } else {

@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const dbConnected = await isDatabaseConnected()
     if (!dbConnected) {
       return NextResponse.json(
-        { error: 'Database is not configured yet. Please set up a PostgreSQL database in your Vercel project (Dashboard → Storage → Create Postgres). Then redeploy the app.', errorType: 'DB_NOT_CONFIGURED' },
+        { error: 'Database is not configured yet. Please set up a PostgreSQL database in your Vercel project (Dashboard → Storage → Create Postgres), then visit /api/setup to create tables, then redeploy.', errorType: 'DB_NOT_CONFIGURED' },
         { status: 503 }
       )
     }
@@ -102,9 +102,9 @@ export async function POST(request: NextRequest) {
     console.error('Login error:', error)
     // Check if it's a database connection error
     const errorMsg = error?.message || ''
-    if (errorMsg.includes('connect') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('P1001') || errorMsg.includes('server is not reachable')) {
+    if (errorMsg.includes('connect') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('P1001') || errorMsg.includes('server is not reachable') || errorMsg.includes('does not exist')) {
       return NextResponse.json(
-        { error: 'Database is not configured yet. Please set up a PostgreSQL database in your Vercel project (Dashboard → Storage → Create Postgres). Then redeploy the app.', errorType: 'DB_NOT_CONFIGURED' },
+        { error: 'Database tables are not set up yet. Please visit /api/setup to create the database schema, then try again.', errorType: 'DB_NOT_CONFIGURED' },
         { status: 503 }
       )
     }
