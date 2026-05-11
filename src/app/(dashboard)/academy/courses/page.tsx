@@ -106,6 +106,23 @@ const categoryGradients: Record<string, string> = {
   'Wound Care': 'from-green-500 to-emerald-600',
   'Diet & Nutrition': 'from-yellow-500 to-amber-500',
   'Nursing Ethics': 'from-slate-600 to-zinc-700',
+  'Hematology': 'from-rose-400 to-red-500',
+  'Digital Health': 'from-blue-400 to-indigo-500',
+  'Emergency Care': 'from-orange-600 to-red-700',
+  'Nursing Education': 'from-sky-500 to-blue-600',
+  'Nursing Informatics': 'from-cyan-400 to-blue-500',
+  'Rehabilitation': 'from-green-400 to-emerald-500',
+  'Palliative Care': 'from-violet-400 to-indigo-500',
+  'Forensic Nursing': 'from-slate-500 to-gray-700',
+  'Occupational Health': 'from-amber-400 to-orange-500',
+  'Nephrology Nursing': 'from-teal-400 to-cyan-500',
+  'Cardiac Nursing': 'from-red-400 to-rose-500',
+  'Neuroscience Nursing': 'from-indigo-500 to-purple-600',
+  'Orthopedic Nursing': 'from-emerald-400 to-green-500',
+  'Respiratory Nursing': 'from-sky-400 to-cyan-500',
+  'Midwifery': 'from-pink-400 to-fuchsia-500',
+  'Public Health': 'from-teal-500 to-emerald-600',
+  'Nursing Leadership': 'from-amber-500 to-orange-600',
 }
 
 const defaultGradient = 'from-emerald-400 to-teal-500'
