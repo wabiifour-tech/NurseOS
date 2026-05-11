@@ -843,8 +843,8 @@ async function main() {
         modules: [string, string, string, number][];
       }
 
-      const part1Path = path.join(process.cwd(), 'courses_part1.json')
-      const part2Path = path.join(process.cwd(), 'courses_part2.json')
+      const part1Path = path.join(process.cwd(), 'src/data/courses_part1.json')
+      const part2Path = path.join(process.cwd(), 'src/data/courses_part2.json')
 
       let allCourses: CourseData[] = []
       if (fs.existsSync(part1Path)) {

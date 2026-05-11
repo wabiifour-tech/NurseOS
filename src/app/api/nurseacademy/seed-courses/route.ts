@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import fs from 'fs';
-import path from 'path';
 
 const prisma = new PrismaClient();
 
@@ -20,12 +18,15 @@ interface CourseData {
   enrollmentCount: number;
   rating: number;
   totalRatings: number;
-  modules: [string, string, string, number][]; // [title, description, contentType, durationMinutes]
+  modules: [string, string, string, number][];
 }
+
+// Import JSON data directly - Next.js handles this at build time
+import part1Data from '@/data/courses_part1.json';
+import part2Data from '@/data/courses_part2.json';
 
 export async function POST(request: Request) {
   try {
-    // Auth check - in production, verify admin role
     const body = await request.json().catch(() => ({}));
     const forceReimport = body?.force === true;
 
@@ -40,15 +41,8 @@ export async function POST(request: Request) {
 
     console.log(`📚 Starting bulk course import... (existing: ${existingCount})`);
 
-    // Read JSON files
-    const part1Path = path.join(process.cwd(), 'courses_part1.json');
-    const part2Path = path.join(process.cwd(), 'courses_part2.json');
-
-    const part1: CourseData[] = JSON.parse(fs.readFileSync(part1Path, 'utf-8'));
-    const part2: CourseData[] = JSON.parse(fs.readFileSync(part2Path, 'utf-8'));
-    const allCourses = [...part1, ...part2];
-
-    console.log(`📖 Loaded ${allCourses.length} courses from JSON files`);
+    const allCourses: CourseData[] = [...(part1Data as CourseData[]), ...(part2Data as CourseData[])];
+    console.log(`📖 Loaded ${allCourses.length} courses from JSON data`);
 
     let imported = 0;
     let skipped = 0;
@@ -59,78 +53,72 @@ export async function POST(request: Request) {
       (await prisma.course.findMany({ select: { slug: true } })).map(c => c.slug)
     );
 
-    // Process in batches to avoid memory issues
-    const BATCH_SIZE = 20;
-    for (let i = 0; i < allCourses.length; i += BATCH_SIZE) {
-      const batch = allCourses.slice(i, i + BATCH_SIZE);
+    const validLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT'];
 
-      for (const courseData of batch) {
-        try {
-          // Skip if slug already exists
-          if (existingSlugs.has(courseData.slug)) {
-            skipped++;
-            continue;
-          }
+    for (const courseData of allCourses) {
+      try {
+        // Skip if slug already exists
+        if (existingSlugs.has(courseData.slug)) {
+          skipped++;
+          continue;
+        }
 
-          // Validate level
-          const validLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT'];
-          const level = validLevels.includes(courseData.level) ? courseData.level : 'INTERMEDIATE';
+        // Validate level
+        const level = validLevels.includes(courseData.level) ? courseData.level : 'INTERMEDIATE';
 
-          // Create course with modules in a transaction
-          const course = await prisma.course.create({
-            data: {
-              title: courseData.title,
-              slug: courseData.slug,
-              description: courseData.description,
-              category: courseData.category,
-              level: level,
-              durationMinutes: courseData.durationMinutes,
-              cpdPoints: courseData.cpdPoints,
-              language: courseData.language || 'en',
-              tags: JSON.stringify(courseData.tags || []),
-              isPublished: true,
-              isFree: courseData.isFree,
-              price: courseData.price,
-              enrollmentCount: courseData.enrollmentCount || 0,
-              rating: courseData.rating || 0,
-              totalRatings: courseData.totalRatings || 0,
-            },
-          });
+        // Create course
+        const course = await prisma.course.create({
+          data: {
+            title: courseData.title,
+            slug: courseData.slug,
+            description: courseData.description,
+            category: courseData.category,
+            level,
+            durationMinutes: courseData.durationMinutes,
+            cpdPoints: courseData.cpdPoints,
+            language: courseData.language || 'en',
+            tags: JSON.stringify(courseData.tags || []),
+            isPublished: true,
+            isFree: courseData.isFree,
+            price: courseData.price,
+            enrollmentCount: courseData.enrollmentCount || 0,
+            rating: courseData.rating || 0,
+            totalRatings: courseData.totalRatings || 0,
+          },
+        });
 
-          // Create course modules
-          if (courseData.modules && Array.isArray(courseData.modules)) {
-            for (let m = 0; m < courseData.modules.length; m++) {
-              const mod = courseData.modules[m];
-              if (Array.isArray(mod) && mod.length >= 3) {
-                await prisma.courseModule.create({
-                  data: {
-                    courseId: course.id,
-                    title: mod[0] as string,
-                    description: mod[1] as string,
-                    order: m + 1,
-                    contentType: (mod[2] as string) || 'TEXT',
-                    durationMinutes: (mod[3] as number) || 30,
-                    isRequired: true,
-                  },
-                });
-              }
+        // Create course modules
+        if (courseData.modules && Array.isArray(courseData.modules)) {
+          for (let m = 0; m < courseData.modules.length; m++) {
+            const mod = courseData.modules[m];
+            if (Array.isArray(mod) && mod.length >= 3) {
+              await prisma.courseModule.create({
+                data: {
+                  courseId: course.id,
+                  title: mod[0] as string,
+                  description: mod[1] as string,
+                  order: m + 1,
+                  contentType: (mod[2] as string) || 'TEXT',
+                  durationMinutes: (mod[3] as number) || 30,
+                  isRequired: true,
+                },
+              });
             }
           }
+        }
 
-          existingSlugs.add(courseData.slug);
-          imported++;
+        existingSlugs.add(courseData.slug);
+        imported++;
 
-          if (imported % 50 === 0) {
-            console.log(`  Imported ${imported} courses so far...`);
-          }
-        } catch (err: any) {
-          // Handle unique constraint violations gracefully
-          if (err.code === 'P2002') {
-            skipped++;
-          } else {
-            errors++;
-            console.error(`  Error importing "${courseData.title}":`, err.message);
-          }
+        if (imported % 50 === 0) {
+          console.log(`  Imported ${imported} courses so far...`);
+        }
+      } catch (err: any) {
+        if (err.code === 'P2002') {
+          skipped++;
+        } else {
+          errors++;
+          console.error(`  Error importing "${courseData.title}":`, err.message);
         }
       }
     }
