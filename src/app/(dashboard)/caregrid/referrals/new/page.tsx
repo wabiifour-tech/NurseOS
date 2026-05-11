@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Progress } from "@/components/ui/progress"
+import { useAuthStore } from "@/lib/auth-store"
 import {
   ArrowRightLeft,
   ArrowLeft,
@@ -20,6 +21,7 @@ import {
   FileText,
   Stethoscope,
   Clock,
+  Loader2,
 } from "lucide-react"
 
 const steps = [
@@ -29,17 +31,31 @@ const steps = [
   { label: "Review", icon: CheckCircle2 },
 ]
 
-const samplePatients = [
-  { id: "P001", name: "Chinedu Okafor", age: 45, gender: "Male", diagnosis: "Acute MI" },
-  { id: "P002", name: "Fatima Abdullahi", age: 28, gender: "Female", diagnosis: "Preeclampsia" },
-  { id: "P003", name: "Emeka Nwankwo", age: 32, gender: "Male", diagnosis: "Head Injury" },
-  { id: "P004", name: "Amina Bello", age: 5, gender: "Female", diagnosis: "Cerebral Malaria" },
-  { id: "P005", name: "Ibrahim Musa", age: 50, gender: "Male", diagnosis: "Suspected Lassa Fever" },
-]
+interface PatientOption {
+  id: string
+  patientId: string
+  fullName: string
+  gender: string | null
+  dateOfBirth: string | null
+  bloodType: string | null
+}
+
+interface FacilityOption {
+  id: string
+  name: string
+  type: string
+  city: string
+  state: string
+}
 
 export default function NewReferralPage() {
+  const { token } = useAuthStore()
   const [currentStep, setCurrentStep] = React.useState(0)
   const [selectedPatient, setSelectedPatient] = React.useState("")
+  const [patients, setPatients] = React.useState<PatientOption[]>([])
+  const [facilities, setFacilities] = React.useState<FacilityOption[]>([])
+  const [loadingData, setLoadingData] = React.useState(true)
+  const [submitting, setSubmitting] = React.useState(false)
   const [formData, setFormData] = React.useState({
     patientId: "",
     patientName: "",
@@ -57,19 +73,58 @@ export default function NewReferralPage() {
     specialRequirements: "",
   })
 
+  // Fetch patients and facilities on mount
+  React.useEffect(() => {
+    async function fetchData() {
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" }
+        if (token) headers["Authorization"] = `Bearer ${token}`
+
+        const [patientsRes, facilitiesRes] = await Promise.all([
+          fetch("/api/nurseai/patients?limit=100", { headers }),
+          fetch("/api/caregrid/facilities?limit=200", { headers }),
+        ])
+
+        if (patientsRes.ok) {
+          const pData = await patientsRes.json()
+          setPatients(pData.patients || [])
+        }
+
+        if (facilitiesRes.ok) {
+          const fData = await facilitiesRes.json()
+          setFacilities(fData.facilities || [])
+        }
+      } catch (err) {
+        console.error("Error fetching referral data:", err)
+        toast.error("Failed to load patients and facilities")
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    fetchData()
+  }, [token])
+
   const progressValue = ((currentStep + 1) / steps.length) * 100
 
   const handlePatientSelect = (patientId: string) => {
-    const patient = samplePatients.find(p => p.id === patientId)
+    const patient = patients.find(p => p.id === patientId)
     if (patient) {
       setSelectedPatient(patientId)
+      // Calculate age from DOB
+      let ageStr = ""
+      if (patient.dateOfBirth) {
+        const dob = new Date(patient.dateOfBirth)
+        const today = new Date()
+        const age = today.getFullYear() - dob.getFullYear()
+        ageStr = String(age)
+      }
       setFormData(prev => ({
         ...prev,
         patientId: patient.id,
-        patientName: patient.name,
-        patientAge: String(patient.age),
-        patientGender: patient.gender,
-        patientDiagnosis: patient.diagnosis,
+        patientName: patient.fullName,
+        patientAge: ageStr,
+        patientGender: patient.gender || "",
+        patientDiagnosis: "",
       }))
     }
   }
@@ -86,8 +141,69 @@ export default function NewReferralPage() {
     }
   }
 
-  const handleSubmit = () => {
-    toast.success("Referral submitted successfully!")
+  const handleSubmit = async () => {
+    if (!formData.patientId || !formData.fromFacility || !formData.toFacility) {
+      toast.error("Please complete patient and facility selection before submitting")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers["Authorization"] = `Bearer ${token}`
+
+      const res = await fetch("/api/caregrid/referrals", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          patientId: formData.patientId,
+          fromFacilityId: formData.fromFacility,
+          toFacilityId: formData.toFacility,
+          urgency: formData.urgency?.toUpperCase() || "ROUTINE",
+          reason: formData.reason || formData.patientDiagnosis,
+          clinicalSummary: formData.clinicalSummary,
+        }),
+      })
+
+      if (res.ok) {
+        toast.success("Referral submitted successfully!")
+        // Reset form
+        setFormData({
+          patientId: "",
+          patientName: "",
+          patientAge: "",
+          patientGender: "",
+          patientDiagnosis: "",
+          fromFacility: "",
+          toFacility: "",
+          urgency: "",
+          reason: "",
+          clinicalSummary: "",
+          vitalSigns: "",
+          currentMedications: "",
+          allergies: "",
+          specialRequirements: "",
+        })
+        setSelectedPatient("")
+        setCurrentStep(0)
+      } else {
+        const err = await res.json()
+        toast.error(err.error || "Failed to submit referral")
+      }
+    } catch {
+      toast.error("Failed to submit referral. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading patients and facilities...</span>
+      </div>
+    )
   }
 
   return (
@@ -166,12 +282,12 @@ export default function NewReferralPage() {
                 <Label>Select Existing Patient</Label>
                 <Select value={selectedPatient} onValueChange={handlePatientSelect}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose a patient..." />
+                    <SelectValue placeholder={patients.length > 0 ? "Choose a patient..." : "No patients found"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {samplePatients.map(patient => (
+                    {patients.map(patient => (
                       <SelectItem key={patient.id} value={patient.id}>
-                        {patient.name} — {patient.age}y, {patient.gender}
+                        {patient.fullName} — {patient.patientId}{patient.gender ? `, ${patient.gender}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -217,8 +333,8 @@ export default function NewReferralPage() {
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
+                      <SelectItem value="MALE">Male</SelectItem>
+                      <SelectItem value="FEMALE">Female</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -245,13 +361,14 @@ export default function NewReferralPage() {
                     onValueChange={(value) => setFormData(prev => ({ ...prev, fromFacility: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select referring facility" />
+                      <SelectValue placeholder={facilities.length > 0 ? "Select referring facility" : "No facilities found"} />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="luth">Lagos University Teaching Hospital</SelectItem>
-                      <SelectItem value="fmc-abuja">Federal Medical Centre, Abuja</SelectItem>
-                      <SelectItem value="lsgh">Lagos State General Hospital</SelectItem>
-                      <SelectItem value="garki-phc">Garki Primary Health Centre</SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {facilities.map(f => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name} — {f.city}, {f.state}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <div className="rounded-lg bg-slate-50 p-3 border">
@@ -265,13 +382,14 @@ export default function NewReferralPage() {
                     onValueChange={(value) => setFormData(prev => ({ ...prev, toFacility: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select receiving facility" />
+                      <SelectValue placeholder={facilities.length > 0 ? "Select receiving facility" : "No facilities found"} />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nh-abuja">National Hospital, Abuja</SelectItem>
-                      <SelectItem value="uch-ibadan">University College Hospital, Ibadan</SelectItem>
-                      <SelectItem value="reddington">Reddington Hospital</SelectItem>
-                      <SelectItem value="unth-enugu">University of Nigeria Teaching Hospital</SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {facilities.map(f => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name} — {f.city}, {f.state}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <div className="rounded-lg bg-slate-50 p-3 border">
@@ -391,11 +509,15 @@ export default function NewReferralPage() {
                   <div className="space-y-2">
                     <div>
                       <span className="text-muted-foreground">From:</span>{" "}
-                      <span className="font-medium">{formData.fromFacility || "Not selected"}</span>
+                      <span className="font-medium">
+                        {facilities.find(f => f.id === formData.fromFacility)?.name || "Not selected"}
+                      </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">To:</span>{" "}
-                      <span className="font-medium">{formData.toFacility || "Not selected"}</span>
+                      <span className="font-medium">
+                        {facilities.find(f => f.id === formData.toFacility)?.name || "Not selected"}
+                      </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Urgency:</span>{" "}
@@ -448,7 +570,7 @@ export default function NewReferralPage() {
               )}
 
               <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm">
-                <p className="text-amber-800 font-medium">⚠️ Please verify all information before submitting.</p>
+                <p className="text-amber-800 font-medium">Please verify all information before submitting.</p>
                 <p className="text-amber-700 text-xs mt-1">
                   Once submitted, the receiving facility will be notified immediately for {formData.urgency === "STAT" ? "emergency" : formData.urgency === "Urgent" ? "urgent" : "routine"} processing.
                 </p>
@@ -478,10 +600,11 @@ export default function NewReferralPage() {
             ) : (
               <Button
                 onClick={handleSubmit}
+                disabled={submitting}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
               >
-                <CheckCircle2 className="size-4" />
-                Submit Referral
+                {submitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                {submitting ? "Submitting..." : "Submit Referral"}
               </Button>
             )}
           </div>
