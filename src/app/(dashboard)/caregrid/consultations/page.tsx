@@ -540,12 +540,18 @@ function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsu
             <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8" onClick={async () => {
               try {
                 const res = await fetch(`/api/caregrid/consultations`, {
-                  method: 'POST',
+                  method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ consultationId: consultation.id, status: 'ACCEPTED' }),
                 })
-                if (res.ok) toast.success('Consultation accepted!')
-                else toast.error('Failed to accept consultation')
+                if (res.ok) {
+                  toast.success('Consultation accepted!')
+                  // Refresh the list to show updated status
+                  window.location.reload()
+                } else {
+                  const errData = await res.json().catch(() => ({}))
+                  toast.error(errData.error || 'Failed to accept consultation')
+                }
               } catch { toast.error('Failed to accept consultation') }
             }}>
               Accept

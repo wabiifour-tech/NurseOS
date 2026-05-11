@@ -232,10 +232,46 @@ export default function CertificatesPage() {
 
               {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="text-xs gap-1.5">
+                <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => {
+                  // Generate a simple text certificate for download
+                  const content = [
+                    'NURSEOS CERTIFICATE OF COMPLETION',
+                    '===================================',
+                    '',
+                    `Course: ${cert.course.title}`,
+                    `Category: ${cert.course.category}`,
+                    `Level: ${cert.course.level}`,
+                    `CPD Points: ${cert.course.cpdPoints || 0}`,
+                    `Certificate ID: ${cert.certificateNumber}`,
+                    `Issued: ${formatDate(cert.issuedDate)}`,
+                    `Expiry: ${formatDate(cert.expiryDate)}`,
+                    `Verified: ${cert.isVerified ? 'Yes' : 'Pending'}`,
+                    '',
+                    'Issued by NurseOS — Operating System for Care',
+                  ].join('\n')
+                  const blob = new Blob([content], { type: 'text/plain' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `certificate-${cert.certificateNumber}.txt`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                  toast.success('Certificate downloaded')
+                }}>
                   <Download className="size-3.5" /> Download
                 </Button>
-                <Button variant="outline" size="sm" className="text-xs gap-1.5">
+                <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => {
+                  const shareText = `I earned a certificate in "${cert.course.title}" on NurseOS! Certificate ID: ${cert.certificateNumber}`
+                  if (navigator.share) {
+                    navigator.share({ title: 'NurseOS Certificate', text: shareText }).catch(() => {})
+                  } else {
+                    navigator.clipboard.writeText(shareText).then(() => {
+                      toast.success('Certificate link copied to clipboard!')
+                    }).catch(() => {
+                      toast.error('Failed to share')
+                    })
+                  }
+                }}>
                   <Share2 className="size-3.5" /> Share
                 </Button>
                 <Button
@@ -249,7 +285,37 @@ export default function CertificatesPage() {
                 >
                   <Shield className="size-3.5" /> Verify
                 </Button>
-                <Button variant="outline" size="sm" className="text-xs gap-1.5">
+                <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => {
+                  // Print certificate
+                  const printContent = `
+                    <html>
+                    <head><title>Certificate - ${cert.certificateNumber}</title>
+                    <style>
+                      body { font-family: Georgia, serif; text-align: center; padding: 60px; color: #1a1a1a; }
+                      .border { border: 3px solid #10b981; padding: 40px; max-width: 600px; margin: 0 auto; }
+                      h1 { color: #10b981; font-size: 14px; letter-spacing: 4px; text-transform: uppercase; }
+                      h2 { font-size: 24px; margin: 20px 0; }
+                      .details { font-size: 14px; color: #666; margin: 10px 0; }
+                      .footer { font-size: 11px; color: #999; margin-top: 30px; }
+                    </style></head>
+                    <body><div class="border">
+                      <h1>Certificate of Completion</h1>
+                      <h2>${cert.course.title}</h2>
+                      <p class="details">Category: ${cert.course.category} | Level: ${cert.course.level}</p>
+                      <p class="details">CPD Points: ${cert.course.cpdPoints || 0}</p>
+                      <p class="details">Certificate ID: ${cert.certificateNumber}</p>
+                      <p class="details">Issued: ${formatDate(cert.issuedDate)}</p>
+                      <p class="footer">Issued by NurseOS — Operating System for Care</p>
+                    </div></body></html>`
+                  const printWindow = window.open('', '_blank')
+                  if (printWindow) {
+                    printWindow.document.write(printContent)
+                    printWindow.document.close()
+                    printWindow.print()
+                  } else {
+                    toast.error('Please allow popups to print certificates')
+                  }
+                }}>
                   <Printer className="size-3.5" /> Print
                 </Button>
               </div>

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { db } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,13 +25,13 @@ export async function POST(request: NextRequest) {
 
     // Create a support notification for admins
     // Find admin users to notify
-    const adminUsers = await prisma.user.findMany({
+    const adminUsers = await db.user.findMany({
       where: { role: 'ADMIN', status: 'ACTIVE' },
       take: 5,
     })
 
     const notificationPromises = adminUsers.map(admin =>
-      prisma.notification.create({
+      db.notification.create({
         data: {
           userId: admin.id,
           type: 'SUPPORT',
@@ -56,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Also create an audit log entry
     if (userId) {
-      await prisma.auditLog.create({
+      await db.auditLog.create({
         data: {
           userId,
           action: 'SUPPORT_REQUEST',
@@ -88,7 +86,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
 
-    const supportNotifications = await prisma.notification.findMany({
+    const supportNotifications = await db.notification.findMany({
       where: { type: 'SUPPORT' },
       orderBy: { createdAt: 'desc' },
       take: limit,

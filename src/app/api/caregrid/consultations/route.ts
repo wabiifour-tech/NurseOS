@@ -132,3 +132,71 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create consultation' }, { status: 500 })
   }
 }
+
+// PATCH /api/caregrid/consultations - Update consultation status (accept, complete, cancel)
+export async function PATCH(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
+  try {
+    const body = await request.json()
+    const { consultationId, status } = body
+
+    if (!consultationId) {
+      return NextResponse.json({ error: 'Consultation ID is required' }, { status: 400 })
+    }
+
+    const validStatuses = ['ACCEPTED', 'SCHEDULED', 'ACTIVE', 'COMPLETED', 'CANCELLED']
+    if (!status || !validStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Valid status is required (ACCEPTED, SCHEDULED, ACTIVE, COMPLETED, CANCELLED)' }, { status: 400 })
+    }
+
+    // Verify the consultation exists and the user is authorized
+    const existing = await db.consultation.findUnique({
+      where: { id: consultationId },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Consultation not found' }, { status: 404 })
+    }
+
+    // Only the consulting nurse can accept, or either party can complete/cancel
+    const nurseId = await getNurseProfileId(authUser.id)
+    const isConsultingNurse = existing.consultingNurseId === nurseId
+    const isRequestingNurse = existing.requestingNurseId === nurseId
+
+    if (!isConsultingNurse && !isRequestingNurse) {
+      return NextResponse.json({ error: 'You are not authorized to update this consultation' }, { status: 403 })
+    }
+
+    // Accept can only be done by consulting nurse
+    if (status === 'ACCEPTED' && !isConsultingNurse) {
+      return NextResponse.json({ error: 'Only the consulting nurse can accept a consultation' }, { status: 403 })
+    }
+
+    const updated = await db.consultation.update({
+      where: { id: consultationId },
+      data: { status },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            patientId: true,
+            user: { select: { firstName: true, lastName: true, displayName: true } },
+          },
+        },
+        requestingNurse: {
+          select: { id: true, user: { select: { firstName: true, lastName: true } } },
+        },
+        consultingNurse: {
+          select: { id: true, user: { select: { firstName: true, lastName: true } } },
+        },
+      },
+    })
+
+    return NextResponse.json({ consultation: updated })
+  } catch (error) {
+    console.error('Error updating consultation:', error)
+    return NextResponse.json({ error: 'Failed to update consultation' }, { status: 500 })
+  }
+}
