@@ -438,7 +438,9 @@ function NurseCard({ nurse }: { nurse: NurseDirectoryItem }) {
 
         {/* Actions */}
         <div className="flex gap-2 pt-2 border-t">
-          <Button size="sm" variant="outline" className="flex-1 text-xs h-8 gap-1">
+          <Button size="sm" variant="outline" className="flex-1 text-xs h-8 gap-1" onClick={() => {
+            window.location.href = `/nurseid/profile?nurseId=${nurse.id}`
+          }}>
             <Clock className="size-3" />
             View Profile
           </Button>
@@ -446,6 +448,9 @@ function NurseCard({ nurse }: { nurse: NurseDirectoryItem }) {
             <Button
               size="sm"
               className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+              onClick={() => {
+                window.location.href = `/caregrid/consultations?requestNurseId=${nurse.id}`
+              }}
             >
               <Video className="size-3" />
               Request Consultation

@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         clinicalSummary: body.clinicalSummary || null,
         urgency: body.urgency || 'ROUTINE',
         status,
-        notes: body.notes || null,
+        outcomeNotes: body.notes || body.outcomeNotes || null,
       },
       include: {
         patient: {

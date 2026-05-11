@@ -94,11 +94,11 @@ export async function GET(request: NextRequest) {
       patient: {
         id: r.patient.id,
         patientId: r.patient.patientId,
-        user: {
+        user: r.patient.user ? {
           firstName: r.patient.user.firstName,
           lastName: r.patient.user.lastName,
           displayName: r.patient.user.displayName,
-        },
+        } : null,
       },
       attendingNurse: r.attendingNurse
         ? {
@@ -220,11 +220,11 @@ export async function POST(request: NextRequest) {
           patient: {
             id: record.patient.id,
             patientId: record.patient.patientId,
-            user: {
+            user: record.patient.user ? {
               firstName: record.patient.user.firstName,
               lastName: record.patient.user.lastName,
               displayName: record.patient.user.displayName,
-            },
+            } : null,
           },
           attendingNurse: record.attendingNurse
             ? {

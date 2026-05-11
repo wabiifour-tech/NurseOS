@@ -126,6 +126,10 @@ export async function POST(request: NextRequest) {
       facilityId,
       facilityName,
       nurseProfileId,
+    }, {
+      headers: {
+        'Set-Cookie': `nurseos-token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`,
+      },
     })
   } catch (error: any) {
     console.error('Login error:', error)

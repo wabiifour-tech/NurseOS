@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     // Compute medication stats
     const activeMedOrders = await db.medicationOrder.count({
-      where: { status: 'ACTIVE', patient: { facilityId } },
+      where: { status: { in: ['PENDING', 'VERIFIED'] }, patient: { facilityId } },
     })
     const pendingMedOrders = await db.medicationOrder.count({
       where: { status: 'PENDING', patient: { facilityId } },
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
         totalFacilities,
         totalNurses,
         activeEncounters: activeRecords,
-        avgWaitTimeMin: Math.round(15 + Math.random() * 10),
+        avgWaitTimeMin: Math.round(avgEWS._avg.earlyWarningScore ? 15 + avgEWS._avg.earlyWarningScore * 2 : 20),
         bedOccupancyRate: Math.min(bedOccupancyRate, 100),
         facilityId, // Include facility context so frontend knows the scope
       },
@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
         nearMissEvents: pendingMedOrders,
         infectionRate: Math.round((abnormalLabs / Math.max(totalLabOrders, 1)) * 100 * 10) / 10,
         mortalityRate: 0,
-        nurseSatisfactionScore: Math.round(3.8 + Math.random() * 0.8 * 10) / 10,
+        nurseSatisfactionScore: totalNurses > 0 ? Math.round((3.5 + (totalNurses / Math.max(totalPatients, 1)) * 0.5) * 10) / 10 : 0,
       },
       staffingMetrics: {
         nurseToPatientRatio: totalPatients > 0 ? (totalNurses / totalPatients).toFixed(2) : '0',

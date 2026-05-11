@@ -57,7 +57,7 @@ interface ApiReferral {
   id: string
   patientId: string
   fromFacilityId: string | null
-  toFacilityId: string
+  toFacilityId: string | null
   referringNurseId: string
   reason: string | null
   clinicalSummary: string | null
@@ -71,7 +71,7 @@ interface ApiReferral {
     user: { firstName: string; lastName: string; displayName: string | null }
   }
   fromFacility: { id: string; name: string; city: string; state: string } | null
-  toFacility: { id: string; name: string; city: string; state: string }
+  toFacility: { id: string; name: string; city: string; state: string } | null
   referringNurse: { id: string; user: { firstName: string; lastName: string } }
 }
 
@@ -603,7 +603,7 @@ export default function ReferralsPage() {
                           {referral.fromFacility?.name ?? "—"}
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-xs max-w-[150px] truncate">
-                          {referral.toFacility.name}
+                          {referral.toFacility?.name ?? "—"}
                         </TableCell>
                         <TableCell>
                           <Badge className={`text-[10px] gap-1 ${urgencyColor}`}>

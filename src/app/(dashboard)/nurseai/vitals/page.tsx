@@ -284,7 +284,6 @@ export default function VitalsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patientId: formPatientId,
-          nurseId: user?.id || 'unknown',
           temperature: formTemp ? parseFloat(formTemp) : null,
           heartRate: formHR ? parseInt(formHR) : null,
           respiratoryRate: formRR ? parseInt(formRR) : null,
@@ -501,7 +500,7 @@ export default function VitalsPage() {
                           <div className={`p-2 rounded-lg text-center ${latestVital.heartRate && isVitalAbnormal('hr', latestVital.heartRate) ? 'bg-red-50 border border-red-200' : 'bg-muted/30'}`}>
                             <Heart className={`size-3.5 mx-auto mb-0.5 ${latestVital.heartRate && isVitalAbnormal('hr', latestVital.heartRate) ? 'text-red-500' : 'text-muted-foreground'}`} />
                             <p className={`text-sm font-bold ${latestVital.heartRate && isVitalAbnormal('hr', latestVital.heartRate) ? 'text-red-600' : ''}`}>
-                              {latestVital.heartRate || '—'}
+                              {latestVital.heartRate != null ? latestVital.heartRate : '—'}
                             </p>
                             <div className="flex items-center justify-center gap-0.5">
                               <TrendIcon trend={getVitalTrend(allVitals, 'hr')} />
@@ -536,7 +535,7 @@ export default function VitalsPage() {
                           <div className={`p-2 rounded-lg text-center ${latestVital.respiratoryRate && isVitalAbnormal('rr', latestVital.respiratoryRate) ? 'bg-red-50 border border-red-200' : 'bg-muted/30'}`}>
                             <Wind className={`size-3.5 mx-auto mb-0.5 ${latestVital.respiratoryRate && isVitalAbnormal('rr', latestVital.respiratoryRate) ? 'text-red-500' : 'text-muted-foreground'}`} />
                             <p className={`text-sm font-bold ${latestVital.respiratoryRate && isVitalAbnormal('rr', latestVital.respiratoryRate) ? 'text-red-600' : ''}`}>
-                              {latestVital.respiratoryRate || '—'}
+                              {latestVital.respiratoryRate != null ? latestVital.respiratoryRate : '—'}
                             </p>
                             <div className="flex items-center justify-center gap-0.5">
                               <TrendIcon trend={getVitalTrend(allVitals, 'rr')} />

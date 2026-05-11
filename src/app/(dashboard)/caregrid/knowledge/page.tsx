@@ -177,7 +177,7 @@ export default function KnowledgeBankPage() {
             Evidence-based resources for Nigerian nursing practice
           </p>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" onClick={() => toast.info('Article editor coming soon')}>
           <Plus className="size-4" />
           Write Article
         </Button>

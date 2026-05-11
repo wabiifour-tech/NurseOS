@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
       data: {
         patientId: body.patientId,
         recordId: body.recordId || null,
-        recordedByNurseId: body.nurseId || authUser.nurseProfileId || null,
+        recordedByNurseId: authUser.nurseProfileId || null,
         temperature: body.temperature || null,
         heartRate: body.heartRate || null,
         respiratoryRate: body.respiratoryRate || null,

@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
         { requestingNurseId: authUser.nurseProfileId },
         { consultingNurseId: authUser.nurseProfileId },
       ]
+    } else {
+      // Non-nurse users (e.g., admin) should not see all consultations
+      return NextResponse.json({ consultations: [], pagination: { page, limit, total: 0, totalPages: 0 } })
     }
 
     if (status) where.status = status
@@ -101,9 +104,13 @@ export async function POST(request: NextRequest) {
       consultingNurseId = supportNurse?.id || 'system-support'
     }
 
+    if (!nurseId) {
+      return NextResponse.json({ error: 'Only nurses can create consultations' }, { status: 403 })
+    }
+
     const consultation = await db.consultation.create({
       data: {
-        requestingNurseId: nurseId || authUser.id,
+        requestingNurseId: nurseId,
         consultingNurseId,
         patientId: body.patientId || null,
         recordId: body.recordId || null,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, isDatabaseConnected, resetDbConnectionStatus } from '@/lib/db'
 import { NIGERIA_FACILITIES } from '@/lib/nigeria-facilities'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
 async function hashPassword(password: string): Promise<string> {
@@ -35,6 +36,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // 🔒 Require admin authentication for destructive operations
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+  if (authUser.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Admin access required to seed database' }, { status: 403 })
+  }
+
   try {
     const dbConnected = await isDatabaseConnected()
     if (!dbConnected) {

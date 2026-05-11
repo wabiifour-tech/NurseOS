@@ -109,10 +109,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    if (!body.nurseId) {
+    if (!authUser.nurseProfileId) {
       return NextResponse.json(
-        { error: 'Nurse ID is required' },
-        { status: 400 }
+        { error: 'Only nurses can create notes' },
+        { status: 403 }
       )
     }
     if (!body.noteType) {
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     const note = await db.nursingNote.create({
       data: {
         recordId: body.recordId,
-        nurseId: body.nurseId,
+        nurseId: authUser.nurseProfileId,
         noteType: body.noteType,
         content: body.content.trim(),
         aiGenerated: body.aiGenerated || false,

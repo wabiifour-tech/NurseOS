@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, isDatabaseConnected, resetDbConnectionStatus } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 /**
  * GET /api/setup — Check setup status
@@ -41,6 +42,16 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // 🔒 Require admin authentication for destructive operations
+  // Allow unauthenticated setup ONLY if no users exist yet (first-time setup)
+  const authUser = await getAuthenticatedUser(request)
+  let userCount = 0
+  try { userCount = await db.user.count() } catch { /* tables may not exist yet */ }
+  if (userCount > 0 && (!authUser || authUser.role !== 'ADMIN')) {
+    if (!authUser) return unauthorizedResponse()
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
   try {
     const dbConnected = await isDatabaseConnected()
     if (!dbConnected) {

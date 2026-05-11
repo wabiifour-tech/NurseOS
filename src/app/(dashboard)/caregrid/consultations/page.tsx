@@ -528,17 +528,31 @@ function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsu
 
         {consultation.status === "ACTIVE" && (
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8">
+            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8" onClick={() => {
+              toast.info(consultation.consultationType === "VIDEO" ? "Video call feature coming soon" : consultation.consultationType === "CHAT" ? "Opening chat..." : "Calling...")
+            }}>
               {consultation.consultationType === "VIDEO" ? "Join Call" : consultation.consultationType === "CHAT" ? "Open Chat" : "Call Now"}
             </Button>
           </div>
         )}
         {(consultation.status === "SCHEDULED" || consultation.status === "REQUESTED") && isIncoming && (
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8">
+            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8" onClick={async () => {
+              try {
+                const res = await fetch(`/api/caregrid/consultations`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ consultationId: consultation.id, status: 'ACCEPTED' }),
+                })
+                if (res.ok) toast.success('Consultation accepted!')
+                else toast.error('Failed to accept consultation')
+              } catch { toast.error('Failed to accept consultation') }
+            }}>
               Accept
             </Button>
-            <Button size="sm" variant="outline" className="text-xs h-8">
+            <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => {
+              toast.info('Reschedule feature coming soon')
+            }}>
               Reschedule
             </Button>
           </div>

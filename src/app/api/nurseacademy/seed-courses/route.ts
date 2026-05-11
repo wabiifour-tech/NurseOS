@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
 
 interface CourseData {
   title: string;
@@ -25,13 +24,20 @@ interface CourseData {
 import part1Data from '@/data/courses_part1.json';
 import part2Data from '@/data/courses_part2.json';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // 🔒 Require admin authentication for destructive operations
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+  if (authUser.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const forceReimport = body?.force === true;
 
     // Check current course count
-    const existingCount = await prisma.course.count();
+    const existingCount = await db.course.count();
     if (existingCount >= 280 && !forceReimport) {
       return NextResponse.json({
         message: `Courses already seeded (${existingCount} courses exist). Use force:true to reimport.`,
@@ -50,7 +56,7 @@ export async function POST(request: Request) {
 
     // Get existing slugs to avoid duplicates
     const existingSlugs = new Set(
-      (await prisma.course.findMany({ select: { slug: true } })).map(c => c.slug)
+      (await db.course.findMany({ select: { slug: true } })).map(c => c.slug)
     );
 
     const validLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT'];
@@ -67,7 +73,7 @@ export async function POST(request: Request) {
         const level = validLevels.includes(courseData.level) ? courseData.level : 'INTERMEDIATE';
 
         // Create course
-        const course = await prisma.course.create({
+        const course = await db.course.create({
           data: {
             title: courseData.title,
             slug: courseData.slug,
@@ -92,7 +98,7 @@ export async function POST(request: Request) {
           for (let m = 0; m < courseData.modules.length; m++) {
             const mod = courseData.modules[m];
             if (Array.isArray(mod) && mod.length >= 3) {
-              await prisma.courseModule.create({
+              await db.courseModule.create({
                 data: {
                   courseId: course.id,
                   title: mod[0] as string,
@@ -123,8 +129,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const finalCount = await prisma.course.count();
-    const moduleCount = await prisma.courseModule.count();
+    const finalCount = await db.course.count();
+    const moduleCount = await db.courseModule.count();
 
     console.log(`✅ Import complete: ${imported} imported, ${skipped} skipped, ${errors} errors`);
     console.log(`   Total courses: ${finalCount}, Total modules: ${moduleCount}`);
@@ -148,9 +154,9 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const courseCount = await prisma.course.count();
-    const moduleCount = await prisma.courseModule.count();
-    const categories = await prisma.course.groupBy({
+    const courseCount = await db.course.count();
+    const moduleCount = await db.courseModule.count();
+    const categories = await db.course.groupBy({
       by: ['category'],
       _count: { category: true },
       orderBy: { _count: { category: 'desc' } },

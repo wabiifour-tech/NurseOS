@@ -27,7 +27,12 @@ export async function GET(request: NextRequest) {
 
     if (patientId) where.patientId = patientId
     if (status) where.status = status
-    if (date) where.appointmentDate = new Date(date)
+    if (date) {
+      where.appointmentDate = {
+        gte: new Date(date + 'T00:00:00.000Z'),
+        lt: new Date(date + 'T23:59:59.999Z'),
+      }
+    }
 
     const [appointments, total] = await Promise.all([
       db.appointment.findMany({
@@ -100,7 +105,7 @@ export async function POST(request: NextRequest) {
         status,
         reason: body.reason || null,
         notes: body.notes || null,
-        nurseId: body.nurseId || authUser.nurseProfileId || authUser.id,
+        nurseId: body.nurseId || authUser.nurseProfileId || null,
       },
       include: {
         patient: {

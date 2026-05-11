@@ -38,6 +38,14 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
     })
 
+    // Handle bio field update for nurses (bio is on NurseProfile, not User)
+    if (bio !== undefined && user.role === 'NURSE') {
+      await db.nurseProfile.update({
+        where: { userId },
+        data: { bio },
+      })
+    }
+
     // 🔒 FACILITY ISOLATION: Handle facility assignment update
     if (facilityId !== undefined) {
       // Validate that the facility exists

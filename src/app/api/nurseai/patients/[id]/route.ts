@@ -74,6 +74,14 @@ export async function GET(
           facilityId, // 🔒 Only get notes from this facility's records
         },
       },
+      include: {
+        nurse: {
+          select: {
+            id: true,
+            user: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: 20,
     })
