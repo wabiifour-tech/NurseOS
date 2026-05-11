@@ -148,6 +148,23 @@ function getPatientInitials(p: Patient) {
   return p.patientId.slice(0, 2).toUpperCase()
 }
 
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function formatDate(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const day = d.getDate().toString().padStart(2, '0')
+  const month = (d.getMonth() + 1).toString().padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+function formatTimeShort(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const hours = d.getHours().toString().padStart(2, '0')
+  const minutes = d.getMinutes().toString().padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
 export default function VitalsPage() {
   const { user } = useAuthStore()
   const [selectedPatient, setSelectedPatient] = React.useState('all')
@@ -245,7 +262,7 @@ export default function VitalsPage() {
     return [...patientVitals]
       .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
       .map(v => ({
-        time: new Date(v.recordedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        time: (() => { const d = new Date(v.recordedAt); return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${formatTimeShort(d)}` })(),
         temperature: v.temperature,
         heartRate: v.heartRate,
         bpSystolic: v.bloodPressureSystolic,
@@ -459,7 +476,7 @@ export default function VitalsPage() {
                             <div>
                               <p className="text-sm font-medium">{getPatientName(patient)}</p>
                               <p className="text-[10px] text-muted-foreground">
-                                {new Date(latestVital.recordedAt).toLocaleDateString()} {new Date(latestVital.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {formatDate(latestVital.recordedAt)} {formatTimeShort(latestVital.recordedAt)}
                               </p>
                             </div>
                           </div>

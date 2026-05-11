@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/caregrid/knowledge - List knowledge articles
 export async function GET(request: NextRequest) {
@@ -57,6 +57,11 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
+    }
+
     const body = await request.json()
 
     if (!body.title || !body.category || !body.content) {
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const article = await db.knowledgeArticle.create({
       data: {
-        authorId: authUser.id,
+        authorId: nurseId,
         title: body.title,
         slug,
         category: body.category,

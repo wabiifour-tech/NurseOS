@@ -68,10 +68,28 @@ export default function CertificatesPage() {
     fetchCertificates()
   }, [])
 
-  const copyHash = (hash: string) => {
-    navigator.clipboard.writeText(hash)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const copyHash = async (hash: string) => {
+    try {
+      await navigator.clipboard.writeText(hash)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for browsers/contexts where Clipboard API is unavailable
+      try {
+        const textarea = document.createElement('textarea')
+        textarea.value = hash
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        toast.error('Failed to copy to clipboard')
+      }
+    }
   }
 
   const formatDate = (dateStr: string | null) => {
@@ -295,7 +313,7 @@ export default function CertificatesPage() {
               <Button
                 variant="outline"
                 className="w-full gap-1.5"
-                onClick={() => window.open('#', '_blank')}
+                onClick={() => toast.info('Blockchain verification coming soon')}
               >
                 <ExternalLink className="size-4" /> View on Blockchain Explorer
               </Button>

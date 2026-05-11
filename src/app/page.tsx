@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -651,10 +652,10 @@ export default function LandingPage() {
             <div>
               <h4 className="font-semibold text-foreground mb-3 text-sm">Legal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">NDPR Compliance</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">HIPAA Notice</a></li>
+                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('Privacy Policy page coming soon') }} className="hover:text-foreground transition-colors">Privacy Policy</a></li>
+                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('Terms of Service page coming soon') }} className="hover:text-foreground transition-colors">Terms of Service</a></li>
+                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('NDPR Compliance page coming soon') }} className="hover:text-foreground transition-colors">NDPR Compliance</a></li>
+                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('HIPAA Notice page coming soon') }} className="hover:text-foreground transition-colors">HIPAA Notice</a></li>
               </ul>
             </div>
           </div>

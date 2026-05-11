@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseai/appointments - List appointments
 export async function GET(request: NextRequest) {
@@ -59,6 +59,8 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+
     const body = await request.json()
 
     if (!body.patientId || !body.appointmentDate) {
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
         status,
         reason: body.reason || null,
         notes: body.notes || null,
-        nurseId: body.nurseId || authUser.id,
+        nurseId: body.nurseId || nurseId || authUser.id,
       },
       include: {
         patient: {

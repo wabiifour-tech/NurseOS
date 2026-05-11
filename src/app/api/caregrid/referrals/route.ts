@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/caregrid/referrals - List referrals
 export async function GET(request: NextRequest) {
@@ -61,6 +61,11 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
+    }
+
     const body = await request.json()
 
     if (!body.patientId || !body.toFacilityId) {
@@ -78,7 +83,7 @@ export async function POST(request: NextRequest) {
         patientId: body.patientId,
         fromFacilityId: body.fromFacilityId || null,
         toFacilityId: body.toFacilityId,
-        referringNurseId: body.referringNurseId || authUser.id,
+        referringNurseId: body.referringNurseId || nurseId,
         reason: body.reason || null,
         clinicalSummary: body.clinicalSummary || null,
         urgency: body.urgency || 'ROUTINE',

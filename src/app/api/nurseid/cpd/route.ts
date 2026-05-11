@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseid/cpd - List CPD records
 export async function GET(request: NextRequest) {
@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
-    const nurseId = new URL(request.url).searchParams.get('nurseId') || authUser.id
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ records: [], totalPoints: 0, totalRecords: 0, message: 'No nurse profile found' })
+    }
+
+    const targetNurseId = new URL(request.url).searchParams.get('nurseId') || nurseId
 
     const records = await db.cPDRecord.findMany({
-      where: { nurseId },
+      where: { nurseId: targetNurseId },
       orderBy: { dateCompleted: 'desc' },
     })
 
@@ -30,6 +35,11 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
+    }
+
     const body = await request.json()
 
     if (!body.title || !body.activityType || !body.cpdPoints) {
@@ -41,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     const record = await db.cPDRecord.create({
       data: {
-        nurseId: body.nurseId || authUser.id,
+        nurseId,
         title: body.title,
         activityType: body.activityType,
         description: body.description || null,

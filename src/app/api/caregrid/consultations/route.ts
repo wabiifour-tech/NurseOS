@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/caregrid/consultations - List consultations
 export async function GET(request: NextRequest) {
@@ -58,19 +58,41 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+
     const body = await request.json()
 
-    if (!body.consultingNurseId || !body.subject || !body.description) {
+    // Support type allows missing consultingNurseId (for support requests)
+    const isSupportRequest = body.consultationType === 'SUPPORT'
+    
+    if (!isSupportRequest && !body.consultingNurseId) {
       return NextResponse.json(
-        { error: 'Consulting nurse ID, subject, and description are required' },
+        { error: 'Consulting nurse ID is required for consultations' },
         { status: 400 }
       )
     }
 
+    if (!body.subject || !body.description) {
+      return NextResponse.json(
+        { error: 'Subject and description are required' },
+        { status: 400 }
+      )
+    }
+
+    // For support requests without a consulting nurse, find an available admin/support nurse
+    let consultingNurseId = body.consultingNurseId
+    if (!consultingNurseId) {
+      const supportNurse = await db.nurseProfile.findFirst({
+        where: { availableForConsult: true },
+        select: { id: true },
+      })
+      consultingNurseId = supportNurse?.id || 'system-support'
+    }
+
     const consultation = await db.consultation.create({
       data: {
-        requestingNurseId: body.requestingNurseId || authUser.id,
-        consultingNurseId: body.consultingNurseId,
+        requestingNurseId: nurseId || authUser.id,
+        consultingNurseId,
         patientId: body.patientId || null,
         recordId: body.recordId || null,
         consultationType: body.consultationType || body.type || 'CHAT',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseacademy/certificates - List certificates
 export async function GET(request: NextRequest) {
@@ -8,9 +8,14 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({ certificates: [], message: 'No nurse profile found' })
+    }
+
     const enrollments = await db.enrollment.findMany({
       where: {
-        nurseId: authUser.id,
+        nurseId,
         certificateIssued: true,
       },
       include: {

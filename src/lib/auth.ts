@@ -40,6 +40,21 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<{ id: 
 }
 
 /**
+ * Get the NurseProfile ID for an authenticated user.
+ * Most Prisma models (Credential, Competency, PortfolioEntry, CPDRecord, Enrollment, etc.)
+ * reference NurseProfile.id, NOT User.id. This helper resolves the correct ID.
+ * 
+ * Returns null if the user is not a nurse or has no NurseProfile.
+ */
+export async function getNurseProfileId(userId: string): Promise<string | null> {
+  const nurseProfile = await db.nurseProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  })
+  return nurseProfile?.id || null
+}
+
+/**
  * Helper to return a 401 Unauthorized response
  */
 export function unauthorizedResponse() {

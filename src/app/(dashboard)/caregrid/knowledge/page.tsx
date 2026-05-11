@@ -87,13 +87,12 @@ function authorName(article: ApiArticle): string {
   return `${firstName} ${lastName}`.trim() || "Unknown Author"
 }
 
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("en-NG", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
+    const d = new Date(iso)
+    return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
   } catch {
     return iso
   }

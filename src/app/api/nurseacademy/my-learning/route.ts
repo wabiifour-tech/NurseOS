@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseacademy/my-learning - Get user's enrolled courses
 export async function GET(request: NextRequest) {
@@ -8,8 +8,21 @@ export async function GET(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
+    if (!nurseId) {
+      return NextResponse.json({
+        enrollments: [],
+        inProgress: [],
+        completed: [],
+        totalEnrolled: 0,
+        totalCompleted: 0,
+        totalCPD: 0,
+        message: 'No nurse profile found',
+      })
+    }
+
     const enrollments = await db.enrollment.findMany({
-      where: { nurseId: authUser.id },
+      where: { nurseId },
       include: {
         course: {
           select: {
@@ -36,67 +49,35 @@ export async function GET(request: NextRequest) {
 
     const totalCPD = completed.reduce((sum, e) => sum + (e.course.cpdPoints || 0), 0)
 
+    const mapEnrollment = (e: typeof enrollments[0]) => ({
+      id: e.id,
+      courseId: e.courseId,
+      status: e.status,
+      progressPercent: e.progressPercent,
+      enrolledAt: e.enrolledAt,
+      completedAt: e.completedAt,
+      course: {
+        title: e.course.title,
+        description: e.course.description,
+        category: e.course.category,
+        durationMinutes: e.course.durationMinutes,
+        level: e.course.level,
+        cpdPoints: e.course.cpdPoints,
+        rating: e.course.rating,
+        enrollmentCount: e.course.enrollmentCount,
+        moduleCount: e.course._count.courseModules,
+      },
+    })
+
     return NextResponse.json({
-      enrollments: enrollments.map((e) => ({
-        id: e.id,
-        courseId: e.courseId,
-        status: e.status,
-        progressPercent: e.progressPercent,
-        enrolledAt: e.enrolledAt,
-        completedAt: e.completedAt,
-        certificateNumber: e.certificateNumber,
-        certificateIssued: e.certificateIssued,
-        course: {
-          title: e.course.title,
-          description: e.course.description,
-          category: e.course.category,
-          durationMinutes: e.course.durationMinutes,
-          level: e.course.level,
-          cpdPoints: e.course.cpdPoints,
-          rating: e.course.rating,
-          enrollmentCount: e.course.enrollmentCount,
-          moduleCount: e.course._count.courseModules,
-        },
-      })),
+      enrollments: enrollments.map(mapEnrollment),
       inProgress: inProgress.map((e) => ({
-        id: e.id,
-        courseId: e.courseId,
-        status: e.status,
-        progressPercent: e.progressPercent,
-        enrolledAt: e.enrolledAt,
-        completedAt: e.completedAt,
-        course: {
-          title: e.course.title,
-          description: e.course.description,
-          category: e.course.category,
-          durationMinutes: e.course.durationMinutes,
-          level: e.course.level,
-          cpdPoints: e.course.cpdPoints,
-          rating: e.course.rating,
-          enrollmentCount: e.course.enrollmentCount,
-          moduleCount: e.course._count.courseModules,
-        },
+        ...mapEnrollment(e),
       })),
       completed: completed.map((e) => ({
-        id: e.id,
-        courseId: e.courseId,
-        status: e.status,
-        progressPercent: e.progressPercent,
-        enrolledAt: e.enrolledAt,
-        completedAt: e.completedAt,
+        ...mapEnrollment(e),
         certificateNumber: e.certificateNumber,
         certificateIssued: e.certificateIssued,
-        course: {
-          title: e.course.title,
-          description: e.course.description,
-          category: e.course.category,
-          durationMinutes: e.course.durationMinutes,
-          level: e.course.level,
-          cpdPoints: e.course.cpdPoints,
-          rating: e.course.rating,
-          enrollmentCount: e.course.enrollmentCount,
-          moduleCount: e.course._count.courseModules,
-        },
       })),
       totalEnrolled: enrollments.length,
       totalCompleted: completed.length,

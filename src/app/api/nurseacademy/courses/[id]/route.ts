@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 
 // GET /api/nurseacademy/courses/[id] - Get course detail
 export async function GET(
@@ -11,6 +11,7 @@ export async function GET(
   if (!authUser) return unauthorizedResponse()
 
   try {
+    const nurseId = await getNurseProfileId(authUser.id)
     const { id } = await params
 
     const course = await db.course.findUnique({
@@ -20,7 +21,7 @@ export async function GET(
           orderBy: { order: 'asc' },
         },
         enrollments: {
-          where: { nurseId: authUser.id },
+          where: nurseId ? { nurseId } : undefined,
           take: 1,
         },
         _count: { select: { enrollments: true, courseModules: true } },

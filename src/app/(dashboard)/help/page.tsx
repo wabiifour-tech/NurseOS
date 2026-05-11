@@ -67,7 +67,7 @@ interface KeyboardShortcut {
 }
 
 export default function HelpSupportPage() {
-  const { user } = useAuthStore()
+  const { user, token } = useAuthStore()
 
   // Contact form state
   const [contactForm, setContactForm] = React.useState({
@@ -262,7 +262,6 @@ export default function HelpSupportPage() {
     setIsSending(true)
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      const token = document.cookie.split(';').find(c => c.trim().startsWith('nurseos-token='))?.split('=')[1]
       if (token) headers['Authorization'] = `Bearer ${token}`
 
       const res = await fetch('/api/caregrid/consultations', {

@@ -112,10 +112,36 @@ export default function SettingsPage() {
     },
   ])
 
-  // Appearance state
-  const [theme, setTheme] = React.useState<'light' | 'dark' | 'system'>('system')
-  const [compactMode, setCompactMode] = React.useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
+  // Appearance state - persisted to localStorage
+  const [theme, setThemeState] = React.useState<'light' | 'dark' | 'system'>('system')
+  const [compactMode, setCompactModeState] = React.useState(false)
+  const [sidebarCollapsed, setSidebarCollapsedState] = React.useState(false)
+
+  const setTheme = (newTheme: 'light' | 'dark' | 'system') => {
+    setThemeState(newTheme)
+    try { localStorage.setItem('nurseos-theme', newTheme) } catch {}
+    toast.success(`Theme set to ${newTheme}`)
+  }
+  const setCompactMode = (val: boolean) => {
+    setCompactModeState(val)
+    try { localStorage.setItem('nurseos-compact', String(val)) } catch {}
+  }
+  const setSidebarCollapsed = (val: boolean) => {
+    setSidebarCollapsedState(val)
+    try { localStorage.setItem('nurseos-sidebar-collapsed', String(val)) } catch {}
+  }
+
+  // Load persisted preferences on mount
+  React.useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('nurseos-theme') as 'light' | 'dark' | 'system' | null
+      const savedCompact = localStorage.getItem('nurseos-compact')
+      const savedSidebar = localStorage.getItem('nurseos-sidebar-collapsed')
+      if (savedTheme) setThemeState(savedTheme)
+      if (savedCompact !== null) setCompactModeState(savedCompact === 'true')
+      if (savedSidebar !== null) setSidebarCollapsedState(savedSidebar === 'true')
+    } catch {}
+  }, [])
 
   // Security state
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false)
@@ -129,6 +155,14 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = React.useState(false)
   const [twoFactorEnabled, setTwoFactorEnabled] = React.useState(false)
 
+  const handleToggle2FA = (enabled: boolean) => {
+    if (enabled) {
+      toast.info('Two-Factor Authentication is coming soon. This feature will add an extra layer of security to your account.')
+      return
+    }
+    setTwoFactorEnabled(false)
+  }
+
   // Data & Privacy state
   const [dataRetention, setDataRetention] = React.useState('1-year')
   const [analyticsSharing, setAnalyticsSharing] = React.useState(true)
@@ -136,10 +170,27 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
 
   const toggleNotification = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
-    )
+    setNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
+      // Persist notification preferences to localStorage
+      try {
+        const prefs = updated.reduce((acc, n) => { acc[n.id] = n.enabled; return acc }, {} as Record<string, boolean>)
+        localStorage.setItem('nurseos-notification-prefs', JSON.stringify(prefs))
+      } catch {}
+      return updated
+    })
   }
+
+  // Load persisted notification preferences on mount
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('nurseos-notification-prefs')
+      if (saved) {
+        const prefs = JSON.parse(saved) as Record<string, boolean>
+        setNotifications((prev) => prev.map((n) => prefs[n.id] !== undefined ? { ...n, enabled: prefs[n.id] } : n))
+      }
+    } catch {}
+  }, [])
 
   const handleSaveProfile = async () => {
     setIsSavingProfile(true)
@@ -549,7 +600,7 @@ export default function SettingsPage() {
                     Enabled
                   </Badge>
                 )}
-                <Switch checked={twoFactorEnabled} onCheckedChange={setTwoFactorEnabled} />
+                <Switch checked={twoFactorEnabled} onCheckedChange={handleToggle2FA} />
               </div>
             </div>
 
