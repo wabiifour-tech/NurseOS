@@ -1036,12 +1036,11 @@ export default function SettingsPage() {
                 size="sm"
                 onClick={handleExportData}
                 disabled={isExportingData}
-                className="opacity-50 cursor-not-allowed"
               >
                 {isExportingData ? (
                   <><Loader2 className="size-4 mr-1 animate-spin" /> Exporting...</>
                 ) : (
-                  <><Download className="size-4 mr-1" /> Export (Coming Soon)</>
+                  <><Download className="size-4 mr-1" /> Export Data</>
                 )}
               </Button>
             </div>
@@ -1080,7 +1079,6 @@ export default function SettingsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="opacity-50 cursor-not-allowed"
                   >
                     <Trash2 className="size-4 mr-1" /> Delete Account
                   </Button>

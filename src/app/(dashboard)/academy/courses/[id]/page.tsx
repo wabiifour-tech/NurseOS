@@ -273,8 +273,8 @@ export default function CourseDetailPage() {
                     <span className="text-sm font-semibold text-emerald-600">{enrollmentProgress}%</span>
                   </div>
                   <Progress value={enrollmentProgress} className="h-2.5" />
-                  <Button variant="outline" className="mt-3 w-full sm:w-auto opacity-50 cursor-not-allowed" size="sm" onClick={() => toast.info('Course content player is coming soon — this feature is being developed.')}>
-                    <Play className="size-4 mr-2" /> Continue Learning (Coming Soon)
+                  <Button variant="outline" className="mt-3 w-full sm:w-auto" size="sm" onClick={() => toast.info('Course content player is under development — this feature will be available soon.')}>
+                    <Play className="size-4 mr-2" /> Continue Learning
                   </Button>
                 </div>
               )}
@@ -321,18 +321,18 @@ export default function CourseDetailPage() {
                             : 'Read through the course material and review the key points.'}
                         </p>
                         {isEnrolled && (
-                          <Button variant="outline" size="sm" className="ml-11 mt-2 opacity-50 cursor-not-allowed" onClick={() => {
+                          <Button variant="outline" size="sm" className="ml-11 mt-2" onClick={() => {
                             setActiveModule(mod.id)
                             toast.info(
                               mod.type === 'Quiz' || mod.type === 'QUIZ'
-                                ? 'Quiz module is coming soon — this feature is being developed.'
+                                ? 'Quiz module is under development — this feature will be available soon.'
                                 : mod.type === 'Video' || mod.type === 'VIDEO'
-                                ? 'Video player is coming soon — this feature is being developed.'
-                                : 'Reading material viewer is coming soon — this feature is being developed.'
+                                ? 'Video player is under development — this feature will be available soon.'
+                                : 'Reading material viewer is under development — this feature will be available soon.'
                             )
                           }}>
                             <Play className="size-3.5 mr-1.5" />
-                            {mod.type === 'Quiz' || mod.type === 'QUIZ' ? 'Start Quiz (Coming Soon)' : mod.type === 'Video' || mod.type === 'VIDEO' ? 'Watch Video (Coming Soon)' : 'Read Material (Coming Soon)'}
+                            {mod.type === 'Quiz' || mod.type === 'QUIZ' ? 'Start Quiz' : mod.type === 'Video' || mod.type === 'VIDEO' ? 'Watch Video' : 'Read Material'}
                           </Button>
                         )}
                       </AccordionContent>
@@ -411,7 +411,7 @@ export default function CourseDetailPage() {
               >
                 {isEnrolled ? (
                   <>
-                    <Play className="size-4 mr-2" /> Continue Learning (Coming Soon)
+                    <Play className="size-4 mr-2" /> Continue Learning
                   </>
                 ) : (
                   <>

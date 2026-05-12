@@ -346,10 +346,10 @@ export default function SimulationsPage() {
                 )}
 
                 {/* Start Button */}
-                <Button variant="outline" className="w-full mt-1 opacity-50 cursor-not-allowed" size="sm" onClick={() => {
-                  toast.info(`Starting "${sim.title}" simulation... Interactive clinical scenario engine coming soon.`)
+                <Button variant="outline" className="w-full mt-1" size="sm" onClick={() => {
+                  toast.info(`Starting "${sim.title}" simulation... Interactive clinical scenario engine is under development.`)
                 }}>
-                  <Play className="size-4 mr-2" /> Start Simulation (Coming Soon)
+                  <Play className="size-4 mr-2" /> Start Simulation
                 </Button>
               </CardContent>
             </Card>

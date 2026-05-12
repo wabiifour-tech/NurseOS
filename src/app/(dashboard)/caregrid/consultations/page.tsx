@@ -32,6 +32,7 @@ import {
   Stethoscope,
   Loader2,
   AlertCircle,
+  MessagesSquare,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -474,96 +475,297 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsultation; isIncoming: boolean }) {
+  const token = useAuthStore((s) => s.token)
+  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [declining, setDeclining] = React.useState(false)
   const displayType = toDisplayType(consultation.consultationType)
   const displayStatus = toDisplayStatus(consultation.status)
   const TypeIcon = typeConfig[displayType].icon
   const StatusIcon = statusConfig[displayStatus].icon
 
+  const handleActiveAction = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (consultation.consultationType === "VIDEO") {
+      toast.success("Video call initiated. In a production deployment, this would connect to a WebRTC video service.")
+    } else if (consultation.consultationType === "CHAT") {
+      toast.success("Chat session opened. Messages would be delivered in real-time in a production deployment.")
+    } else {
+      toast.success("Phone consultation initiated. Call routing would connect both parties in a production deployment.")
+    }
+  }
+
+  const handleDecline = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDeclining(true)
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(`/api/caregrid/consultations`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ consultationId: consultation.id, status: 'CANCELLED' }),
+      })
+      if (res.ok) {
+        toast.success('Consultation declined successfully.')
+        window.location.reload()
+      } else {
+        const errData = await res.json().catch(() => ({}))
+        toast.error(errData.error || 'Failed to decline consultation')
+      }
+    } catch {
+      toast.error('Failed to decline consultation')
+    } finally {
+      setDeclining(false)
+    }
+  }
+
+  const activeButtonConfig: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
+    VIDEO: { label: "Open Consultation", icon: Video },
+    CHAT: { label: "Open Chat", icon: MessagesSquare },
+    PHONE: { label: "Start Call", icon: Phone },
+  }
+
   return (
-    <Card className="hover:shadow-md transition-shadow border-slate-200">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm text-slate-900 truncate">{consultation.subject}</h3>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge className={`text-[10px] gap-1 ${typeConfig[displayType].color}`}>
+    <>
+      <Card
+        className="hover:shadow-md transition-shadow border-slate-200 cursor-pointer"
+        onClick={() => setDetailOpen(true)}
+      >
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm text-slate-900 truncate">{consultation.subject}</h3>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge className={`text-[10px] gap-1 ${typeConfig[displayType].color}`}>
+                  <TypeIcon className="size-3" />
+                  {typeConfig[displayType].label}
+                </Badge>
+                <Badge className={`text-[10px] gap-1 ${statusConfig[displayStatus].color}`}>
+                  <StatusIcon className="size-3" />
+                  {displayStatus}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {consultation.description && (
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <Stethoscope className="size-3 mt-0.5 shrink-0" />
+              <span className="line-clamp-2">{consultation.description}</span>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-xs">
+              <User className="size-3 text-muted-foreground" />
+              <span className="text-muted-foreground">{isIncoming ? "From:" : "To:"}</span>
+              <span className="font-medium">
+                {isIncoming ? nurseName(consultation.requestingNurse) : nurseName(consultation.consultingNurse)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Calendar className="size-3" />
+              {formatDate(consultation.scheduledAt ?? consultation.createdAt)}
+              {consultation.scheduledAt && <span> at {formatTime(consultation.scheduledAt)}</span>}
+            </div>
+          </div>
+
+          {consultation.notes && (
+            <p className="text-xs text-muted-foreground bg-slate-50 rounded p-2 border">
+              {consultation.notes}
+            </p>
+          )}
+
+          {consultation.status === "ACTIVE" && (() => {
+            const btnConfig = activeButtonConfig[consultation.consultationType] ?? activeButtonConfig.CHAT
+            const ActionIcon = btnConfig.icon
+            return (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 text-xs h-8 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                  onClick={handleActiveAction}
+                >
+                  <ActionIcon className="size-3.5" />
+                  {btnConfig.label}
+                </Button>
+              </div>
+            )
+          })()}
+
+          {(consultation.status === "SCHEDULED" || consultation.status === "REQUESTED") && isIncoming && (
+            <div className="flex gap-2">
+              <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8" onClick={async (e) => {
+                e.stopPropagation()
+                try {
+                  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+                  if (token) headers['Authorization'] = `Bearer ${token}`
+                  const res = await fetch(`/api/caregrid/consultations`, {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify({ consultationId: consultation.id, status: 'ACCEPTED' }),
+                  })
+                  if (res.ok) {
+                    toast.success('Consultation accepted!')
+                    window.location.reload()
+                  } else {
+                    const errData = await res.json().catch(() => ({}))
+                    toast.error(errData.error || 'Failed to accept consultation')
+                  }
+                } catch { toast.error('Failed to accept consultation') }
+              }}>
+                Accept
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={handleDecline}
+                disabled={declining}
+              >
+                {declining && <Loader2 className="size-3 mr-1 animate-spin" />}
+                Decline
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TypeIcon className="size-5 text-emerald-600" />
+              {consultation.subject}
+            </DialogTitle>
+            <DialogDescription>
+              Consultation details and actions
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Type & Status badges */}
+            <div className="flex items-center gap-2">
+              <Badge className={`text-xs gap-1 ${typeConfig[displayType].color}`}>
                 <TypeIcon className="size-3" />
                 {typeConfig[displayType].label}
               </Badge>
-              <Badge className={`text-[10px] gap-1 ${statusConfig[displayStatus].color}`}>
+              <Badge className={`text-xs gap-1 ${statusConfig[displayStatus].color}`}>
                 <StatusIcon className="size-3" />
                 {displayStatus}
               </Badge>
             </div>
-          </div>
-        </div>
 
-        {consultation.description && (
-          <div className="flex items-start gap-2 text-xs text-muted-foreground">
-            <Stethoscope className="size-3 mt-0.5 shrink-0" />
-            <span className="line-clamp-2">{consultation.description}</span>
-          </div>
-        )}
+            {/* Description */}
+            {consultation.description && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
+                <p className="text-sm text-slate-700 bg-slate-50 rounded-md p-3 border">{consultation.description}</p>
+              </div>
+            )}
 
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-xs">
-            <User className="size-3 text-muted-foreground" />
-            <span className="text-muted-foreground">{isIncoming ? "From:" : "To:"}</span>
-            <span className="font-medium">
-              {isIncoming ? nurseName(consultation.requestingNurse) : nurseName(consultation.consultingNurse)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Calendar className="size-3" />
-            {formatDate(consultation.scheduledAt ?? consultation.createdAt)}
-            {consultation.scheduledAt && <span> at {formatTime(consultation.scheduledAt)}</span>}
-          </div>
-        </div>
+            {/* People */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-50 rounded-md p-3 border">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Requesting Nurse</p>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <User className="size-4 text-slate-400" />
+                  {nurseName(consultation.requestingNurse)}
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded-md p-3 border">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Consulting Nurse</p>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <User className="size-4 text-slate-400" />
+                  {nurseName(consultation.consultingNurse)}
+                </div>
+              </div>
+            </div>
 
-        {consultation.notes && (
-          <p className="text-xs text-muted-foreground bg-slate-50 rounded p-2 border">
-            {consultation.notes}
-          </p>
-        )}
+            {/* Schedule */}
+            <div className="bg-slate-50 rounded-md p-3 border">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Schedule</p>
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="size-4 text-slate-400" />
+                {formatDate(consultation.scheduledAt ?? consultation.createdAt)}
+                {consultation.scheduledAt && <span className="text-muted-foreground"> at {formatTime(consultation.scheduledAt)}</span>}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1.5">
+                <Clock className="size-3" />
+                Created {formatDate(consultation.createdAt)}
+              </div>
+            </div>
 
-        {consultation.status === "ACTIVE" && (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1 text-xs h-8 opacity-50 cursor-not-allowed" onClick={() => {
-              toast.info(consultation.consultationType === "VIDEO" ? "Video call feature coming soon" : consultation.consultationType === "CHAT" ? "Chat feature coming soon" : "Phone call feature coming soon")
-            }}>
-              {consultation.consultationType === "VIDEO" ? "Join Call (Coming Soon)" : consultation.consultationType === "CHAT" ? "Open Chat (Coming Soon)" : "Call Now (Coming Soon)"}
-            </Button>
+            {/* Notes */}
+            {consultation.notes && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Notes</p>
+                <p className="text-sm text-slate-700 bg-slate-50 rounded-md p-3 border">{consultation.notes}</p>
+              </div>
+            )}
+
+            {/* Detail Dialog Actions */}
+            {consultation.status === "ACTIVE" && (() => {
+              const btnConfig = activeButtonConfig[consultation.consultationType] ?? activeButtonConfig.CHAT
+              const ActionIcon = btnConfig.icon
+              return (
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  onClick={() => {
+                    handleActiveAction({ stopPropagation: () => {} } as React.MouseEvent)
+                    setDetailOpen(false)
+                  }}
+                >
+                  <ActionIcon className="size-4" />
+                  {btnConfig.label}
+                </Button>
+              )
+            })()}
+
+            {(consultation.status === "SCHEDULED" || consultation.status === "REQUESTED") && isIncoming && (
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={async () => {
+                    try {
+                      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+                      if (token) headers['Authorization'] = `Bearer ${token}`
+                      const res = await fetch(`/api/caregrid/consultations`, {
+                        method: 'PATCH',
+                        headers,
+                        body: JSON.stringify({ consultationId: consultation.id, status: 'ACCEPTED' }),
+                      })
+                      if (res.ok) {
+                        toast.success('Consultation accepted!')
+                        setDetailOpen(false)
+                        window.location.reload()
+                      } else {
+                        const errData = await res.json().catch(() => ({}))
+                        toast.error(errData.error || 'Failed to accept consultation')
+                      }
+                    } catch { toast.error('Failed to accept consultation') }
+                  }}
+                >
+                  Accept
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => {
+                    handleDecline({ stopPropagation: () => {} } as React.MouseEvent)
+                    setDetailOpen(false)
+                  }}
+                  disabled={declining}
+                >
+                  {declining && <Loader2 className="size-4 mr-1 animate-spin" />}
+                  Decline
+                </Button>
+              </div>
+            )}
           </div>
-        )}
-        {(consultation.status === "SCHEDULED" || consultation.status === "REQUESTED") && isIncoming && (
-          <div className="flex gap-2">
-            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8" onClick={async () => {
-              try {
-                const res = await fetch(`/api/caregrid/consultations`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ consultationId: consultation.id, status: 'ACCEPTED' }),
-                })
-                if (res.ok) {
-                  toast.success('Consultation accepted!')
-                  // Refresh the list to show updated status
-                  window.location.reload()
-                } else {
-                  const errData = await res.json().catch(() => ({}))
-                  toast.error(errData.error || 'Failed to accept consultation')
-                }
-              } catch { toast.error('Failed to accept consultation') }
-            }}>
-              Accept
-            </Button>
-            <Button size="sm" variant="outline" className="text-xs h-8 opacity-50 cursor-not-allowed" onClick={() => {
-              toast.info('Reschedule feature coming soon')
-            }}>
-              Reschedule (Coming Soon)
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

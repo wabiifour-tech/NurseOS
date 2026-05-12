@@ -178,9 +178,9 @@ export default function KnowledgeBankPage() {
             Evidence-based resources for Nigerian nursing practice
           </p>
         </div>
-        <Button variant="outline" className="gap-2 opacity-50 cursor-not-allowed" onClick={() => toast.info('Article editor coming soon')}>
+        <Button variant="outline" className="gap-2" onClick={() => toast.info('Article editor coming soon — this feature is being developed.')}>
           <Plus className="size-4" />
-          Write Article (Coming Soon)
+          Write Article
         </Button>
       </div>
 

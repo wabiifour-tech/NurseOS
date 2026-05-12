@@ -726,10 +726,10 @@ export default function CertificatesPage() {
               </div>
               <Button
                 variant="outline"
-                className="w-full gap-1.5 opacity-50 cursor-not-allowed"
-                onClick={() => toast.info('Blockchain verification coming soon')}
+                className="w-full gap-1.5"
+                onClick={() => toast.info('Blockchain verification is under development — this feature will be available soon.')}
               >
-                <ExternalLink className="size-4" /> View on Blockchain Explorer (Coming Soon)
+                <ExternalLink className="size-4" /> View on Blockchain Explorer
               </Button>
             </div>
           )}

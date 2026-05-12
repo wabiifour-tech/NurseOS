@@ -63,7 +63,7 @@ const values = [
     icon: Globe,
     title: "Global from Day One",
     description:
-      "Starting in Nigeria, designed for the world. Local compliance and culturally-aware AI from the start. Multi-language support is on our roadmap.",
+      "Starting in Nigeria, designed for the world. Local compliance and culturally-aware AI from the start. Content available in English with plans for additional language support as the platform grows.",
   },
   {
     icon: Target,
@@ -88,10 +88,10 @@ const values = [
 const previousProjects = [
   {
     icon: Building2,
-    title: "RUHC HMS",
-    subtitle: "Redeemer's University Health Centre — Hospital Management System",
+    title: "Hospital Management System",
+    subtitle: "Healthcare Facility Management — Deployed & Operational",
     description:
-      "A full Hospital Management System deployed at Redeemer's University Health Centre. The system handles patient registration, appointments, medical records, pharmacy management, and laboratory workflows — proving that world-class healthcare software can be built right here in Nigeria.",
+      "A full Hospital Management System deployed at a university health centre. The system handles patient registration, appointments, medical records, pharmacy management, and laboratory workflows — proving that world-class healthcare software can be built right here in Nigeria.",
     impact: "Successfully Deployed",
     tech: ["Full Stack", "Web Development", "Healthcare IT"],
   },
@@ -109,9 +109,9 @@ const previousProjects = [
 const milestones = [
   {
     year: "2026",
-    title: "RUHC HMS Deployed",
+    title: "Hospital Management System Deployed",
     description:
-      "Hospital Management System deployed at Redeemer's University Health Centre, proving that world-class healthcare software can be built in Nigeria.",
+      "Hospital Management System deployed at a university health centre, proving that world-class healthcare software can be built in Nigeria.",
   },
   {
     year: "2025",
@@ -123,7 +123,7 @@ const milestones = [
     year: "Dec 2025",
     title: "NurseOS Concept Born",
     description:
-      "From the experience of building RUHC HMS and MedAI, the vision for a unified nursing operating system emerged — a platform built by a nurse, for every nurse.",
+      "From the experience of building healthcare management systems and MedAI, the vision for a unified nursing operating system emerged — a platform built by a nurse, for every nurse.",
   },
   {
     year: "Feb 2026",
@@ -301,7 +301,7 @@ export default function AboutPage() {
                     world-class care with tools from the last century.
                   </p>
                   <p>
-                    Having built RUHC HMS for Redeemer&apos;s University Health Centre and watched it succeed,
+                    Having built hospital management systems for healthcare facilities and watched them succeed,
                     and having created MedAI to explore AI in clinical decision support, the pattern
                     became clear: healthcare technology is built by people who have never been at the bedside.
                     The result is software that looks good to administrators but creates more work for nurses.
