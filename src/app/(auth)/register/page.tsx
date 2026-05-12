@@ -16,6 +16,10 @@ import {
   User,
   Briefcase,
   Building2,
+  Plus,
+  MapPin,
+  Phone,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +34,38 @@ import {
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth-store";
 
+// Nigerian states for facility creation
+const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue",
+  "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu",
+  "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi",
+  "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun",
+  "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
+];
+
+const FACILITY_TYPES = [
+  { value: "HOSPITAL", label: "Hospital" },
+  { value: "PRIMARY_HEALTH_CENTER", label: "Primary Health Center" },
+  { value: "CLINIC", label: "Clinic" },
+  { value: "SPECIALIST_CENTER", label: "Specialist Center" },
+  { value: "MATERNITY_HOME", label: "Maternity Home" },
+  { value: "DIAGNOSTIC_CENTER", label: "Diagnostic Center" },
+  { value: "REHABILITATION_CENTER", label: "Rehabilitation Center" },
+  { value: "COMMUNITY_HEALTH_CENTER", label: "Community Health Center" },
+  { value: "PHARMACY", label: "Pharmacy" },
+];
+
+// New facility schema for admin creating a facility
+const newFacilitySchema = z.object({
+  name: z.string().min(2, "Facility name is required"),
+  type: z.string().min(1, "Facility type is required"),
+  address: z.string().optional().default(""),
+  city: z.string().optional().default(""),
+  state: z.string().min(1, "State is required"),
+  phone: z.string().optional().default(""),
+  email: z.string().optional().default(""),
+});
+
 const registerSchema = z
   .object({
     role: z.string().min(1, "Please select a role"),
@@ -37,6 +73,8 @@ const registerSchema = z
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
     facilityId: z.string().optional(),
+    facilityOption: z.enum(["existing", "new"]).optional(), // only for admin
+    newFacility: newFacilitySchema.optional(),
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")
@@ -47,7 +85,36 @@ const registerSchema = z
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
-  });
+  })
+  .refine(
+    (data) => {
+      // For non-admin healthcare workers, facilityId is required
+      const workerRoles = ["nurse", "doctor", "matron", "student", "other"];
+      if (workerRoles.includes(data.role) && !data.facilityId) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Healthcare workers must select a facility",
+      path: ["facilityId"],
+    }
+  )
+  .refine(
+    (data) => {
+      // For admin creating new facility, newFacility fields are required
+      if (data.role === "admin" && data.facilityOption === "new") {
+        if (!data.newFacility?.name || !data.newFacility?.type || !data.newFacility?.state) {
+          return false;
+        }
+      }
+      return true;
+    },
+    {
+      message: "Please fill in the required facility details",
+      path: ["newFacility"],
+    }
+  );
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
@@ -74,6 +141,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [facilities, setFacilities] = useState<FacilityOption[]>([]);
   const [loadingFacilities, setLoadingFacilities] = useState(true);
+  const [facilityOption, setFacilityOption] = useState<"existing" | "new">("existing");
   const login = useAuthStore((state) => state.login);
   const router = useRouter();
 
@@ -83,12 +151,27 @@ export default function RegisterPage() {
     setValue,
     watch,
     formState: { errors },
+    clearErrors,
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { role: "", facilityId: "" },
+    defaultValues: {
+      role: "",
+      facilityId: "",
+      facilityOption: "existing",
+      newFacility: {
+        name: "",
+        type: "HOSPITAL",
+        address: "",
+        city: "",
+        state: "",
+        phone: "",
+        email: "",
+      },
+    },
   });
 
   const selectedRole = watch("role");
+  const selectedFacilityId = watch("facilityId");
 
   // Fetch facilities for the dropdown
   useEffect(() => {
@@ -100,7 +183,7 @@ export default function RegisterPage() {
           setFacilities(data.facilities || []);
         }
       } catch {
-        // Silently fail — facility selection is optional
+        // Silently fail
       } finally {
         setLoadingFacilities(false);
       }
@@ -108,26 +191,57 @@ export default function RegisterPage() {
     fetchFacilities();
   }, []);
 
+  // Reset facility option when role changes
+  useEffect(() => {
+    if (selectedRole !== "admin") {
+      setFacilityOption("existing");
+      setValue("facilityOption", "existing");
+    }
+    // Clear facility-related errors when role changes
+    clearErrors("facilityId");
+    clearErrors("newFacility");
+  }, [selectedRole, setValue, clearErrors]);
+
+  const isWorkerRole = ["nurse", "doctor", "matron", "student", "other"].includes(selectedRole);
+  const isAdminRole = selectedRole === "admin";
+
   async function onSubmit(data: RegisterForm) {
     setIsLoading(true);
     try {
+      // Build the request payload
+      const payload: Record<string, unknown> = {
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role.toUpperCase(),
+      };
+
+      if (isAdminRole && facilityOption === "new" && data.newFacility) {
+        // Admin creating a new facility
+        payload.newFacility = {
+          name: data.newFacility.name,
+          type: data.newFacility.type,
+          address: data.newFacility.address || "",
+          city: data.newFacility.city || "",
+          state: data.newFacility.state,
+          phone: data.newFacility.phone || null,
+          email: data.newFacility.email || null,
+        };
+      } else if (data.facilityId) {
+        // Existing facility selected
+        payload.facilityId = data.facilityId;
+      }
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          role: data.role.toUpperCase(),
-          facilityId: data.facilityId || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const result = await res.json();
 
       if (!res.ok) {
-        // Show specific database config message if DB is not set up
         if (result.errorType === 'DB_NOT_CONFIGURED') {
           toast.error('Database tables not set up', {
             description: 'Please visit /api/setup to create the database tables, then try again.',
@@ -147,15 +261,13 @@ export default function RegisterPage() {
         firstName: result.user?.firstName || data.firstName,
         lastName: result.user?.lastName || data.lastName,
         role: result.originalRole || data.role,
-        facilityId: result.user?.nurseProfile?.currentFacilityId || result.user?.adminProfile?.facilityId || null,
-        facilityName: result.user?.nurseProfile?.facility?.name || result.user?.adminProfile?.facility?.name || null,
+        facilityId: result.user?.facilityId || result.user?.nurseProfile?.currentFacilityId || result.user?.adminProfile?.facilityId || null,
+        facilityName: result.user?.facility?.name || result.user?.nurseProfile?.facility?.name || result.user?.adminProfile?.facility?.name || null,
         nurseProfileId: result.user?.nurseProfile?.id || null,
       }, result.token);
 
       toast.success("Account created! Welcome to NurseOS.");
 
-      // Use window.location.href for reliable full-page navigation
-      // This ensures the cookie is sent with the request and middleware works correctly
       window.location.href = "/dashboard";
     } catch (error) {
       console.error("Registration error:", error);
@@ -194,34 +306,238 @@ export default function RegisterPage() {
           {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
         </div>
 
-        {/* Facility selection */}
+        {/* Facility section — shown for all roles except when no role selected */}
         {selectedRole && selectedRole !== "other" && (
-          <div className="space-y-2">
-            <Label htmlFor="facilityId">
-              Healthcare Facility
-              <span className="text-muted-foreground text-xs ml-1">(select where you work)</span>
-            </Label>
-            <Select
-              onValueChange={(value) => setValue("facilityId", value === "__none__" ? "" : value)}
-            >
-              <SelectTrigger className="w-full">
-                <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your facility"} />
-              </SelectTrigger>
-              <SelectContent className="max-h-64">
-                <SelectItem value="__none__">Not listed / Skip for now</SelectItem>
-                {facilities
-                  .sort((a, b) => a.state.localeCompare(b.state))
-                  .map((facility) => (
-                    <SelectItem key={facility.id} value={facility.id}>
-                      {facility.name} — {facility.city}, {facility.state}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Your data will be isolated to this facility. You can update this later in settings.
-            </p>
+          <div className="space-y-3">
+            {isAdminRole ? (
+              /* ===== ADMIN: Show toggle between existing and new facility ===== */
+              <>
+                <Label className="text-sm font-medium">Your Facility</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={facilityOption === "existing" ? "default" : "outline"}
+                    size="sm"
+                    className={`flex-1 text-xs ${
+                      facilityOption === "existing"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : ""
+                    }`}
+                    onClick={() => {
+                      setFacilityOption("existing");
+                      setValue("facilityOption", "existing");
+                      clearErrors("newFacility");
+                    }}
+                  >
+                    <Building2 className="w-3.5 h-3.5 mr-1.5" />
+                    Select Existing
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={facilityOption === "new" ? "default" : "outline"}
+                    size="sm"
+                    className={`flex-1 text-xs ${
+                      facilityOption === "new"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : ""
+                    }`}
+                    onClick={() => {
+                      setFacilityOption("new");
+                      setValue("facilityOption", "new");
+                      setValue("facilityId", "");
+                      clearErrors("facilityId");
+                    }}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    Create New
+                  </Button>
+                </div>
+
+                {facilityOption === "existing" ? (
+                  /* Admin: Select existing facility */
+                  <div className="space-y-2">
+                    <Select
+                      value={selectedFacilityId || ""}
+                      onValueChange={(value) => setValue("facilityId", value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                        <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your facility"} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {facilities
+                          .sort((a, b) => a.state.localeCompare(b.state))
+                          .map((facility) => (
+                            <SelectItem key={facility.id} value={facility.id}>
+                              {facility.name} — {facility.city}, {facility.state}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Your admin account will be linked to this facility. You can also create a new facility if yours isn&apos;t listed.
+                    </p>
+                  </div>
+                ) : (
+                  /* Admin: Create new facility form */
+                  <div className="space-y-3 p-4 rounded-lg border border-emerald-200 bg-emerald-50/50">
+                    <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
+                      <Plus className="w-4 h-4" />
+                      Register a New Facility
+                    </div>
+
+                    {/* Facility Name */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="newFacName" className="text-xs">Facility Name *</Label>
+                      <Input
+                        id="newFacName"
+                        placeholder="e.g., Lagos General Hospital"
+                        {...register("newFacility.name")}
+                      />
+                      {errors.newFacility?.name && (
+                        <p className="text-xs text-destructive">{errors.newFacility.name.message}</p>
+                      )}
+                    </div>
+
+                    {/* Facility Type & State */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Facility Type *</Label>
+                        <Select
+                          defaultValue="HOSPITAL"
+                          onValueChange={(value) => setValue("newFacility.type", value)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FACILITY_TYPES.map((ft) => (
+                              <SelectItem key={ft.value} value={ft.value}>
+                                {ft.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors.newFacility?.type && (
+                          <p className="text-xs text-destructive">{errors.newFacility.type.message}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">State *</Label>
+                        <Select
+                          onValueChange={(value) => setValue("newFacility.state", value)}
+                        >
+                          <SelectTrigger className="w-full">
+                            <MapPin className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-48">
+                            {NIGERIAN_STATES.map((state) => (
+                              <SelectItem key={state} value={state}>
+                                {state}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors.newFacility?.state && (
+                          <p className="text-xs text-destructive">{errors.newFacility.state.message}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="newFacAddress" className="text-xs">Address</Label>
+                      <Input
+                        id="newFacAddress"
+                        placeholder="e.g., 15 Broad Street"
+                        {...register("newFacility.address")}
+                      />
+                    </div>
+
+                    {/* City */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="newFacCity" className="text-xs">City / LGA</Label>
+                      <Input
+                        id="newFacCity"
+                        placeholder="e.g., Lagos Island"
+                        {...register("newFacility.city")}
+                      />
+                    </div>
+
+                    {/* Phone & Email */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="newFacPhone" className="text-xs">Phone</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <Input
+                            id="newFacPhone"
+                            placeholder="+234 801 234 5678"
+                            className="pl-9"
+                            {...register("newFacility.phone")}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="newFacEmail" className="text-xs">Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <Input
+                            id="newFacEmail"
+                            type="email"
+                            placeholder="info@hospital.ng"
+                            className="pl-9"
+                            {...register("newFacility.email")}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Your facility will start on the <span className="font-medium text-emerald-700">FREE plan</span>. You can upgrade later in settings.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : isWorkerRole ? (
+              /* ===== HEALTHCARE WORKER: Facility is REQUIRED ===== */
+              <>
+                <Label>
+                  Select your healthcare facility <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={selectedFacilityId || ""}
+                  onValueChange={(value) => {
+                    setValue("facilityId", value, { shouldValidate: true });
+                    clearErrors("facilityId");
+                  }}
+                >
+                  <SelectTrigger className={`w-full ${errors.facilityId ? "border-destructive" : ""}`}>
+                    <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your facility (required)"} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {facilities
+                      .sort((a, b) => a.state.localeCompare(b.state))
+                      .map((facility) => (
+                        <SelectItem key={facility.id} value={facility.id}>
+                          {facility.name} — {facility.city}, {facility.state}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {errors.facilityId && (
+                  <div className="flex items-center gap-1.5 text-xs text-destructive">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {errors.facilityId.message || "Please select a facility to continue"}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Healthcare workers must be assigned to a facility. Your data will be isolated to this facility.
+                </p>
+              </>
+            ) : null}
           </div>
         )}
 

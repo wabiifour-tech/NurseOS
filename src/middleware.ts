@@ -15,15 +15,16 @@ const publicRoutes = [
 const authRoutes = ['/login', '/register', '/forgot-password']
 
 // Routes that are accessible even without a facility assignment
-// (e.g., facility selection page, knowledge base, courses, personal profile)
+// (e.g., facility selection page, knowledge base, courses, personal profile, admin dashboards)
 const noFacilityRequiredRoutes = [
   '/settings',
-  '/nurseid',     // Personal credentials/portfolio
-  '/academy',     // Global courses
-  '/caregrid/knowledge',  // Global knowledge base
-  '/help',        // Help & support
-  '/admin',       // Super admin dashboard
-  '/subscription', // Subscription management
+  '/nurseid',            // Personal credentials/portfolio
+  '/academy',            // Global courses
+  '/caregrid/knowledge', // Global knowledge base
+  '/help',               // Help & support
+  '/admin',              // Admin dashboard (facility admin + super admin)
+  '/superadmin',         // Super admin dashboard
+  '/subscription',       // Subscription management
 ]
 
 // Check if a path is public (doesn't require auth)
@@ -60,6 +61,11 @@ export function middleware(request: NextRequest) {
     loginUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(loginUrl)
   }
+
+  // Note: Role-based access control for /admin and /superadmin routes is handled
+  // at the page component level and API route level (not in middleware) because
+  // middleware runs on the edge and cannot easily query the database for user roles.
+  // The middleware only handles authentication checks here.
 
   return NextResponse.next()
 }

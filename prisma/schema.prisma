@@ -29,6 +29,7 @@ model User {
   emailVerified    Boolean  @default(false)
   phoneVerified    Boolean  @default(false)
   twoFactorEnabled Boolean  @default(false)
+  facilityId       String?
   lastLoginAt      DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -36,10 +37,11 @@ model User {
   nurseProfile   NurseProfile?
   adminProfile   AdminProfile?
   patientProfile PatientProfile?
+  facility       Facility?  @relation("UserFacility", fields: [facilityId], references: [id])
   auditLogs      AuditLog[]
   notifications  Notification[]
   sessions       Session[]
-  subscription   Subscription?
+  subscriptions  Subscription[]
 
   @@index([email])
 }
@@ -181,6 +183,7 @@ model Facility {
   incomingReferrals Referral[]         @relation("IncomingReferrals")
   analytics         FacilityAnalytics[]
   adminProfiles     AdminProfile[]
+  users             User[]          @relation("UserFacility")
   subscription     Subscription?
   diseaseSurveillance DiseaseSurveillance[]
   staffingPredictions StaffingPrediction[]
@@ -841,8 +844,8 @@ model Session {
 
 model Subscription {
   id                String   @id @default(cuid())
-  userId            String   @unique
-  facilityId        String?   @unique
+  userId            String
+  facilityId        String   @unique
   plan              String   @default("FREE")   // FREE, STARTER, PRO, ENTERPRISE
   status            String   @default("ACTIVE")  // ACTIVE, EXPIRED, TRIALING, CANCELLED
   trialEndsAt       DateTime?
@@ -858,8 +861,8 @@ model Subscription {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  facility Facility? @relation(fields: [facilityId], references: [id])
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  facility Facility @relation(fields: [facilityId], references: [id])
 
   @@index([userId])
   @@index([facilityId])

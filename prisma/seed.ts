@@ -1,8 +1,41 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+async function seedSuperAdmin() {
+  // Check if SUPER_ADMIN already exists
+  const existingSuperAdmin = await prisma.user.findFirst({
+    where: { role: 'SUPER_ADMIN' }
+  });
+
+  if (existingSuperAdmin) {
+    console.log('⏭  Super Admin already exists, skipping...');
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash('#Abolaji7977', 10);
+
+  const superAdmin = await prisma.user.create({
+    data: {
+      email: 'wabithetechnurse@nurseos',
+      passwordHash,
+      firstName: 'Wabi',
+      lastName: 'The Tech Nurse',
+      displayName: 'Wabi The Tech Nurse',
+      role: 'SUPER_ADMIN',
+      status: 'ACTIVE',
+    }
+  });
+
+  console.log(`✅ Super Admin created: ${superAdmin.email}\n`);
+}
+
 async function main() {
+  // ─── SEED SUPER ADMIN (always runs first) ─────────────────────────────────
+  console.log('🔑 Seeding Super Admin...');
+  await seedSuperAdmin();
+
   console.log('🌱 Seeding NurseOS — filling empty tables...\n');
 
   // ─── FETCH EXISTING DATA FOR REFERENCES ───────────────────────────────────

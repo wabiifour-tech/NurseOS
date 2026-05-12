@@ -9,8 +9,6 @@ function generateLicenseSuffix(): string {
   return String(num).padStart(5, '0')
 }
 
-
-
 export async function POST(request: NextRequest) {
   try {
     // Check database connection first
@@ -23,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId } = body
+    const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId, newFacility } = body
 
     // Validate required fields
     if (!email || !password || !firstName || !lastName || !role) {
@@ -62,8 +60,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate role - expanded to include all form roles
-    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER']
+    // Validate role - expanded to include SUPER_ADMIN for internal admin dashboard
+    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER', 'SUPER_ADMIN']
     const normalizedRole = role.toUpperCase()
     if (!validRoles.includes(normalizedRole)) {
       return NextResponse.json(
@@ -88,6 +86,53 @@ export async function POST(request: NextRequest) {
       verifiedFacilityId = facility.id
     }
 
+    // For non-admin healthcare workers, facility is required
+    if (['NURSE', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole) && !verifiedFacilityId) {
+      return NextResponse.json(
+        { error: 'Healthcare workers must be assigned to a facility. Please select a facility.' },
+        { status: 400 }
+      )
+    }
+
+    // Handle new facility creation for ADMIN role
+    let facilityIdToAssign = verifiedFacilityId
+    let newFacilityCreated = false
+
+    if (normalizedRole === 'ADMIN' && newFacility) {
+      // Validate new facility required fields
+      if (!newFacility.name || !newFacility.type || !newFacility.state) {
+        return NextResponse.json(
+          { error: 'New facility requires: name, type, and state' },
+          { status: 400 }
+        )
+      }
+
+      // Validate facility type
+      const validTypes = ['HOSPITAL', 'CLINIC', 'PRIMARY_HEALTH_CENTER', 'SPECIALIST_CENTER', 'MATERNITY_HOME', 'REHABILITATION_CENTER', 'DIAGNOSTIC_CENTER', 'PHARMACY', 'COMMUNITY_HEALTH_CENTER', 'GENERAL']
+      if (newFacility.type && !validTypes.includes(newFacility.type)) {
+        return NextResponse.json(
+          { error: `Invalid facility type. Must be one of: ${validTypes.join(', ')}` },
+          { status: 400 }
+        )
+      }
+
+      // Create the new facility
+      const newFac = await db.facility.create({
+        data: {
+          name: newFacility.name,
+          type: newFacility.type || 'GENERAL',
+          address: newFacility.address || '',
+          city: newFacility.city || '',
+          state: newFacility.state,
+          country: 'Nigeria',
+          phone: newFacility.phone || null,
+          email: newFacility.email || null,
+        },
+      })
+      facilityIdToAssign = newFac.id
+      newFacilityCreated = true
+    }
+
     // Check if user already exists
     const existingUser = await db.user.findUnique({
       where: { email: email.toLowerCase() },
@@ -104,9 +149,10 @@ export async function POST(request: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10)
 
     // Create user - map STUDENT and OTHER to NURSE role for DB enum compatibility
+    // SUPER_ADMIN maps to ADMIN in DB
     const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole) ? 'NURSE' :
                    normalizedRole === 'DOCTOR' ? 'DOCTOR' :
-                   normalizedRole === 'ADMIN' ? 'ADMIN' : 'PATIENT'
+                   ['ADMIN', 'SUPER_ADMIN'].includes(normalizedRole) ? 'ADMIN' : 'PATIENT'
 
     const user = await db.user.create({
       data: {
@@ -120,6 +166,7 @@ export async function POST(request: NextRequest) {
         countryCode: countryCode || 'NG',
         role: dbRole,
         status: 'ACTIVE',
+        facilityId: facilityIdToAssign,
       },
     })
 
@@ -134,18 +181,18 @@ export async function POST(request: NextRequest) {
           nursingCouncil: 'Nigeria',
           skills: '[]',
           languages: '["English"]',
-          currentFacilityId: verifiedFacilityId,
+          currentFacilityId: facilityIdToAssign,
         },
       })
     }
 
-    // If role is ADMIN, create AdminProfile with facility assignment
-    if (normalizedRole === 'ADMIN') {
+    // If role is ADMIN or SUPER_ADMIN, create AdminProfile with facility assignment
+    if (['ADMIN', 'SUPER_ADMIN'].includes(normalizedRole)) {
       await db.adminProfile.create({
         data: {
           userId: user.id,
-          accessLevel: 1,
-          facilityId: verifiedFacilityId,
+          accessLevel: normalizedRole === 'SUPER_ADMIN' ? 10 : 1,
+          facilityId: facilityIdToAssign,
         },
       })
     }
@@ -156,10 +203,22 @@ export async function POST(request: NextRequest) {
         data: {
           userId: user.id,
           patientId: `PT/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
-          facilityId: verifiedFacilityId,
+          facilityId: facilityIdToAssign,
           dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null,
           gender: body.gender || null,
           allergies: '[]',
+        },
+      })
+    }
+
+    // If a new facility was created for admin, create FREE subscription for it
+    if (normalizedRole === 'ADMIN' && newFacilityCreated && facilityIdToAssign) {
+      await db.subscription.create({
+        data: {
+          userId: user.id,
+          facilityId: facilityIdToAssign,
+          plan: 'FREE',
+          status: 'ACTIVE',
         },
       })
     }
@@ -171,7 +230,7 @@ export async function POST(request: NextRequest) {
         action: 'USER_REGISTERED',
         resource: 'User',
         resourceId: user.id,
-        details: `New ${normalizedRole} registered: ${email}${verifiedFacilityId ? ` at facility: ${verifiedFacilityId}` : ''}`,
+        details: `New ${normalizedRole} registered: ${email}${facilityIdToAssign ? ` at facility: ${facilityIdToAssign}` : ''}${newFacilityCreated ? ' (new facility created)' : ''}`,
       },
     })
 
@@ -193,8 +252,9 @@ export async function POST(request: NextRequest) {
       where: { id: user.id },
       include: {
         nurseProfile: ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole),
-        adminProfile: normalizedRole === 'ADMIN',
+        adminProfile: ['ADMIN', 'SUPER_ADMIN'].includes(normalizedRole),
         patientProfile: normalizedRole === 'PATIENT',
+        facility: !!facilityIdToAssign,
       },
     })
 
