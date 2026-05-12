@@ -11,8 +11,8 @@ import {
   MessageCircle,
   Building2,
   Users,
-  Heart,
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -343,9 +343,13 @@ export default function PricingPage() {
       <section className="py-20 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/20 dark:via-teal-950/20 dark:to-cyan-950/20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <FadeIn>
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-500/20">
-              <Heart className="w-7 h-7 text-white" />
-            </div>
+            <Image
+              src="/nurseos-logo.png"
+              alt="NurseOS"
+              width={56}
+              height={56}
+              className="w-14 h-14 rounded-2xl mx-auto mb-6 shadow-xl shadow-emerald-500/20"
+            />
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
               Start Your{" "}
               <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">

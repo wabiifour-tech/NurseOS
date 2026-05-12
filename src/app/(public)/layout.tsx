@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, ArrowRight, Menu, X } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
@@ -12,9 +13,14 @@ function PublicHeader() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow">
-              <Heart className="w-5 h-5 text-white" />
-            </div>
+            <Image
+              src="/nurseos-logo.png"
+              alt="NurseOS"
+              width={36}
+              height={36}
+              className="w-9 h-9 rounded-lg shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow"
+              priority
+            />
             <span className="text-xl font-bold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
               NurseOS
             </span>
@@ -103,9 +109,13 @@ function PublicFooter() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-              <Heart className="w-4 h-4 text-white" />
-            </div>
+            <Image
+              src="/nurseos-logo.png"
+              alt="NurseOS"
+              width={28}
+              height={28}
+              className="w-7 h-7 rounded-lg"
+            />
             <span className="text-sm font-semibold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
               NurseOS
             </span>

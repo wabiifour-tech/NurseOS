@@ -117,6 +117,12 @@ export async function POST(request: NextRequest) {
     // Return user data without password hash, plus facility info
     const { passwordHash: _, ...userWithoutPassword } = user
 
+    // Normalize role: If user has AdminProfile with accessLevel >= 10, treat as SUPER_ADMIN
+    // The register route maps SUPER_ADMIN → ADMIN in DB, so we need to recover the true role
+    if (userWithoutPassword.role === 'ADMIN' && user.adminProfile && (user.adminProfile as any).accessLevel >= 10) {
+      userWithoutPassword.role = 'SUPER_ADMIN'
+    }
+
     return NextResponse.json({
       message: 'Login successful',
       user: userWithoutPassword,

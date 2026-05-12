@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Heart } from "lucide-react";
+import Image from "next/image";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,9 +13,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="relative w-full max-w-md">
         {/* Logo / Brand */}
         <Link href="/" className="flex items-center justify-center gap-2.5 mb-8 group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow">
-            <Heart className="w-5 h-5 text-white" />
-          </div>
+          <Image
+            src="/nurseos-logo.png"
+            alt="NurseOS"
+            width={40}
+            height={40}
+            className="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow"
+            priority
+          />
           <span className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
             NurseOS
           </span>

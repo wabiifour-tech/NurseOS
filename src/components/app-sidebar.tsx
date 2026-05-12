@@ -39,6 +39,7 @@ import {
   ChevronDown,
   Crown,
 } from "lucide-react"
+import Image from "next/image"
 
 import {
   Sidebar,
@@ -232,9 +233,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="h-12 mb-1"
             >
               <Link href="/dashboard" className="flex items-center gap-3">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
-                  <Heart className="size-5 text-white" />
-                </div>
+                <Image
+                  src="/nurseos-logo.png"
+                  alt="NurseOS"
+                  width={36}
+                  height={36}
+                  className="size-9 shrink-0 rounded-lg"
+                  priority
+                />
                 <div className="flex flex-col">
                   <span className="text-base font-bold text-white leading-tight">NurseOS</span>
                   <span className="text-[10px] text-slate-400 leading-tight">Operating System for Care</span>

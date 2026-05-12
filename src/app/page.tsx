@@ -8,6 +8,7 @@ import {
   ArrowRight, Check, Users, Activity,
   Shield, Zap, ChevronDown, Menu, X, Sparkles
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -201,9 +202,14 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <Heart className="w-5 h-5 text-white" />
-              </div>
+              <Image
+                src="/nurseos-logo.png"
+                alt="NurseOS"
+                width={36}
+                height={36}
+                className="w-9 h-9 rounded-lg shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow"
+                priority
+              />
               <span className="text-xl font-bold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
                 NurseOS
               </span>
@@ -620,9 +626,13 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                  <Heart className="w-4 h-4 text-white" />
-                </div>
+                <Image
+                  src="/nurseos-logo.png"
+                  alt="NurseOS"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-lg"
+                />
                 <span className="text-lg font-bold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
                   NurseOS
                 </span>
@@ -668,7 +678,7 @@ export default function LandingPage() {
                 <Shield className="w-3 h-3 mr-1" /> HIPAA Aligned
               </Badge>
               <Badge variant="outline" className="text-xs text-muted-foreground">
-                <Heart className="w-3 h-3 mr-1" /> Nurse-Led
+                <Zap className="w-3 h-3 mr-1" /> Nurse-Led
               </Badge>
             </div>
           </div>
