@@ -3,15 +3,18 @@
 import * as React from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 import {
   Table,
   TableBody,
@@ -21,14 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -37,79 +32,79 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Users,
   Building2,
   CreditCard,
-  DollarSign,
-  ShieldCheck,
-  XCircle,
-  RefreshCw,
-  Pencil,
-  UserPlus,
-  MessageCircle,
-  Activity,
-  Stethoscope,
-  BookOpen,
-  FileText,
-  Heart,
-  Loader2,
-  AlertTriangle,
-  Search,
-  CheckCircle2,
   Crown,
+  Loader2,
+  Activity,
+  ArrowRightLeft,
+  FileText,
+  Stethoscope,
+  MessageCircle,
+  RefreshCw,
+  UserX,
+  Shield,
+  Check,
+  Zap,
+  Phone,
+  Mail,
+  MapPin,
 } from 'lucide-react'
+import { PLAN_LIMITS, PLAN_COLORS, type PlanType } from '@/lib/plan-limits'
+import Link from 'next/link'
 
 /* ─── Types ─── */
-interface SubscriptionRow {
+interface WorkerRow {
   id: string
-  userId: string
-  facilityId: string | null
-  plan: string
-  status: string
-  trialEndsAt: string | null
-  currentPeriodStart: string | null
-  currentPeriodEnd: string | null
-  paymentMethod: string | null
-  paymentReference: string | null
-  amountPaid: number | null
-  currency: string
-  verifiedBy: string | null
-  verifiedAt: string | null
-  notes: string | null
+  firstName: string
+  lastName: string
+  email: string
+  role: string
+  phone: string | null
+  avatarUrl: string | null
   createdAt: string
-  updatedAt: string
-  user: {
-    id: string
-    firstName: string
-    lastName: string
-    email: string
-    role: string
-  }
+  nurseProfile: { licenseNumber: string; specialization: string | null } | null
+}
+
+interface FacilityData {
   facility: {
     id: string
     name: string
     type: string
+    address: string
     city: string
     state: string
+    phone: string | null
+    email: string | null
+    bedCapacity: number | null
+    staffCount: number | null
+    isVerified: boolean
+  }
+  workers: WorkerRow[]
+  patientCount: number
+  recentRecordsCount: number
+  recentReferrals: number
+  subscription: {
+    id: string
+    plan: string
+    status: string
+    currentPeriodEnd: string | null
+    trialEndsAt: string | null
+    paymentMethod: string | null
   } | null
 }
 
-interface AppStats {
-  totalUsers: number
-  totalNurses: number
-  totalPatients: number
-  totalFacilities: number
-  totalCourses: number
-  totalMedicalRecords: number
-}
-
 /* ─── Helpers ─── */
-function formatNaira(amount: number | null): string {
-  if (amount == null) return '₦0'
-  return '₦' + amount.toLocaleString('en-NG')
-}
-
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—'
   return new Date(dateStr).toLocaleDateString('en-NG', {
@@ -119,6 +114,15 @@ function formatDate(dateStr: string | null): string {
   })
 }
 
+const roleLabels: Record<string, string> = {
+  NURSE: 'Nurse',
+  DOCTOR: 'Doctor',
+  ADMIN: 'Admin',
+  MATRON: 'Matron',
+  STUDENT: 'Student',
+  SUPER_ADMIN: 'Super Admin',
+}
+
 const statusColorMap: Record<string, string> = {
   ACTIVE: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
   TRIALING: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
@@ -126,258 +130,199 @@ const statusColorMap: Record<string, string> = {
   CANCELLED: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
 }
 
-const planColorMap: Record<string, string> = {
-  FREE: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
-  STARTER: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
-  PRO: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-  ENTERPRISE: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
-}
-
 /* ─── Main Page ─── */
-export default function SuperAdminDashboard() {
+export default function FacilityAdminDashboard() {
   const { user, token } = useAuthStore()
+  const router = useRouter()
+
+  /* ─── Role Check ─── */
+  if (user?.role === 'SUPER_ADMIN') {
+    // Redirect super admins to their dedicated dashboard
+    if (typeof window !== 'undefined') {
+      window.location.href = '/superadmin'
+    }
+    return null
+  }
+
+  if (user?.role !== 'ADMIN') {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Shield className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h2 className="text-xl font-bold">Access Denied</h2>
+          <p className="text-muted-foreground mt-1">Only Facility Admins can access this dashboard.</p>
+        </div>
+      </div>
+    )
+  }
 
   /* ─── State ─── */
-  const [subscriptions, setSubscriptions] = React.useState<SubscriptionRow[]>([])
-  const [subStats, setSubStats] = React.useState({
-    total: 0,
-    active: 0,
-    trialing: 0,
-    expired: 0,
-    totalRevenue: 0,
-  })
-  const [appStats, setAppStats] = React.useState<AppStats>({
-    totalUsers: 0,
-    totalNurses: 0,
-    totalPatients: 0,
-    totalFacilities: 0,
-    totalCourses: 0,
-    totalMedicalRecords: 0,
-  })
-  const [isLoadingSubs, setIsLoadingSubs] = React.useState(true)
-  const [isLoadingStats, setIsLoadingStats] = React.useState(true)
-  const [statusFilter, setStatusFilter] = React.useState('ALL')
-  const [planFilter, setPlanFilter] = React.useState('ALL')
-  const [searchQuery, setSearchQuery] = React.useState('')
+  const [data, setData] = React.useState<FacilityData | null>(null)
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [workerSearch, setWorkerSearch] = React.useState('')
 
-  // Action loading states
-  const [actionLoading, setActionLoading] = React.useState<Record<string, boolean>>({})
+  // Remove worker dialog
+  const [removeDialogOpen, setRemoveDialogOpen] = React.useState(false)
+  const [removingWorker, setRemovingWorker] = React.useState<WorkerRow | null>(null)
+  const [isRemoving, setIsRemoving] = React.useState(false)
 
-  // Edit Plan dialog
-  const [editDialogOpen, setEditDialogOpen] = React.useState(false)
-  const [editingSub, setEditingSub] = React.useState<SubscriptionRow | null>(null)
-  const [editPlan, setEditPlan] = React.useState('')
-  const [editAmount, setEditAmount] = React.useState('')
-  const [editNotes, setEditNotes] = React.useState('')
-
-  // Create Super Admin dialog
-  const [createAdminDialogOpen, setCreateAdminDialogOpen] = React.useState(false)
-  const [isCreatingAdmin, setIsCreatingAdmin] = React.useState(false)
+  // Upgrade dialog
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = React.useState(false)
+  const [selectedPlan, setSelectedPlan] = React.useState<PlanType | ''>('')
+  const [paymentMethod, setPaymentMethod] = React.useState('')
+  const [paymentReference, setPaymentReference] = React.useState('')
+  const [isUpgrading, setIsUpgrading] = React.useState(false)
 
   /* ─── Auth headers helper ─── */
   const getHeaders = () => ({
     'Content-Type': 'application/json',
-    'x-user-id': user?.id || '',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   })
 
-  /* ─── Fetch subscriptions ─── */
-  const fetchSubscriptions = React.useCallback(async () => {
-    setIsLoadingSubs(true)
+  /* ─── Fetch facility data ─── */
+  const fetchData = React.useCallback(async () => {
+    setIsLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter)
-      if (planFilter && planFilter !== 'ALL') params.set('plan', planFilter)
-
-      const res = await fetch(`/api/subscriptions/admin?${params.toString()}`, {
-        headers: getHeaders(),
-      })
-      const data = await res.json()
+      const res = await fetch('/api/admin/facility', { headers: getHeaders() })
+      const result = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Failed to fetch subscriptions')
+        toast.error(result.error || 'Failed to load facility data')
         return
       }
 
-      setSubscriptions(data.subscriptions || [])
-      setSubStats(data.stats || { total: 0, active: 0, trialing: 0, expired: 0, totalRevenue: 0 })
+      setData(result)
     } catch (error) {
-      console.error('Error fetching subscriptions:', error)
-      toast.error('Failed to load subscriptions')
+      console.error('Error fetching facility data:', error)
+      toast.error('Failed to load facility data')
     } finally {
-      setIsLoadingSubs(false)
+      setIsLoading(false)
     }
-  }, [statusFilter, planFilter, user?.id, token])
-
-  /* ─── Fetch app stats ─── */
-  const fetchAppStats = React.useCallback(async () => {
-    setIsLoadingStats(true)
-    try {
-      const res = await fetch('/api/admin/stats', {
-        headers: getHeaders(),
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        toast.error(data.error || 'Failed to fetch app stats')
-        return
-      }
-
-      setAppStats(data)
-    } catch (error) {
-      console.error('Error fetching app stats:', error)
-      toast.error('Failed to load app stats')
-    } finally {
-      setIsLoadingStats(false)
-    }
-  }, [user?.id, token])
+  }, [token])
 
   React.useEffect(() => {
-    fetchSubscriptions()
-  }, [fetchSubscriptions])
+    fetchData()
+  }, [fetchData])
 
-  React.useEffect(() => {
-    fetchAppStats()
-  }, [fetchAppStats])
-
-  /* ─── Subscription actions ─── */
-  const handleSubscriptionAction = async (
-    subscriptionId: string,
-    action: 'verify' | 'reject' | 'renew' | 'update',
-    extra: Record<string, unknown> = {}
-  ) => {
-    setActionLoading((prev) => ({ ...prev, [subscriptionId + action]: true }))
+  /* ─── Remove worker ─── */
+  const handleRemoveWorker = async () => {
+    if (!removingWorker) return
+    setIsRemoving(true)
     try {
-      const res = await fetch('/api/subscriptions/admin', {
+      const res = await fetch('/api/admin/workers', {
         method: 'PATCH',
         headers: getHeaders(),
-        body: JSON.stringify({ subscriptionId, action, ...extra }),
+        body: JSON.stringify({ workerId: removingWorker.id, action: 'remove' }),
       })
-
-      const data = await res.json()
+      const result = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || `Failed to ${action} subscription`)
+        toast.error(result.error || 'Failed to remove worker')
         return
       }
 
-      toast.success(data.message || `Subscription ${action} successful`)
-      fetchSubscriptions()
-      fetchAppStats()
+      toast.success(`${removingWorker.firstName} ${removingWorker.lastName} removed from facility`)
+      setRemoveDialogOpen(false)
+      setRemovingWorker(null)
+      fetchData()
     } catch (error) {
-      console.error(`Error ${action} subscription:`, error)
-      toast.error(`Failed to ${action} subscription`)
+      console.error('Error removing worker:', error)
+      toast.error('Failed to remove worker')
     } finally {
-      setActionLoading((prev) => ({ ...prev, [subscriptionId + action]: false }))
+      setIsRemoving(false)
     }
   }
 
-  const handleVerify = (subId: string) => {
-    handleSubscriptionAction(subId, 'verify')
-  }
+  /* ─── Upgrade plan ─── */
+  const handleUpgrade = async () => {
+    if (!selectedPlan) {
+      toast.error('Please select a plan')
+      return
+    }
+    if (!paymentMethod) {
+      toast.error('Please select a payment method')
+      return
+    }
 
-  const handleReject = (subId: string) => {
-    handleSubscriptionAction(subId, 'reject')
-  }
-
-  const handleRenew = (subId: string) => {
-    handleSubscriptionAction(subId, 'renew')
-  }
-
-  const handleEditPlan = () => {
-    if (!editingSub) return
-    const extra: Record<string, unknown> = {}
-    if (editPlan) extra.plan = editPlan
-    if (editAmount) extra.amountPaid = parseFloat(editAmount)
-    if (editNotes) extra.notes = editNotes
-    handleSubscriptionAction(editingSub.id, 'update', extra)
-    setEditDialogOpen(false)
-    setEditingSub(null)
-    setEditPlan('')
-    setEditAmount('')
-    setEditNotes('')
-  }
-
-  const openEditDialog = (sub: SubscriptionRow) => {
-    setEditingSub(sub)
-    setEditPlan(sub.plan)
-    setEditAmount(sub.amountPaid?.toString() || '')
-    setEditNotes('')
-    setEditDialogOpen(true)
-  }
-
-  /* ─── Create Super Admin ─── */
-  const handleCreateSuperAdmin = async () => {
-    setIsCreatingAdmin(true)
+    setIsUpgrading(true)
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch('/api/subscriptions/upgrade', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({
-          firstName: 'Super',
-          lastName: 'Admin',
-          email: 'superadmin@nurseos.com',
-          password: 'NurseOS@2024!Super',
-          role: 'SUPER_ADMIN',
+          plan: selectedPlan,
+          paymentMethod,
+          paymentReference: paymentReference || undefined,
         }),
       })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        toast.error(data.error || 'Failed to create Super Admin')
-        return
+      const result = await res.json()
+      if (res.ok) {
+        toast.success(result.message || 'Upgrade request submitted!')
+        setUpgradeDialogOpen(false)
+        setSelectedPlan('')
+        setPaymentMethod('')
+        setPaymentReference('')
+        fetchData()
+      } else {
+        toast.error(result.error || 'Failed to submit upgrade request')
       }
-
-      toast.success('Super Admin user created successfully!')
-      setCreateAdminDialogOpen(false)
-      fetchAppStats()
-    } catch (error) {
-      console.error('Error creating Super Admin:', error)
-      toast.error('Failed to create Super Admin')
+    } catch {
+      toast.error('Failed to submit upgrade request')
     } finally {
-      setIsCreatingAdmin(false)
+      setIsUpgrading(false)
     }
   }
 
   /* ─── Derived data ─── */
-  const pendingTrials = subscriptions.filter((s) => s.status === 'TRIALING')
-  const filteredSubs = subscriptions.filter((s) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      const name = `${s.user.firstName} ${s.user.lastName}`.toLowerCase()
-      const email = s.user.email.toLowerCase()
-      const facility = s.facility?.name.toLowerCase() || ''
-      if (!name.includes(q) && !email.includes(q) && !facility.includes(q)) return false
-    }
-    return true
+  const currentPlan = (data?.subscription?.plan || 'FREE') as PlanType
+  const currentLimits = PLAN_LIMITS[currentPlan]
+  const planStatus = data?.subscription?.status || 'ACTIVE'
+  const filteredWorkers = (data?.workers || []).filter((w) => {
+    if (!workerSearch) return true
+    const q = workerSearch.toLowerCase()
+    return (
+      `${w.firstName} ${w.lastName}`.toLowerCase().includes(q) ||
+      w.email.toLowerCase().includes(q) ||
+      w.role.toLowerCase().includes(q)
+    )
   })
 
-  /* ─── Render ─── */
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading facility data...</span>
+      </div>
+    )
+  }
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
-            <Crown className="w-6 h-6 text-white" />
+            <Building2 className="w-6 h-6 text-white" />
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-              Super Admin Dashboard
+              Facility Admin Dashboard
             </h1>
             <p className="text-muted-foreground text-sm">
-              Manage NurseOS users, subscriptions, and platform health
+              Manage your facility, workers, and subscription
             </p>
           </div>
         </div>
-        <Badge
-          variant="outline"
-          className="gap-1.5 text-emerald-600 border-emerald-500/30 bg-emerald-500/5 w-fit text-xs px-3 py-1"
-        >
-          <ShieldCheck className="size-3.5" />
-          SUPER_ADMIN
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className={`text-xs ${PLAN_COLORS[currentPlan]}`}>
+            <Crown className="size-3 mr-1" />
+            {currentLimits.name}
+          </Badge>
+          <Badge variant="outline" className={`text-xs ${statusColorMap[planStatus] || ''}`}>
+            {planStatus}
+          </Badge>
+        </div>
       </div>
 
       {/* ── Overview Stats Cards ── */}
@@ -386,16 +331,8 @@ export default function SuperAdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Total Users
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-1">
-                  {isLoadingStats ? (
-                    <Loader2 className="size-6 animate-spin text-emerald-500" />
-                  ) : (
-                    appStats.totalUsers.toLocaleString()
-                  )}
-                </p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Workers</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{data?.workers.length || 0}</p>
               </div>
               <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
                 <Users className="size-6 text-white" />
@@ -408,19 +345,11 @@ export default function SuperAdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Total Facilities
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-1">
-                  {isLoadingStats ? (
-                    <Loader2 className="size-6 animate-spin text-teal-500" />
-                  ) : (
-                    appStats.totalFacilities.toLocaleString()
-                  )}
-                </p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Patients</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{data?.patientCount || 0}</p>
               </div>
               <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 shadow-lg shadow-teal-500/20">
-                <Building2 className="size-6 text-white" />
+                <Stethoscope className="size-6 text-white" />
               </div>
             </div>
           </CardContent>
@@ -430,19 +359,11 @@ export default function SuperAdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Active Subscriptions
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-1">
-                  {isLoadingSubs ? (
-                    <Loader2 className="size-6 animate-spin text-cyan-500" />
-                  ) : (
-                    subStats.active.toLocaleString()
-                  )}
-                </p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Encounters (30d)</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{data?.recentRecordsCount || 0}</p>
               </div>
               <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-600 shadow-lg shadow-cyan-500/20">
-                <CreditCard className="size-6 text-white" />
+                <FileText className="size-6 text-white" />
               </div>
             </div>
           </CardContent>
@@ -452,309 +373,236 @@ export default function SuperAdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Total Revenue
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-1">
-                  {isLoadingSubs ? (
-                    <Loader2 className="size-6 animate-spin text-emerald-500" />
-                  ) : (
-                    formatNaira(subStats.totalRevenue)
-                  )}
-                </p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Current Plan</p>
+                <p className="text-2xl font-bold text-foreground mt-1">{currentLimits.price}{currentLimits.period}</p>
               </div>
               <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 shadow-lg shadow-emerald-600/20">
-                <DollarSign className="size-6 text-white" />
+                <Crown className="size-6 text-white" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* ── Pending Verifications Section ── */}
-      <Card className="border-amber-500/20">
+      {/* ── Subscription & Plan Section ── */}
+      <Card className="border-emerald-500/20">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-amber-500" />
-              <CardTitle className="text-lg">Pending Verifications</CardTitle>
+              <Crown className="size-5 text-emerald-600" />
+              <CardTitle className="text-lg">Subscription & Plan</CardTitle>
             </div>
-            <Badge
-              variant="outline"
-              className="gap-1 text-xs border-amber-500/30 bg-amber-500/10 text-amber-600"
-            >
-              {pendingTrials.length} pending
+            <Badge className={PLAN_COLORS[currentPlan]}>
+              {currentLimits.name}
             </Badge>
           </div>
-          <CardDescription>
-            Subscriptions with TRIALING status that need payment verification before activation
-          </CardDescription>
+          <CardDescription>Your facility's subscription and usage</CardDescription>
         </CardHeader>
-        <CardContent>
-          {isLoadingSubs ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-6 animate-spin text-amber-500" />
-              <span className="ml-3 text-muted-foreground">Loading pending verifications...</span>
+        <CardContent className="space-y-4">
+          {/* Plan status */}
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className={statusColorMap[planStatus] || ''}>
+              {planStatus}
+            </Badge>
+            {data?.subscription?.currentPeriodEnd && (
+              <span className="text-xs text-muted-foreground">
+                {planStatus === 'ACTIVE'
+                  ? `Renews ${formatDate(data.subscription.currentPeriodEnd)}`
+                  : planStatus === 'TRIALING'
+                  ? `Trial ends ${formatDate(data.subscription.trialEndsAt || data.subscription.currentPeriodEnd)}`
+                  : ''}
+              </span>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Usage */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <p className="text-xs text-muted-foreground">Patients</p>
+              <p className="text-lg font-bold">
+                {data?.patientCount || 0}
+                <span className="text-sm font-normal text-muted-foreground">
+                  {' '}/ {currentLimits.patientLimit === -1 ? '∞' : currentLimits.patientLimit}
+                </span>
+              </p>
+              {currentLimits.patientLimit !== -1 && (data?.patientCount || 0) >= currentLimits.patientLimit && (
+                <Badge variant="outline" className="text-[10px] border-red-300 text-red-600 bg-red-50 mt-1">Limit Reached</Badge>
+              )}
             </div>
-          ) : pendingTrials.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <CheckCircle2 className="size-10 text-emerald-500 mb-3" />
-              <p className="text-sm font-medium text-foreground">All caught up!</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                No subscriptions are pending verification right now.
+            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <p className="text-xs text-muted-foreground">Workers</p>
+              <p className="text-lg font-bold">
+                {data?.workers.length || 0}
+                <span className="text-sm font-normal text-muted-foreground">
+                  {' '}/ {currentLimits.nurseAccounts === -1 ? '∞' : currentLimits.nurseAccounts}
+                </span>
+              </p>
+              {currentLimits.nurseAccounts !== -1 && (data?.workers.length || 0) >= currentLimits.nurseAccounts && (
+                <Badge variant="outline" className="text-[10px] border-red-300 text-red-600 bg-red-50 mt-1">Limit Reached</Badge>
+              )}
+            </div>
+            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <p className="text-xs text-muted-foreground">AI Queries/Day</p>
+              <p className="text-lg font-bold">
+                0
+                <span className="text-sm font-normal text-muted-foreground">
+                  {' '}/ {currentLimits.aiQueriesPerDay === -1 ? '∞' : currentLimits.aiQueriesPerDay}
+                </span>
               </p>
             </div>
-          ) : (
-            <div className="max-h-96 overflow-y-auto custom-scrollbar">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Facility</TableHead>
-                    <TableHead>Payment Ref</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingTrials.map((sub) => (
-                    <TableRow key={sub.id}>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm font-medium">
-                            {sub.user.firstName} {sub.user.lastName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{sub.user.email}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${planColorMap[sub.plan] || ''}`}
-                        >
-                          {sub.plan}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {formatNaira(sub.amountPaid)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {sub.facility?.name || '—'}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-mono">
-                        {sub.paymentReference || '—'}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(sub.createdAt)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs h-8"
-                            onClick={() => handleVerify(sub.id)}
-                            disabled={actionLoading[sub.id + 'verify']}
-                          >
-                            {actionLoading[sub.id + 'verify'] ? (
-                              <Loader2 className="size-3.5 animate-spin mr-1" />
-                            ) : (
-                              <ShieldCheck className="size-3.5 mr-1" />
-                            )}
-                            Verify
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="text-xs h-8"
-                            onClick={() => handleReject(sub.id)}
-                            disabled={actionLoading[sub.id + 'reject']}
-                          >
-                            {actionLoading[sub.id + 'reject'] ? (
-                              <Loader2 className="size-3.5 animate-spin mr-1" />
-                            ) : (
-                              <XCircle className="size-3.5 mr-1" />
-                            )}
-                            Reject
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          </div>
+
+          {/* Feature checklist */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Included Features:</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+              {currentLimits.nurseIdVerification && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> NurseID Verification
+                </div>
+              )}
+              {currentLimits.predictiveAnalytics && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> Predictive Analytics
+                </div>
+              )}
+              {currentLimits.dataExport && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> Data Export
+                </div>
+              )}
+              {currentLimits.premiumCourses && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> Premium Courses
+                </div>
+              )}
+              {currentLimits.customReporting && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> Custom Reporting
+                </div>
+              )}
+              {currentLimits.prioritySupport && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> Priority Support
+                </div>
+              )}
+              {currentLimits.customIntegrations && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> Custom Integrations
+                </div>
+              )}
+              {currentLimits.multiDepartment && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Check className="size-3 text-emerald-500" /> Multi-Department
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </CardContent>
+        <CardFooter className="flex gap-2">
+          {currentPlan === 'FREE' ? (
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => {
+              setSelectedPlan('STARTER')
+              setUpgradeDialogOpen(true)
+            }}>
+              <Zap className="size-4 mr-2" /> Upgrade Plan
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => setUpgradeDialogOpen(true)}>
+              Change Plan
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => router.push('/subscription')}>
+            <CreditCard className="size-4 mr-2" /> View Details
+          </Button>
+          <Button variant="outline" onClick={() => window.open('https://wa.me/2347052356638', '_blank')}>
+            <MessageCircle className="size-4 mr-2" /> Billing Support
+          </Button>
+        </CardFooter>
       </Card>
 
-      {/* ── All Subscriptions Table ── */}
+      {/* ── Workers Management ── */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <CreditCard className="size-5 text-emerald-600" />
-            <CardTitle className="text-lg">All Subscriptions</CardTitle>
-          </div>
-          <CardDescription>
-            Manage all subscription records across the platform
-          </CardDescription>
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or facility..."
-                className="pl-9 h-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="size-5 text-emerald-600" />
+              <CardTitle className="text-lg">Workers</CardTitle>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[160px] h-9">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Statuses</SelectItem>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="TRIALING">Trialing</SelectItem>
-                <SelectItem value="EXPIRED">Expired</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={planFilter} onValueChange={setPlanFilter}>
-              <SelectTrigger className="w-full sm:w-[160px] h-9">
-                <SelectValue placeholder="Plan" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Plans</SelectItem>
-                <SelectItem value="FREE">Free</SelectItem>
-                <SelectItem value="STARTER">Starter</SelectItem>
-                <SelectItem value="PRO">Pro</SelectItem>
-                <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
-              onClick={() => {
-                setStatusFilter('ALL')
-                setPlanFilter('ALL')
-                setSearchQuery('')
-                fetchSubscriptions()
-              }}
-            >
-              <RefreshCw className="size-3.5 mr-1" />
-              Refresh
-            </Button>
+            <Badge variant="outline" className="text-xs">
+              {data?.workers.length || 0} workers
+            </Badge>
+          </div>
+          <CardDescription>Healthcare workers in your facility</CardDescription>
+          <div className="pt-2">
+            <Input
+              placeholder="Search workers by name, email, or role..."
+              value={workerSearch}
+              onChange={(e) => setWorkerSearch(e.target.value)}
+              className="h-9"
+            />
           </div>
         </CardHeader>
         <CardContent>
-          {isLoadingSubs ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-6 animate-spin text-emerald-500" />
-              <span className="ml-3 text-muted-foreground">Loading subscriptions...</span>
-            </div>
-          ) : filteredSubs.length === 0 ? (
+          {filteredWorkers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <CreditCard className="size-10 text-muted-foreground/50 mb-3" />
-              <p className="text-sm font-medium text-foreground">No subscriptions found</p>
+              <Users className="size-10 text-muted-foreground/50 mb-3" />
+              <p className="text-sm font-medium text-foreground">No workers found</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Try adjusting your filters or search query.
+                {workerSearch ? 'Try adjusting your search.' : 'Workers will appear here when they join your facility.'}
               </p>
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+            <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Facility</TableHead>
-                    <TableHead>Period End</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>License #</TableHead>
+                    <TableHead>Joined</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredSubs.map((sub) => (
-                    <TableRow key={sub.id}>
+                  {filteredWorkers.map((worker) => (
+                    <TableRow key={worker.id}>
                       <TableCell>
-                        <div>
-                          <p className="text-sm font-medium">
-                            {sub.user.firstName} {sub.user.lastName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{sub.user.email}</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-semibold">
+                            {worker.firstName.charAt(0)}{worker.lastName.charAt(0)}
+                          </div>
+                          <span className="text-sm font-medium">{worker.firstName} {worker.lastName}</span>
                         </div>
                       </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{worker.email}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${planColorMap[sub.plan] || ''}`}
-                        >
-                          {sub.plan}
+                        <Badge variant="outline" className="text-[10px]">
+                          {roleLabels[worker.role] || worker.role}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${statusColorMap[sub.status] || ''}`}
-                        >
-                          {sub.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {formatNaira(sub.amountPaid)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">
-                        {sub.facility?.name || '—'}
+                      <TableCell className="text-xs text-muted-foreground font-mono">
+                        {worker.nurseProfile?.licenseNumber || '—'}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(sub.currentPeriodEnd)}
+                        {formatDate(worker.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {sub.status === 'TRIALING' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7 px-2 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
-                              onClick={() => handleVerify(sub.id)}
-                              disabled={actionLoading[sub.id + 'verify']}
-                            >
-                              {actionLoading[sub.id + 'verify'] ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                <ShieldCheck className="size-3" />
-                              )}
-                            </Button>
-                          )}
-                          {(sub.status === 'ACTIVE' || sub.status === 'EXPIRED') && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7 px-2 border-teal-500/30 text-teal-600 hover:bg-teal-500/10"
-                              onClick={() => handleRenew(sub.id)}
-                              disabled={actionLoading[sub.id + 'renew']}
-                            >
-                              {actionLoading[sub.id + 'renew'] ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                <RefreshCw className="size-3" />
-                              )}
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs h-7 px-2 border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/10"
-                            onClick={() => openEditDialog(sub)}
-                          >
-                            <Pencil className="size-3" />
-                          </Button>
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-7 px-2 border-red-500/30 text-red-600 hover:bg-red-500/10"
+                          onClick={() => {
+                            setRemovingWorker(worker)
+                            setRemoveDialogOpen(true)
+                          }}
+                        >
+                          <UserX className="size-3 mr-1" />
+                          Remove
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -762,312 +610,172 @@ export default function SuperAdminDashboard() {
               </Table>
             </div>
           )}
-          <div className="flex items-center justify-between pt-4 text-xs text-muted-foreground">
-            <span>
-              Showing {filteredSubs.length} of {subStats.total} subscriptions
-            </span>
-            <span>
-              Active: {subStats.active} · Trialing: {subStats.trialing} · Expired: {subStats.expired}
-            </span>
-          </div>
         </CardContent>
       </Card>
 
-      {/* ── Bottom Row: Quick Actions + App-wide Stats ── */}
+      {/* ── Facility Info & Quick Actions ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Facility Info */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Building2 className="size-5 text-emerald-600" />
+              <CardTitle className="text-lg">Facility Information</CardTitle>
+            </div>
+            <CardDescription>Your registered healthcare facility</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-start gap-3">
+              <Building2 className="size-4 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">{data?.facility.name || 'Unnamed Facility'}</p>
+                <p className="text-xs text-muted-foreground">{data?.facility.type || 'General'} Facility</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <MapPin className="size-4 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-sm">{data?.facility.address || 'No address'}</p>
+                <p className="text-xs text-muted-foreground">{data?.facility.city}, {data?.facility.state}</p>
+              </div>
+            </div>
+            {data?.facility.phone && (
+              <div className="flex items-center gap-3">
+                <Phone className="size-4 text-muted-foreground" />
+                <p className="text-sm">{data.facility.phone}</p>
+              </div>
+            )}
+            {data?.facility.email && (
+              <div className="flex items-center gap-3">
+                <Mail className="size-4 text-muted-foreground" />
+                <p className="text-sm">{data.facility.email}</p>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className={`text-[10px] ${data?.facility.isVerified ? 'text-emerald-600 border-emerald-500/30' : 'text-amber-600 border-amber-500/30'}`}>
+                {data?.facility.isVerified ? 'Verified' : 'Pending Verification'}
+              </Badge>
+              {data?.facility.bedCapacity && (
+                <span className="text-xs text-muted-foreground">{data.facility.bedCapacity} beds</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Quick Actions */}
-        <Card className="border-emerald-500/10">
+        <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Activity className="size-5 text-emerald-600" />
               <CardTitle className="text-lg">Quick Actions</CardTitle>
             </div>
-            <CardDescription>Common admin tasks and shortcuts</CardDescription>
+            <CardDescription>Common tasks and shortcuts</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Create Super Admin */}
-            <div className="flex items-start gap-4 p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md">
-                <UserPlus className="size-5 text-white" />
-              </div>
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-semibold text-foreground">Create Super Admin User</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Creates a default SUPER_ADMIN account if none exists. Use this for initial setup.
-                  The default credentials will be superadmin@nurseos.com.
-                </p>
-                <Button
-                  size="sm"
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs"
-                  onClick={() => setCreateAdminDialogOpen(true)}
-                >
-                  <UserPlus className="size-3.5 mr-1.5" />
-                  Create Super Admin
-                </Button>
-              </div>
-            </div>
-
-            {/* WhatsApp Support */}
-            <div className="flex items-start gap-4 p-4 rounded-xl border border-green-500/20 bg-gradient-to-br from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 shadow-md">
-                <MessageCircle className="size-5 text-white" />
-              </div>
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-semibold text-foreground">WhatsApp Support</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Need help? Contact the NurseOS team directly on WhatsApp for urgent issues,
-                  deployment support, or billing inquiries.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs border-green-500/30 text-green-600 hover:bg-green-500/10"
-                  onClick={() => {
-                    window.open('https://wa.me/2347052356638', '_blank')
-                    toast.success('Opening WhatsApp...')
-                  }}
-                >
-                  <MessageCircle className="size-3.5 mr-1.5" />
-                  Chat on WhatsApp (07052356638)
-                </Button>
-              </div>
-            </div>
-
-            {/* Refresh Data */}
-            <div className="flex items-start gap-4 p-4 rounded-xl border border-teal-500/20 bg-gradient-to-br from-teal-50/50 to-cyan-50/50 dark:from-teal-950/20 dark:to-cyan-950/20">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 shadow-md">
-                <RefreshCw className="size-5 text-white" />
-              </div>
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-semibold text-foreground">Refresh All Data</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Manually refresh all dashboard data including subscriptions, stats, and verification
-                  counts.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs border-teal-500/30 text-teal-600 hover:bg-teal-500/10"
-                  onClick={() => {
-                    fetchSubscriptions()
-                    fetchAppStats()
-                    toast.info('Refreshing dashboard data...')
-                  }}
-                >
-                  <RefreshCw className="size-3.5 mr-1.5" />
-                  Refresh Dashboard
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* App-wide Stats */}
-        <Card className="border-emerald-500/10">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Heart className="size-5 text-emerald-600" />
-              <CardTitle className="text-lg">App-wide Stats</CardTitle>
-            </div>
-            <CardDescription>Platform-wide metrics across all modules</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingStats ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="size-6 animate-spin text-emerald-500" />
-                <span className="ml-3 text-muted-foreground">Loading app stats...</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-emerald-500/10 bg-gradient-to-br from-emerald-50/30 to-teal-50/30 dark:from-emerald-950/10 dark:to-teal-950/10">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md">
-                    <Users className="size-5 text-white" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">{appStats.totalUsers}</p>
-                  <p className="text-xs text-muted-foreground">Total Users</p>
-                </div>
-
-                <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-teal-500/10 bg-gradient-to-br from-teal-50/30 to-cyan-50/30 dark:from-teal-950/10 dark:to-cyan-950/10">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 shadow-md">
-                    <Stethoscope className="size-5 text-white" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">{appStats.totalNurses}</p>
-                  <p className="text-xs text-muted-foreground">Total Nurses</p>
-                </div>
-
-                <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-cyan-500/10 bg-gradient-to-br from-cyan-50/30 to-emerald-50/30 dark:from-cyan-950/10 dark:to-emerald-950/10">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-600 shadow-md">
-                    <Users className="size-5 text-white" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">{appStats.totalPatients}</p>
-                  <p className="text-xs text-muted-foreground">Total Patients</p>
-                </div>
-
-                <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-emerald-600/10 bg-gradient-to-br from-emerald-50/30 to-green-50/30 dark:from-emerald-950/10 dark:to-green-950/10">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-green-600 shadow-md">
-                    <Building2 className="size-5 text-white" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">{appStats.totalFacilities}</p>
-                  <p className="text-xs text-muted-foreground">Total Facilities</p>
-                </div>
-
-                <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-teal-600/10 bg-gradient-to-br from-teal-50/30 to-green-50/30 dark:from-teal-950/10 dark:to-green-950/10">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-teal-600 to-green-600 shadow-md">
-                    <BookOpen className="size-5 text-white" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">{appStats.totalCourses}</p>
-                  <p className="text-xs text-muted-foreground">Total Courses</p>
-                </div>
-
-                <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-cyan-600/10 bg-gradient-to-br from-cyan-50/30 to-teal-50/30 dark:from-cyan-950/10 dark:to-teal-950/10">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-600 to-teal-600 shadow-md">
-                    <FileText className="size-5 text-white" />
-                  </div>
-                  <p className="text-2xl font-bold text-foreground">{appStats.totalMedicalRecords}</p>
-                  <p className="text-xs text-muted-foreground">Medical Records</p>
-                </div>
-              </div>
-            )}
+          <CardContent className="space-y-3">
+            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => router.push('/caregrid/facilities')}>
+              <Building2 className="size-4 mr-2 text-emerald-600" /> View Facilities Directory
+            </Button>
+            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => router.push('/caregrid/referrals/new')}>
+              <ArrowRightLeft className="size-4 mr-2 text-teal-600" /> New Referral
+            </Button>
+            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => router.push('/nurseai/patients')}>
+              <Stethoscope className="size-4 mr-2 text-cyan-600" /> Manage Patients
+            </Button>
+            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => router.push('/analytics')}>
+              <Activity className="size-4 mr-2 text-emerald-600" /> View Analytics
+            </Button>
+            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => window.open('https://wa.me/2347052356638', '_blank')}>
+              <MessageCircle className="size-4 mr-2 text-green-600" /> Contact Support (WhatsApp)
+            </Button>
+            <Button variant="outline" className="w-full justify-start text-sm" onClick={() => fetchData()}>
+              <RefreshCw className="size-4 mr-2 text-teal-600" /> Refresh Dashboard
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* ── Edit Plan Dialog ── */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      {/* ── Remove Worker Dialog ── */}
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4 text-emerald-600" />
-              Edit Subscription Plan
+              <UserX className="size-4 text-red-500" />
+              Remove Worker
             </DialogTitle>
             <DialogDescription>
-              {editingSub
-                ? `Update plan for ${editingSub.user.firstName} ${editingSub.user.lastName}`
-                : 'Update subscription details'}
+              Remove {removingWorker?.firstName} {removingWorker?.lastName} from your facility. They will lose access to all facility data.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-plan">Plan</Label>
-              <Select value={editPlan} onValueChange={setEditPlan}>
-                <SelectTrigger id="edit-plan">
-                  <SelectValue placeholder="Select plan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FREE">Free</SelectItem>
-                  <SelectItem value="STARTER">Starter</SelectItem>
-                  <SelectItem value="PRO">Pro</SelectItem>
-                  <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-amount">Amount Paid (₦)</Label>
-              <Input
-                id="edit-amount"
-                type="number"
-                placeholder="e.g. 50000"
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-notes">Admin Notes</Label>
-              <Input
-                id="edit-notes"
-                placeholder="Add a note about this change..."
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-              />
-            </div>
+          <div className="py-4">
+            {removingWorker && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 text-sm text-red-700 dark:text-red-300">
+                <strong>Warning:</strong> This will unassign {removingWorker.firstName} {removingWorker.lastName} ({removingWorker.email}) from {data?.facility.name || 'your facility'}. They can be re-assigned later.
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditDialogOpen(false)
-                setEditingSub(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
-              onClick={handleEditPlan}
-              disabled={actionLoading[editingSub?.id + 'update']}
-            >
-              {actionLoading[editingSub?.id + 'update'] ? (
-                <Loader2 className="size-4 animate-spin mr-1" />
-              ) : (
-                <CheckCircle2 className="size-4 mr-1" />
-              )}
-              Save Changes
+            <Button variant="outline" onClick={() => setRemoveDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRemoveWorker} disabled={isRemoving}>
+              {isRemoving && <Loader2 className="size-4 mr-2 animate-spin" />}
+              Remove Worker
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Create Super Admin Dialog ── */}
-      <Dialog open={createAdminDialogOpen} onOpenChange={setCreateAdminDialogOpen}>
+      {/* ── Upgrade Dialog ── */}
+      <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Crown className="size-4 text-emerald-600" />
-              Create Super Admin User
-            </DialogTitle>
+            <DialogTitle>Upgrade to {selectedPlan ? PLAN_LIMITS[selectedPlan].name : ''}</DialogTitle>
             <DialogDescription>
-              This will create a new SUPER_ADMIN account with full platform access. Only use this
-              during initial setup or if no SUPER_ADMIN exists.
+              Complete your upgrade request. Your 14-day free trial starts immediately.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
-                <div className="text-xs text-amber-700 dark:text-amber-300">
-                  <p className="font-semibold">Important Note</p>
-                  <p className="mt-1">
-                    This creates a SUPER_ADMIN with default credentials. Please change the password
-                    immediately after first login. The default email is{' '}
-                    <span className="font-mono font-semibold">superadmin@nurseos.com</span>.
-                  </p>
-                </div>
+          <div className="grid gap-4 py-4">
+            {selectedPlan && (
+              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20">
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  {PLAN_LIMITS[selectedPlan].name} — {PLAN_LIMITS[selectedPlan].price}{PLAN_LIMITS[selectedPlan].period}
+                </p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">14-day free trial included</p>
               </div>
+            )}
+            <div className="grid gap-2">
+              <Label>Select Plan</Label>
+              <Select value={selectedPlan} onValueChange={(v) => setSelectedPlan(v as PlanType)}>
+                <SelectTrigger><SelectValue placeholder="Choose a plan" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STARTER">Facility Starter — ₦50K/mo</SelectItem>
+                  <SelectItem value="PRO">Pro — ₦150K/mo</SelectItem>
+                  <SelectItem value="ENTERPRISE">Enterprise — Custom</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>First Name</Label>
-                <Input value="Super" disabled className="h-9 bg-muted" />
-              </div>
-              <div className="space-y-2">
-                <Label>Last Name</Label>
-                <Input value="Admin" disabled className="h-9 bg-muted" />
-              </div>
+            <div className="grid gap-2">
+              <Label>Payment Method</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger><SelectValue placeholder="How will you pay?" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                  <SelectItem value="MANUAL">Manual / Cash</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value="superadmin@nurseos.com" disabled className="h-9 bg-muted" />
-            </div>
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Input value="SUPER_ADMIN" disabled className="h-9 bg-muted" />
+            <div className="grid gap-2">
+              <Label>Payment Reference (optional)</Label>
+              <Input
+                placeholder="e.g., Transfer receipt number"
+                value={paymentReference}
+                onChange={(e) => setPaymentReference(e.target.value)}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateAdminDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
-              onClick={handleCreateSuperAdmin}
-              disabled={isCreatingAdmin}
-            >
-              {isCreatingAdmin ? (
-                <Loader2 className="size-4 animate-spin mr-1" />
-              ) : (
-                <UserPlus className="size-4 mr-1" />
-              )}
-              Create Super Admin
+            <Button variant="outline" onClick={() => setUpgradeDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleUpgrade} disabled={isUpgrading}>
+              {isUpgrading && <Loader2 className="size-4 mr-2 animate-spin" />}
+              Submit Upgrade Request
             </Button>
           </DialogFooter>
         </DialogContent>

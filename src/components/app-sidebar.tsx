@@ -192,11 +192,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const firstName = user?.firstName || "Nurse"
   const lastName = user?.lastName || ""
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+  const userRole = user?.role || "Nurse"
 
   const handleSignOut = () => {
     logout()
     window.location.href = "/login"
   }
+
+  // Determine the admin dashboard path based on role
+  const adminDashboardPath = userRole === 'SUPER_ADMIN' ? '/superadmin' : '/admin'
+  const adminDashboardLabel = userRole === 'SUPER_ADMIN' ? 'Super Admin Dashboard' : 'Facility Admin Dashboard'
+  const showAdminSection = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
 
   return (
     <Sidebar
@@ -264,12 +270,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       {/* Navigation Sections */}
       <SidebarContent className="px-1 custom-scrollbar">
-        {user?.role === 'SUPER_ADMIN' && (
+        {/* Admin Section — only visible to SUPER_ADMIN and ADMIN */}
+        {showAdminSection && (
           <SidebarGroup>
             <SidebarGroupLabel asChild>
               <span className="flex items-center gap-2">
                 <Crown className="size-3.5 text-emerald-400" />
-                Super Admin
+                {userRole === 'SUPER_ADMIN' ? 'Super Admin' : 'Facility Admin'}
               </span>
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -277,17 +284,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === '/admin'}
-                    tooltip="Admin Dashboard"
+                    isActive={pathname === adminDashboardPath}
+                    tooltip={adminDashboardLabel}
                     className={
-                      pathname === '/admin'
+                      pathname === adminDashboardPath
                         ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 font-medium"
                         : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                     }
                   >
-                    <Link href="/admin">
+                    <Link href={adminDashboardPath}>
                       <Crown className="size-4" />
-                      <span>Admin Dashboard</span>
+                      <span>{adminDashboardLabel}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -362,7 +369,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-200 truncate">{firstName} {lastName}</p>
-            <p className="text-[10px] text-slate-400 truncate">{user?.role || "Nurse"} — NurseOS</p>
+            <p className="text-[10px] text-slate-400 truncate">{userRole === 'SUPER_ADMIN' ? 'Super Admin' : userRole === 'ADMIN' ? 'Facility Admin' : userRole} — NurseOS</p>
           </div>
         </div>
       </SidebarFooter>

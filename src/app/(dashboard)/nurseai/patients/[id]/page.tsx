@@ -234,12 +234,12 @@ export default function PatientDetailPage() {
           <Activity className="size-12 mx-auto text-muted-foreground/30" />
           <h1 className="text-xl font-bold">Patient not found</h1>
           <p className="text-sm text-muted-foreground">The patient you are looking for does not exist or has been removed.</p>
-          <Link href="/nurseai/patients">
-            <Button variant="outline" className="gap-2">
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/nurseai/patients">
               <ArrowLeft className="size-4" />
               Back to Patients
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
     )
@@ -253,12 +253,12 @@ export default function PatientDetailPage() {
           <AlertTriangle className="size-12 mx-auto text-red-400" />
           <h1 className="text-xl font-bold">Failed to load patient</h1>
           <p className="text-sm text-muted-foreground">Something went wrong. Please try again later.</p>
-          <Link href="/nurseai/patients">
-            <Button variant="outline" className="gap-2">
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/nurseai/patients">
               <ArrowLeft className="size-4" />
               Back to Patients
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
     )
@@ -436,12 +436,12 @@ export default function PatientDetailPage() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Back Button */}
-      <Link href="/nurseai/patients">
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+      <Button asChild variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+        <Link href="/nurseai/patients">
           <ArrowLeft className="size-4" />
           Back to Patients
-        </Button>
-      </Link>
+        </Link>
+      </Button>
 
       {/* Patient Header */}
       <Card className="border-0 shadow-sm">

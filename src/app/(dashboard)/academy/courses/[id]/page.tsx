@@ -195,11 +195,11 @@ export default function CourseDetailPage() {
             ? 'The course you are looking for does not exist.'
             : 'Something went wrong while loading the course. Please try again.'}
         </p>
-        <Link href="/academy/courses">
-          <Button variant="outline">
+        <Button asChild variant="outline">
+          <Link href="/academy/courses">
             <ArrowLeft className="size-4 mr-2" /> Back to Catalog
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
     )
   }

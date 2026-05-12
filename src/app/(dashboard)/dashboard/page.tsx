@@ -133,16 +133,16 @@ export default function DashboardPage() {
                 Start by exploring the modules below.
               </p>
               <div className="flex flex-wrap gap-2 pt-1">
-                <Link href="/nurseai/patients">
-                  <Button size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
+                <Button asChild size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white">
+                  <Link href="/nurseai/patients">
                     <UserPlus className="w-3.5 h-3.5 mr-1.5" /> Register First Patient
-                  </Button>
-                </Link>
-                <Link href="/academy/courses">
-                  <Button size="sm" variant="outline" className="border-emerald-500/30">
+                  </Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="border-emerald-500/30">
+                  <Link href="/academy/courses">
                     <BookOpen className="w-3.5 h-3.5 mr-1.5" /> Browse Courses
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             </div>
           </div>

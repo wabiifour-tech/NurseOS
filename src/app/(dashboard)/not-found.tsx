@@ -19,18 +19,18 @@ export default function NotFound() {
             Check the URL or navigate back to the dashboard.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/dashboard">
-              <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+              <Link href="/dashboard">
                 <Home className="size-4" />
                 Go to Dashboard
-              </Button>
-            </Link>
-            <Link href="/help">
-              <Button variant="outline" className="gap-2">
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="gap-2">
+              <Link href="/help">
                 <ArrowLeft className="size-4" />
                 Help & Support
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

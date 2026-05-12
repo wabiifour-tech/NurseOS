@@ -230,11 +230,11 @@ export default function MyLearningPage() {
                       <span className="text-xs text-muted-foreground">
                         Enrolled: {formatDate(enrollment.enrolledAt)}
                       </span>
-                      <Link href={`/academy/courses/${enrollment.courseId}`}>
-                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                      <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                        <Link href={`/academy/courses/${enrollment.courseId}`}>
                           <Play className="size-4 mr-1.5" /> Continue Learning
-                        </Button>
-                      </Link>
+                        </Link>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -248,11 +248,11 @@ export default function MyLearningPage() {
                 <BookOpen className="size-10 mx-auto mb-3 text-muted-foreground/50" />
                 <p className="font-medium text-muted-foreground">No courses in progress</p>
                 <p className="text-sm text-muted-foreground mb-4">Start learning by enrolling in a course</p>
-                <Link href="/academy/courses">
-                  <Button className="bg-emerald-600 hover:bg-emerald-700">
+                <Button asChild className="bg-emerald-600 hover:bg-emerald-700">
+                  <Link href="/academy/courses">
                     Browse Courses
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -294,11 +294,11 @@ export default function MyLearningPage() {
 
                     <div className="flex items-center gap-3">
                       {enrollment.certificateIssued && (
-                        <Link href="/academy/certificates">
-                          <Button variant="outline" size="sm" className="gap-1.5">
+                        <Button asChild variant="outline" size="sm" className="gap-1.5">
+                          <Link href="/academy/certificates">
                             <FileText className="size-3.5" /> View Certificate
-                          </Button>
-                        </Link>
+                          </Link>
+                        </Button>
                       )}
                       {enrollment.certificateNumber && (
                         <span className="text-xs text-muted-foreground font-mono">

@@ -37,12 +37,12 @@ export default function Error({
               <RefreshCw className="size-4" />
               Try Again
             </Button>
-            <Link href="/dashboard">
-              <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+              <Link href="/dashboard">
                 <Home className="size-4" />
                 Go to Dashboard
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </CardContent>
       </Card>
