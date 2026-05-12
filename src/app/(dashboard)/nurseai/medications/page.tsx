@@ -90,6 +90,12 @@ export default function MedicationsPage() {
   const [statusFilter, setStatusFilter] = React.useState('all')
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [newMedName, setNewMedName] = React.useState('')
+  const [newMedDosage, setNewMedDosage] = React.useState('')
+  const [newMedRoute, setNewMedRoute] = React.useState('Oral')
+  const [newMedFrequency, setNewMedFrequency] = React.useState('')
+  const [newMedDuration, setNewMedDuration] = React.useState('')
+  const [newMedNotes, setNewMedNotes] = React.useState('')
+  const [submittingOrder, setSubmittingOrder] = React.useState(false)
   const [interactionCheck, setInteractionCheck] = React.useState<'idle' | 'checking' | 'safe' | 'alert'>('idle')
 
   // Fetch medications from API
@@ -345,13 +351,13 @@ export default function MedicationsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Dosage</Label>
-                  <Input placeholder="e.g. 10mg" />
+                  <Input placeholder="e.g. 10mg" value={newMedDosage} onChange={(e) => setNewMedDosage(e.target.value)} />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Route</Label>
-                  <Select>
+                  <Select value={newMedRoute} onValueChange={setNewMedRoute}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Oral">Oral</SelectItem>
@@ -365,11 +371,11 @@ export default function MedicationsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Frequency</Label>
-                  <Input placeholder="e.g. Once daily" />
+                  <Input placeholder="e.g. Once daily" value={newMedFrequency} onChange={(e) => setNewMedFrequency(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Duration</Label>
-                  <Input placeholder="e.g. 7 days" />
+                  <Input placeholder="e.g. 7 days" value={newMedDuration} onChange={(e) => setNewMedDuration(e.target.value)} />
                 </div>
               </div>
 
@@ -418,8 +424,53 @@ export default function MedicationsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); }}>Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); toast.info('Medication orders require an active medical record. Create a medical record for the patient first, then add medications from within the patient\'s record.'); }}>Submit Order</Button>
+              <Button variant="outline" onClick={() => { setDialogOpen(false); setInteractionCheck('idle'); setNewMedName(''); setNewMedDosage(''); setNewMedRoute('Oral'); setNewMedFrequency(''); setNewMedDuration(''); setNewMedNotes(''); }}>Cancel</Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={submittingOrder || !newMedName.trim() || !newMedDosage.trim()} onClick={async () => {
+                if (!newMedName.trim() || !newMedDosage.trim()) {
+                  toast.error('Medication name and dosage are required')
+                  return
+                }
+                setSubmittingOrder(true)
+                try {
+                  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+                  if (token) headers['Authorization'] = `Bearer ${token}`
+
+                  const res = await fetch('/api/nurseai/medications', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                      medicationName: newMedName.trim(),
+                      dosage: newMedDosage.trim(),
+                      route: newMedRoute,
+                      frequency: newMedFrequency || 'Once daily',
+                      duration: newMedDuration || null,
+                      notes: newMedNotes || null,
+                    }),
+                  })
+                  const data = await res.json()
+                  if (res.ok) {
+                    toast.success('Medication order submitted successfully!')
+                    setDialogOpen(false)
+                    setInteractionCheck('idle')
+                    setNewMedName('')
+                    setNewMedDosage('')
+                    setNewMedRoute('Oral')
+                    setNewMedFrequency('')
+                    setNewMedDuration('')
+                    setNewMedNotes('')
+                    // Refresh medication list
+                    window.location.reload()
+                  } else {
+                    toast.error(data.error || 'Failed to submit medication order')
+                  }
+                } catch {
+                  toast.error('Failed to submit medication order. Please try again.')
+                } finally {
+                  setSubmittingOrder(false)
+                }
+              }}>
+                {submittingOrder ? <><Loader2 className="size-4 mr-1 animate-spin" /> Submitting...</> : 'Submit Order'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

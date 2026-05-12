@@ -273,8 +273,8 @@ export default function CourseDetailPage() {
                     <span className="text-sm font-semibold text-emerald-600">{enrollmentProgress}%</span>
                   </div>
                   <Progress value={enrollmentProgress} className="h-2.5" />
-                  <Button className="mt-3 bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto" size="sm" onClick={() => toast.info('Course content player is coming soon — this feature is being developed.')}>
-                    <Play className="size-4 mr-2" /> Continue Learning
+                  <Button variant="outline" className="mt-3 w-full sm:w-auto opacity-50 cursor-not-allowed" size="sm" onClick={() => toast.info('Course content player is coming soon — this feature is being developed.')}>
+                    <Play className="size-4 mr-2" /> Continue Learning (Coming Soon)
                   </Button>
                 </div>
               )}
@@ -321,7 +321,7 @@ export default function CourseDetailPage() {
                             : 'Read through the course material and review the key points.'}
                         </p>
                         {isEnrolled && (
-                          <Button variant="outline" size="sm" className="ml-11 mt-2" onClick={() => {
+                          <Button variant="outline" size="sm" className="ml-11 mt-2 opacity-50 cursor-not-allowed" onClick={() => {
                             setActiveModule(mod.id)
                             toast.info(
                               mod.type === 'Quiz' || mod.type === 'QUIZ'
@@ -332,7 +332,7 @@ export default function CourseDetailPage() {
                             )
                           }}>
                             <Play className="size-3.5 mr-1.5" />
-                            {mod.type === 'Quiz' || mod.type === 'QUIZ' ? 'Start Quiz' : mod.type === 'Video' || mod.type === 'VIDEO' ? 'Watch Video' : 'Read Material'}
+                            {mod.type === 'Quiz' || mod.type === 'QUIZ' ? 'Start Quiz (Coming Soon)' : mod.type === 'Video' || mod.type === 'VIDEO' ? 'Watch Video (Coming Soon)' : 'Read Material (Coming Soon)'}
                           </Button>
                         )}
                       </AccordionContent>
@@ -411,7 +411,7 @@ export default function CourseDetailPage() {
               >
                 {isEnrolled ? (
                   <>
-                    <Play className="size-4 mr-2" /> Continue Learning
+                    <Play className="size-4 mr-2" /> Continue Learning (Coming Soon)
                   </>
                 ) : (
                   <>

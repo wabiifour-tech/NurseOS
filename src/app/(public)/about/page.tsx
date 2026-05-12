@@ -63,7 +63,7 @@ const values = [
     icon: Globe,
     title: "Global from Day One",
     description:
-      "Starting in Nigeria, designed for the world. Multi-language support including Yoruba, Igbo, Hausa, and Pidgin English. Local compliance and culturally-aware AI from the start.",
+      "Starting in Nigeria, designed for the world. Local compliance and culturally-aware AI from the start. Multi-language support is on our roadmap.",
   },
   {
     icon: Target,
@@ -91,8 +91,8 @@ const previousProjects = [
     title: "RUHC HMS",
     subtitle: "Redeemer's University Health Centre — Hospital Management System",
     description:
-      "A full Hospital Management System deployed at Redeemer's University Health Centre, serving over 7,000 patients. The system handles patient registration, appointments, medical records, pharmacy management, and laboratory workflows — proving that world-class healthcare software can be built right here in Nigeria.",
-    impact: "7,000+ patients served",
+      "A full Hospital Management System deployed at Redeemer's University Health Centre. The system handles patient registration, appointments, medical records, pharmacy management, and laboratory workflows — proving that world-class healthcare software can be built right here in Nigeria.",
+    impact: "Successfully Deployed",
     tech: ["Full Stack", "Web Development", "Healthcare IT"],
   },
   {
@@ -111,7 +111,7 @@ const milestones = [
     year: "2026",
     title: "RUHC HMS Deployed",
     description:
-      "Hospital Management System deployed at Redeemer's University Health Centre, serving 7,000+ patients and proving that world-class healthcare software can be built in Nigeria.",
+      "Hospital Management System deployed at Redeemer's University Health Centre, proving that world-class healthcare software can be built in Nigeria.",
   },
   {
     year: "2025",
@@ -301,8 +301,8 @@ export default function AboutPage() {
                     world-class care with tools from the last century.
                   </p>
                   <p>
-                    Having built RUHC HMS for Redeemer&apos;s University Health Centre and watched it serve 7,000+
-                    patients, and having created MedAI to explore AI in clinical decision support, the pattern
+                    Having built RUHC HMS for Redeemer&apos;s University Health Centre and watched it succeed,
+                    and having created MedAI to explore AI in clinical decision support, the pattern
                     became clear: healthcare technology is built by people who have never been at the bedside.
                     The result is software that looks good to administrators but creates more work for nurses.
                   </p>

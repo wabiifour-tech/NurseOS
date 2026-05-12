@@ -146,7 +146,7 @@ const platformFeatures = [
   { icon: Zap, title: "Real-time Sync", description: "All modules sync instantly across devices and facilities." },
   { icon: Shield, title: "End-to-End Encryption", description: "Patient data is encrypted at rest and in transit." },
   { icon: Smartphone, title: "Mobile-First Design", description: "Built for the nurses on the floor, not at a desk." },
-  { icon: Globe, title: "Multi-Language", description: "Support for English, Yoruba, Igbo, Hausa, and more." },
+  { icon: Globe, title: "Cloud-Native", description: "Accessible from any device, anywhere. Your data syncs securely across all your devices." },
   { icon: RefreshCw, title: "Offline Mode", description: "Core functionality works without internet connection." },
   { icon: Layers, title: "API Integrations", description: "Connect with existing EMR, HR, and billing systems." },
 ];

@@ -51,22 +51,405 @@ export default function CertificatesPage() {
   const [verifyDialogOpen, setVerifyDialogOpen] = React.useState(false)
   const [selectedCert, setSelectedCert] = React.useState<Certificate | null>(null)
   const [copied, setCopied] = React.useState(false)
+  const [recipientName, setRecipientName] = React.useState<string>('')
 
   React.useEffect(() => {
-    async function fetchCertificates() {
+    async function fetchData() {
       try {
-        const res = await fetch('/api/nurseacademy/certificates')
-        if (!res.ok) throw new Error('Failed to fetch certificates')
-        const data = await res.json()
-        setCertificates(data.certificates || [])
+        const [certRes, profileRes] = await Promise.allSettled([
+          fetch('/api/nurseacademy/certificates'),
+          fetch('/api/nurseid/profile'),
+        ])
+
+        if (certRes.status === 'fulfilled' && certRes.value.ok) {
+          const data = await certRes.value.json()
+          setCertificates(data.certificates || [])
+        } else {
+          toast.error('Failed to load certificates')
+        }
+
+        if (profileRes.status === 'fulfilled' && profileRes.value.ok) {
+          const profileData = await profileRes.value.json()
+          const user = profileData.profile?.user
+          if (user) {
+            const name = user.displayName || [user.firstName, user.lastName].filter(Boolean).join(' ')
+            setRecipientName(name || '')
+          }
+        }
       } catch {
         toast.error('Failed to load certificates')
       } finally {
         setLoading(false)
       }
     }
-    fetchCertificates()
+    fetchData()
   }, [])
+
+  const generateCertificateHTML = (cert: Certificate) => {
+    const issuedDate = formatDate(cert.issuedDate)
+    const expiryDate = formatDate(cert.expiryDate)
+    const displayName = recipientName || 'Certificate Holder'
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificate - ${cert.certificateNumber}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f0fdf4;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .print-bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 12px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .print-bar p {
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .print-btn {
+      background: linear-gradient(135deg, #059669, #0d9488);
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .print-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+    }
+
+    .certificate-wrapper {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .certificate {
+      background: white;
+      position: relative;
+      padding: 8px;
+      border-radius: 4px;
+    }
+
+    .certificate-outer-border {
+      border: 3px solid #059669;
+      border-radius: 2px;
+      padding: 6px;
+    }
+
+    .certificate-inner-border {
+      border: 1.5px solid #0d9488;
+      padding: 60px 70px;
+      position: relative;
+      min-height: 600px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    /* Corner ornaments */
+    .corner {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+    }
+    .corner svg { width: 100%; height: 100%; }
+    .corner-tl { top: 10px; left: 10px; }
+    .corner-tr { top: 10px; right: 10px; transform: scaleX(-1); }
+    .corner-bl { bottom: 10px; left: 10px; transform: scaleY(-1); }
+    .corner-br { bottom: 10px; right: 10px; transform: scale(-1, -1); }
+
+    .logo-area {
+      margin-bottom: 8px;
+    }
+    .logo-area img {
+      height: 48px;
+      width: auto;
+    }
+
+    .org-name {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #0d9488;
+      margin-bottom: 24px;
+    }
+
+    .cert-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 38px;
+      font-weight: 700;
+      color: #064e3b;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .cert-subtitle-line {
+      width: 120px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #059669, transparent);
+      margin: 0 auto 28px;
+    }
+
+    .presented-text {
+      font-size: 14px;
+      color: #6b7280;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .recipient-name {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 32px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 6px;
+      padding: 0 20px;
+    }
+
+    .recipient-underline {
+      width: 320px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #059669, #0d9488, #059669, transparent);
+      margin: 0 auto 28px;
+    }
+
+    .completion-text {
+      font-size: 15px;
+      color: #374151;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .course-name {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: #064e3b;
+      margin-bottom: 24px;
+      padding: 0 40px;
+    }
+
+    .details-grid {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+
+    .detail-item {
+      text-align: center;
+    }
+    .detail-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    .detail-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .signatures {
+      display: flex;
+      justify-content: center;
+      gap: 80px;
+      margin-top: auto;
+      padding-top: 20px;
+    }
+
+    .sig-block {
+      text-align: center;
+      min-width: 160px;
+    }
+    .sig-line {
+      width: 160px;
+      height: 1px;
+      background: #374151;
+      margin: 0 auto 8px;
+    }
+    .sig-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111827;
+    }
+    .sig-title {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .cert-id-footer {
+      margin-top: 30px;
+      font-size: 10px;
+      color: #9ca3af;
+      letter-spacing: 0.5px;
+    }
+
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 10px;
+      color: #059669;
+      font-weight: 500;
+      margin-top: 10px;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .print-bar { display: none !important; }
+      .certificate-wrapper { max-width: none; }
+      .certificate-inner-border { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-bar">
+    <p>Your certificate is ready</p>
+    <button class="print-btn" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print / Save as PDF
+    </button>
+  </div>
+
+  <div class="certificate-wrapper">
+    <div class="certificate">
+      <div class="certificate-outer-border">
+        <div class="certificate-inner-border">
+          <!-- Corner ornaments -->
+          <div class="corner corner-tl">
+            <svg viewBox="0 0 60 60" fill="none">
+              <path d="M2 58V18C2 8 8 2 18 2H58" stroke="#059669" stroke-width="2" fill="none"/>
+              <circle cx="58" cy="2" r="2" fill="#059669"/>
+              <circle cx="2" cy="58" r="2" fill="#059669"/>
+              <path d="M12 58V28C12 18 18 12 28 12H58" stroke="#0d9488" stroke-width="1" opacity="0.4" fill="none"/>
+            </svg>
+          </div>
+          <div class="corner corner-tr">
+            <svg viewBox="0 0 60 60" fill="none">
+              <path d="M2 58V18C2 8 8 2 18 2H58" stroke="#059669" stroke-width="2" fill="none"/>
+              <circle cx="58" cy="2" r="2" fill="#059669"/>
+              <circle cx="2" cy="58" r="2" fill="#059669"/>
+              <path d="M12 58V28C12 18 18 12 28 12H58" stroke="#0d9488" stroke-width="1" opacity="0.4" fill="none"/>
+            </svg>
+          </div>
+          <div class="corner corner-bl">
+            <svg viewBox="0 0 60 60" fill="none">
+              <path d="M2 58V18C2 8 8 2 18 2H58" stroke="#059669" stroke-width="2" fill="none"/>
+              <circle cx="58" cy="2" r="2" fill="#059669"/>
+              <circle cx="2" cy="58" r="2" fill="#059669"/>
+              <path d="M12 58V28C12 18 18 12 28 12H58" stroke="#0d9488" stroke-width="1" opacity="0.4" fill="none"/>
+            </svg>
+          </div>
+          <div class="corner corner-br">
+            <svg viewBox="0 0 60 60" fill="none">
+              <path d="M2 58V18C2 8 8 2 18 2H58" stroke="#059669" stroke-width="2" fill="none"/>
+              <circle cx="58" cy="2" r="2" fill="#059669"/>
+              <circle cx="2" cy="58" r="2" fill="#059669"/>
+              <path d="M12 58V28C12 18 18 12 28 12H58" stroke="#0d9488" stroke-width="1" opacity="0.4" fill="none"/>
+            </svg>
+          </div>
+
+          <!-- Logo -->
+          <div class="logo-area">
+            <img src="/nurseos-logo.png" alt="NurseOS" onerror="this.style.display='none'" />
+          </div>
+
+          <div class="org-name">NurseOS Academy</div>
+
+          <h1 class="cert-title">Certificate of Completion</h1>
+          <div class="cert-subtitle-line"></div>
+
+          <p class="presented-text">This is to certify that</p>
+          <h2 class="recipient-name">${displayName}</h2>
+          <div class="recipient-underline"></div>
+
+          <p class="completion-text">has successfully completed the course</p>
+          <h3 class="course-name">${cert.course.title}</h3>
+
+          <div class="details-grid">
+            <div class="detail-item">
+              <div class="detail-label">Category</div>
+              <div class="detail-value">${cert.course.category}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Level</div>
+              <div class="detail-value">${cert.course.level}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">CPD Points</div>
+              <div class="detail-value">${cert.course.cpdPoints || 0}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Date Issued</div>
+              <div class="detail-value">${issuedDate}</div>
+            </div>
+            ${cert.expiryDate ? '<div class="detail-item"><div class="detail-label">Valid Until</div><div class="detail-value">' + expiryDate + '</div></div>' : ''}
+          </div>
+
+          <div class="signatures">
+            <div class="sig-block">
+              <div class="sig-line"></div>
+              <div class="sig-name">NurseOS Academy</div>
+              <div class="sig-title">Authorized Signatory</div>
+            </div>
+          </div>
+
+          <div class="cert-id-footer">
+            Certificate ID: ${cert.certificateNumber}
+            ${cert.isVerified ? '<span class="verified-badge"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg> Blockchain Verified</span>' : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`
+  }
 
   const copyHash = async (hash: string) => {
     try {
@@ -233,30 +616,15 @@ export default function CertificatesPage() {
               {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => {
-                  // Generate a simple text certificate for download
-                  const content = [
-                    'NURSEOS CERTIFICATE OF COMPLETION',
-                    '===================================',
-                    '',
-                    `Course: ${cert.course.title}`,
-                    `Category: ${cert.course.category}`,
-                    `Level: ${cert.course.level}`,
-                    `CPD Points: ${cert.course.cpdPoints || 0}`,
-                    `Certificate ID: ${cert.certificateNumber}`,
-                    `Issued: ${formatDate(cert.issuedDate)}`,
-                    `Expiry: ${formatDate(cert.expiryDate)}`,
-                    `Verified: ${cert.isVerified ? 'Yes' : 'Pending'}`,
-                    '',
-                    'Issued by NurseOS — Operating System for Care',
-                  ].join('\n')
-                  const blob = new Blob([content], { type: 'text/plain' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `certificate-${cert.certificateNumber}.txt`
-                  a.click()
-                  URL.revokeObjectURL(url)
-                  toast.success('Certificate downloaded')
+                  const html = generateCertificateHTML(cert)
+                  const newWindow = window.open('', '_blank')
+                  if (newWindow) {
+                    newWindow.document.write(html)
+                    newWindow.document.close()
+                    toast.success('Certificate opened — use Print / Save as PDF')
+                  } else {
+                    toast.error('Please allow popups to view certificate')
+                  }
                 }}>
                   <Download className="size-3.5" /> Download
                 </Button>
@@ -286,32 +654,12 @@ export default function CertificatesPage() {
                   <Shield className="size-3.5" /> Verify
                 </Button>
                 <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => {
-                  // Print certificate
-                  const printContent = `
-                    <html>
-                    <head><title>Certificate - ${cert.certificateNumber}</title>
-                    <style>
-                      body { font-family: Georgia, serif; text-align: center; padding: 60px; color: #1a1a1a; }
-                      .border { border: 3px solid #10b981; padding: 40px; max-width: 600px; margin: 0 auto; }
-                      h1 { color: #10b981; font-size: 14px; letter-spacing: 4px; text-transform: uppercase; }
-                      h2 { font-size: 24px; margin: 20px 0; }
-                      .details { font-size: 14px; color: #666; margin: 10px 0; }
-                      .footer { font-size: 11px; color: #999; margin-top: 30px; }
-                    </style></head>
-                    <body><div class="border">
-                      <h1>Certificate of Completion</h1>
-                      <h2>${cert.course.title}</h2>
-                      <p class="details">Category: ${cert.course.category} | Level: ${cert.course.level}</p>
-                      <p class="details">CPD Points: ${cert.course.cpdPoints || 0}</p>
-                      <p class="details">Certificate ID: ${cert.certificateNumber}</p>
-                      <p class="details">Issued: ${formatDate(cert.issuedDate)}</p>
-                      <p class="footer">Issued by NurseOS — Operating System for Care</p>
-                    </div></body></html>`
+                  const html = generateCertificateHTML(cert)
                   const printWindow = window.open('', '_blank')
                   if (printWindow) {
-                    printWindow.document.write(printContent)
+                    printWindow.document.write(html)
                     printWindow.document.close()
-                    printWindow.print()
+                    setTimeout(() => printWindow.print(), 500)
                   } else {
                     toast.error('Please allow popups to print certificates')
                   }
@@ -378,10 +726,10 @@ export default function CertificatesPage() {
               </div>
               <Button
                 variant="outline"
-                className="w-full gap-1.5"
+                className="w-full gap-1.5 opacity-50 cursor-not-allowed"
                 onClick={() => toast.info('Blockchain verification coming soon')}
               >
-                <ExternalLink className="size-4" /> View on Blockchain Explorer
+                <ExternalLink className="size-4" /> View on Blockchain Explorer (Coming Soon)
               </Button>
             </div>
           )}

@@ -528,10 +528,10 @@ function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsu
 
         {consultation.status === "ACTIVE" && (
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8" onClick={() => {
-              toast.info(consultation.consultationType === "VIDEO" ? "Video call feature coming soon" : consultation.consultationType === "CHAT" ? "Opening chat..." : "Calling...")
+            <Button size="sm" variant="outline" className="flex-1 text-xs h-8 opacity-50 cursor-not-allowed" onClick={() => {
+              toast.info(consultation.consultationType === "VIDEO" ? "Video call feature coming soon" : consultation.consultationType === "CHAT" ? "Chat feature coming soon" : "Phone call feature coming soon")
             }}>
-              {consultation.consultationType === "VIDEO" ? "Join Call" : consultation.consultationType === "CHAT" ? "Open Chat" : "Call Now"}
+              {consultation.consultationType === "VIDEO" ? "Join Call (Coming Soon)" : consultation.consultationType === "CHAT" ? "Open Chat (Coming Soon)" : "Call Now (Coming Soon)"}
             </Button>
           </div>
         )}
@@ -556,10 +556,10 @@ function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsu
             }}>
               Accept
             </Button>
-            <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => {
+            <Button size="sm" variant="outline" className="text-xs h-8 opacity-50 cursor-not-allowed" onClick={() => {
               toast.info('Reschedule feature coming soon')
             }}>
-              Reschedule
+              Reschedule (Coming Soon)
             </Button>
           </div>
         )}

@@ -843,15 +843,13 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {twoFactorEnabled && (
-                  <Badge
-                    variant="secondary"
-                    className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20 text-xs"
-                  >
-                    Enabled
-                  </Badge>
-                )}
-                <Switch checked={twoFactorEnabled} onCheckedChange={handleToggle2FA} />
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600"
+                >
+                  Coming Soon
+                </Badge>
+                <Switch checked={twoFactorEnabled} onCheckedChange={handleToggle2FA} disabled />
               </div>
             </div>
 
@@ -1038,12 +1036,12 @@ export default function SettingsPage() {
                 size="sm"
                 onClick={handleExportData}
                 disabled={isExportingData}
-                className="border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                className="opacity-50 cursor-not-allowed"
               >
                 {isExportingData ? (
                   <><Loader2 className="size-4 mr-1 animate-spin" /> Exporting...</>
                 ) : (
-                  <><Download className="size-4 mr-1" /> Export</>
+                  <><Download className="size-4 mr-1" /> Export (Coming Soon)</>
                 )}
               </Button>
             </div>
@@ -1074,14 +1072,19 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="border-red-500/30 text-red-600 hover:bg-red-500/10 hover:text-red-700"
-                >
-                  <Trash2 className="size-4 mr-1" /> Delete Account
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
+                    Demo Only
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <Trash2 className="size-4 mr-1" /> Delete Account
+                  </Button>
+                </div>
               )}
             </div>
           </div>

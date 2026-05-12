@@ -79,10 +79,10 @@ const modules = [
 
 const stats = [
   { value: "5", label: "Integrated Modules", icon: Activity },
-  { value: "7,000+", label: "Patients Served (RUHC HMS)", icon: Users },
   { value: "1", label: "Nurse-Led Founder", icon: Heart },
   { value: "24/7", label: "Designed for Round-the-Clock Care", icon: Shield },
   { value: "100%", label: "Nurse-First Design", icon: Zap },
+  { value: "AI", label: "Powered Clinical Intelligence", icon: Brain },
   { value: "NG", label: "Starting Market", icon: Globe },
 ];
 
@@ -366,7 +366,7 @@ export default function LandingPage() {
                 size="lg"
                 className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-2xl shadow-emerald-500/30 text-base px-8 h-12"
               >
-                Start Building <ArrowRight className="w-5 h-5 ml-2" />
+                Get Started Free <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>
             <a href="#features">
@@ -390,8 +390,6 @@ export default function LandingPage() {
             <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> HIPAA Aligned</span>
             <span className="text-emerald-600">&bull;</span>
             <span className="flex items-center gap-1.5"><Zap className="w-4 h-4" /> Offline-First</span>
-            <span className="text-emerald-600">&bull;</span>
-            <span className="flex items-center gap-1.5"><Globe className="w-4 h-4" /> Multilingual</span>
             <span className="text-emerald-600">&bull;</span>
             <span className="flex items-center gap-1.5"><Activity className="w-4 h-4" /> AI-Powered</span>
           </motion.div>
@@ -465,7 +463,7 @@ export default function LandingPage() {
                         <h3 className="text-2xl font-bold text-foreground mb-1">{mod.title}</h3>
                         <p className="text-sm font-medium text-muted-foreground mb-3">{mod.subtitle}</p>
                         <p className="text-muted-foreground leading-relaxed mb-4">{mod.description}</p>
-                        <Link href="/register">
+                        <Link href="/features">
                           <Button variant="outline" size="sm" className="group">
                             Learn more <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
                           </Button>
