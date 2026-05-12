@@ -37,6 +37,7 @@ import {
   LogOut,
   Heart,
   ChevronDown,
+  Crown,
 } from "lucide-react"
 
 import {
@@ -263,6 +264,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       {/* Navigation Sections */}
       <SidebarContent className="px-1 custom-scrollbar">
+        {user?.role === 'SUPER_ADMIN' && (
+          <SidebarGroup>
+            <SidebarGroupLabel asChild>
+              <span className="flex items-center gap-2">
+                <Crown className="size-3.5 text-emerald-400" />
+                Super Admin
+              </span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === '/admin'}
+                    tooltip="Admin Dashboard"
+                    className={
+                      pathname === '/admin'
+                        ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 font-medium"
+                        : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                    }
+                  >
+                    <Link href="/admin">
+                      <Crown className="size-4" />
+                      <span>Admin Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         {navSections.map((section) => (
           <NavSectionGroup key={section.title} section={section} pathname={pathname} />
         ))}
@@ -273,6 +305,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarSeparator className="bg-slate-700/50 mb-2" />
 
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              tooltip="Subscription"
+              className="text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+            >
+              <Link href="/subscription">
+                <Crown className="size-4" />
+                <span>Subscription</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild

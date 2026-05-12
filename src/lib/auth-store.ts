@@ -11,6 +11,8 @@ interface User {
   facilityId?: string | null;
   facilityName?: string | null;
   nurseProfileId?: string | null;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
 }
 
 interface AuthState {

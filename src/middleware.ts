@@ -22,6 +22,8 @@ const noFacilityRequiredRoutes = [
   '/academy',     // Global courses
   '/caregrid/knowledge',  // Global knowledge base
   '/help',        // Help & support
+  '/admin',       // Super admin dashboard
+  '/subscription', // Subscription management
 ]
 
 // Check if a path is public (doesn't require auth)
