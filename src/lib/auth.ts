@@ -57,6 +57,7 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<AuthUs
             select: {
               id: true,
               facilityId: true,
+              accessLevel: true,
             },
           },
         },
@@ -76,9 +77,16 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<AuthUs
 
   const nurseProfileId = session.user.nurseProfile?.id || null
 
+  // Normalize role: If user has AdminProfile with accessLevel >= 10, treat as SUPER_ADMIN
+  // The register route maps SUPER_ADMIN → ADMIN in DB, so we need to recover the true role
+  let normalizedRole = session.user.role
+  if (session.user.role === 'ADMIN' && session.user.adminProfile && (session.user.adminProfile as any).accessLevel >= 10) {
+    normalizedRole = 'SUPER_ADMIN'
+  }
+
   return {
     id: session.user.id,
-    role: session.user.role,
+    role: normalizedRole,
     facilityId,
     nurseProfileId,
   }
