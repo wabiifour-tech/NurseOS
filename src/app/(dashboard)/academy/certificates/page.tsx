@@ -441,7 +441,7 @@ export default function CertificatesPage() {
 
           <div class="cert-id-footer">
             Certificate ID: ${cert.certificateNumber}
-            ${cert.isVerified ? '<span class="verified-badge"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg> Blockchain Verified</span>' : ''}
+            ${cert.isVerified ? '<span class="verified-badge"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg> Platform Verified</span>' : ''}
           </div>
         </div>
       </div>
@@ -562,7 +562,7 @@ export default function CertificatesPage() {
               <p className="text-2xl font-bold text-amber-600">
                 {certificates.filter((c) => c.isVerified).length}
               </p>
-              <p className="text-sm text-muted-foreground">Blockchain Verified</p>
+              <p className="text-sm text-muted-foreground">Platform Verified</p>
             </div>
           </CardContent>
         </Card>
@@ -681,7 +681,7 @@ export default function CertificatesPage() {
               Certificate Verification
             </DialogTitle>
             <DialogDescription>
-              This certificate has been verified and recorded on the blockchain
+              This certificate has been verified by NurseOS Academy
             </DialogDescription>
           </DialogHeader>
           {selectedCert && (
@@ -696,16 +696,16 @@ export default function CertificatesPage() {
                 <p className="text-sm font-mono">{selectedCert.certificateNumber}</p>
               </div>
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Blockchain Verification Hash</p>
+                <p className="text-xs text-muted-foreground">Verification Code</p>
                 <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                   <code className="text-xs break-all font-mono flex-1">
-                    0x{selectedCert.id.replace(/-/g, '')}
+                    {selectedCert.certificateNumber}
                   </code>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="shrink-0 size-8 p-0"
-                    onClick={() => copyHash(`0x${selectedCert.id.replace(/-/g, '')}`)}
+                    onClick={() => copyHash(selectedCert.certificateNumber)}
                   >
                     {copied ? (
                       <CheckCircle2 className="size-3.5 text-emerald-600" />
@@ -715,7 +715,7 @@ export default function CertificatesPage() {
                   </Button>
                 </div>
                 {copied && (
-                  <p className="text-xs text-emerald-600">Hash copied to clipboard!</p>
+                  <p className="text-xs text-emerald-600">Code copied to clipboard!</p>
                 )}
               </div>
               <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
@@ -727,7 +727,7 @@ export default function CertificatesPage() {
               <Button
                 variant="outline"
                 className="w-full gap-1.5"
-                onClick={() => toast.info('Blockchain verification is a planned feature. On-chain certificate verification and the blockchain explorer integration are coming soon — stay tuned for updates!')}
+                onClick={() => toast.info('Blockchain verification is a planned future feature. Currently, certificates are verified through the NurseOS platform. On-chain verification and explorer integration are coming soon!')}
               >
                 <ExternalLink className="size-4" /> View on Blockchain Explorer
                 <Badge className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20 text-[10px] px-1.5 py-0 ml-1">

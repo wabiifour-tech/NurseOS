@@ -486,11 +486,11 @@ function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsu
   const handleActiveAction = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (consultation.consultationType === "VIDEO") {
-      toast.success("Video call initiated. In a production deployment, this would connect to a WebRTC video service.")
+      toast.info("Video consultation will be available when WebRTC integration is deployed. For now, please use an external video call service and note the details in the consultation notes.")
     } else if (consultation.consultationType === "CHAT") {
-      toast.success("Chat session opened. Messages would be delivered in real-time in a production deployment.")
+      toast.info("In-app chat will be available when real-time messaging is deployed. For now, please use WhatsApp or another messaging service.")
     } else {
-      toast.success("Phone consultation initiated. Call routing would connect both parties in a production deployment.")
+      toast.info("Phone consultation routing will be available when telephony integration is deployed. For now, please call the consulting nurse directly.")
     }
   }
 
