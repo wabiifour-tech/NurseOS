@@ -50,6 +50,24 @@ export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const forceReset = searchParams.get('force') === 'true'
 
+  // First-time setup: if tables don't exist yet, skip auth entirely
+  // This handles the case where the database is connected but has no tables
+  let tablesAlreadyExist = false
+  try {
+    await db.user.findFirst({ take: 1 })
+    tablesAlreadyExist = true
+  } catch {
+    // Tables don't exist yet — first-time setup
+  }
+
+  // Only check auth if tables already exist (i.e., this is not a first-time setup)
+  if (tablesAlreadyExist && !forceReset) {
+    return NextResponse.json({
+      message: 'Database is already set up. Tables exist. You can register and log in!',
+      status: 'already_setup',
+    })
+  }
+
   let authUser = null
   try {
     authUser = await getAuthenticatedUser(request)
@@ -59,15 +77,16 @@ export async function POST(request: NextRequest) {
   let userCount = 0
   try { userCount = await db.user.count() } catch { /* tables may not exist yet */ }
 
-  // If force reset, allow it (but still require auth if users exist)
+  // If force reset, require admin auth
   if (forceReset) {
-    if (userCount > 0 && (!authUser || authUser.role !== 'ADMIN')) {
-      if (!authUser) return unauthorizedResponse()
-      return NextResponse.json({ error: 'Admin access required for force reset with existing data' }, { status: 403 })
+    if (!authUser) return unauthorizedResponse()
+    if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Super Admin access required for force reset' }, { status: 403 })
     }
-  } else {
-    if (userCount > 0 && (!authUser || authUser.role !== 'ADMIN')) {
-      if (!authUser) return unauthorizedResponse()
+  } else if (userCount > 0) {
+    // Not force reset, but users exist — require admin auth
+    if (!authUser) return unauthorizedResponse()
+    if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
   }
