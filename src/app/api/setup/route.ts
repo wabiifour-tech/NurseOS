@@ -46,7 +46,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   // 🔒 Require admin authentication for destructive operations
   // Allow unauthenticated setup ONLY if no users exist yet (first-time setup)
-  const authUser = await getAuthenticatedUser(request)
+  let authUser = null
+  try {
+    authUser = await getAuthenticatedUser(request)
+  } catch {
+    // Tables may not exist yet, so auth lookup fails — that's OK for first-time setup
+  }
   let userCount = 0
   try { userCount = await db.user.count() } catch { /* tables may not exist yet */ }
   if (userCount > 0 && (!authUser || authUser.role !== 'ADMIN')) {
