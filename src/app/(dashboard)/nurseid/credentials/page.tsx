@@ -119,6 +119,7 @@ export default function CredentialsPage() {
   const [typeFilter, setTypeFilter] = React.useState('All')
   const [searchQuery, setSearchQuery] = React.useState('')
   const [addDialogOpen, setAddDialogOpen] = React.useState(false)
+  const [viewDetailDialogOpen, setViewDetailDialogOpen] = React.useState(false)
   const [viewHashDialogOpen, setViewHashDialogOpen] = React.useState(false)
   const [selectedCredential, setSelectedCredential] = React.useState<ApiCredential | null>(null)
   const [copied, setCopied] = React.useState(false)
@@ -613,7 +614,12 @@ export default function CredentialsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedCredential(cred)
+                                setViewDetailDialogOpen(true)
+                              }}
+                            >
                               <Eye className="size-4 mr-2" /> View Details
                             </DropdownMenuItem>
                             {cred.verificationHash && (
@@ -626,10 +632,28 @@ export default function CredentialsPage() {
                                 <Link2 className="size-4 mr-2" /> View Verification
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (cred.documentUrl) {
+                                  window.open(cred.documentUrl, '_blank')
+                                } else {
+                                  toast.info('No certificate document available for download yet.')
+                                }
+                              }}
+                            >
                               <Download className="size-4 mr-2" /> Download Certificate
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                const textToCopy = cred.credentialNumber || cred.id
+                                try {
+                                  await navigator.clipboard.writeText(textToCopy)
+                                  toast.success('Credential ID copied to clipboard')
+                                } catch {
+                                  toast.error('Failed to copy to clipboard')
+                                }
+                              }}
+                            >
                               <Copy className="size-4 mr-2" /> Copy ID
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -650,6 +674,100 @@ export default function CredentialsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Credential Detail Dialog */}
+      <Dialog open={viewDetailDialogOpen} onOpenChange={setViewDetailDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="size-5 text-emerald-600" />
+              Credential Details
+            </DialogTitle>
+            <DialogDescription>
+              Full details for this credential
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCredential && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Credential Name</Label>
+                  <p className="text-sm font-medium">{selectedCredential.credentialName}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Type</Label>
+                  <div><Badge variant="outline" className="text-xs">{selectedCredential.credentialType}</Badge></div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Credential ID</Label>
+                  <p className="text-sm font-mono">{selectedCredential.credentialNumber || '—'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <div>{statusBadge(computeStatus(selectedCredential))}</div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Issuing Body</Label>
+                  <p className="text-sm">{selectedCredential.issuingBody}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Verified</Label>
+                  <p className="text-sm">{selectedCredential.isVerified ? 'Yes' : 'No'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Issue Date</Label>
+                  <p className="text-sm">{formatDate(selectedCredential.issueDate) || '—'}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Expiry Date</Label>
+                  <p className="text-sm">{selectedCredential.expiryDate ? formatDate(selectedCredential.expiryDate) : 'No expiry'}</p>
+                </div>
+              </div>
+              {selectedCredential.verificationHash && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Verification Hash</Label>
+                  <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                    <code className="text-xs break-all font-mono flex-1">
+                      {selectedCredential.verificationHash}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 size-8 p-0"
+                      onClick={() => selectedCredential.verificationHash && copyHash(selectedCredential.verificationHash)}
+                    >
+                      <Copy className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {selectedCredential.documentUrl && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Certificate Document</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1"
+                    onClick={() => window.open(selectedCredential.documentUrl!, '_blank')}
+                  >
+                    <Download className="size-4 mr-2" /> Open Certificate
+                  </Button>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Created</Label>
+                  <p className="text-sm">{formatDate(selectedCredential.createdAt)}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Last Updated</Label>
+                  <p className="text-sm">{formatDate(selectedCredential.updatedAt)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Blockchain Verification Dialog */}
       <Dialog open={viewHashDialogOpen} onOpenChange={setViewHashDialogOpen}>

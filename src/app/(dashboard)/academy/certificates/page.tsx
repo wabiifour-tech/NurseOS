@@ -727,9 +727,12 @@ export default function CertificatesPage() {
               <Button
                 variant="outline"
                 className="w-full gap-1.5"
-                onClick={() => toast.info('Blockchain verification is under development — this feature will be available soon.')}
+                onClick={() => toast.info('Blockchain verification is a planned feature. On-chain certificate verification and the blockchain explorer integration are coming soon — stay tuned for updates!')}
               >
                 <ExternalLink className="size-4" /> View on Blockchain Explorer
+                <Badge className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20 text-[10px] px-1.5 py-0 ml-1">
+                  Coming Soon
+                </Badge>
               </Button>
             </div>
           )}

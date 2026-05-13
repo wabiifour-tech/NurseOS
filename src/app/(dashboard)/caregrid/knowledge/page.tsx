@@ -181,6 +181,7 @@ export default function KnowledgeBankPage() {
         <Button variant="outline" className="gap-2" onClick={() => toast.info('Article editor coming soon — this feature is being developed.')}>
           <Plus className="size-4" />
           Write Article
+          <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-600 bg-amber-50 ml-1">Coming Soon</Badge>
         </Button>
       </div>
 

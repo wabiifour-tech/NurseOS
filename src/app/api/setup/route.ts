@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, isDatabaseConnected, resetDbConnectionStatus } from '@/lib/db'
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import bcrypt from 'bcryptjs'
+import { randomUUID } from 'crypto'
 
 /**
  * GET /api/setup — Check setup status
@@ -92,6 +94,7 @@ export async function POST(request: NextRequest) {
           "emailVerified" BOOLEAN NOT NULL DEFAULT false,
           "phoneVerified" BOOLEAN NOT NULL DEFAULT false,
           "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false,
+          "facilityId" TEXT,
           "lastLoginAt" TIMESTAMP(3),
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL
@@ -742,6 +745,28 @@ export async function POST(request: NextRequest) {
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         )`,
       },
+      {
+        name: 'Subscription',
+        sql: `CREATE TABLE IF NOT EXISTS "Subscription" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL,
+          "facilityId" TEXT NOT NULL UNIQUE,
+          "plan" TEXT NOT NULL DEFAULT 'FREE',
+          "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+          "trialEndsAt" TIMESTAMP(3),
+          "currentPeriodStart" TIMESTAMP(3),
+          "currentPeriodEnd" TIMESTAMP(3),
+          "paymentMethod" TEXT,
+          "paymentReference" TEXT,
+          "amountPaid" DOUBLE PRECISION,
+          "currency" TEXT NOT NULL DEFAULT 'NGN',
+          "verifiedBy" TEXT,
+          "verifiedAt" TIMESTAMP(3),
+          "notes" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL
+        )`,
+      },
     ]
 
     const createdTables: string[] = []
@@ -790,6 +815,9 @@ export async function POST(request: NextRequest) {
       `CREATE INDEX IF NOT EXISTS "CPDRecord_nurseId_idx" ON "CPDRecord"("nurseId", "dateCompleted")`,
       `CREATE INDEX IF NOT EXISTS "DiseaseSurveillance_idx" ON "DiseaseSurveillance"("diseaseName", "region", "reportedAt")`,
       `CREATE INDEX IF NOT EXISTS "StaffingPrediction_idx" ON "StaffingPrediction"("facilityId", "predictedDate")`,
+      `CREATE INDEX IF NOT EXISTS "Subscription_userId_idx" ON "Subscription"("userId")`,
+      `CREATE INDEX IF NOT EXISTS "Subscription_facilityId_idx" ON "Subscription"("facilityId")`,
+      `CREATE INDEX IF NOT EXISTS "Subscription_status_idx" ON "Subscription"("status")`,
     ]
 
     for (const idxSql of indexes) {
@@ -809,6 +837,9 @@ export async function POST(request: NextRequest) {
       `ALTER TABLE "AdminProfile" ADD CONSTRAINT "AdminProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
       `ALTER TABLE "PatientProfile" ADD CONSTRAINT "PatientProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
       `ALTER TABLE "PatientProfile" ADD CONSTRAINT "PatientProfile_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
+      `ALTER TABLE "User" ADD CONSTRAINT "User_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
+      `ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
     ]
 
     for (const fk of fkConstraints) {
@@ -832,10 +863,44 @@ export async function POST(request: NextRequest) {
     }
 
     if (tablesExist) {
+      // ── Seed Super Admin if no users exist ──
+      let superAdminSeeded = false
+      try {
+        const existingUserCount = await db.user.count()
+        if (existingUserCount === 0) {
+          const passwordHash = await bcrypt.hash('#Abolaji7977', 10)
+          const superAdmin = await db.user.create({
+            data: {
+              id: randomUUID(),
+              email: 'wabithetechnurse@nurseos.com',
+              passwordHash,
+              firstName: 'Wabi',
+              lastName: 'The Tech Nurse',
+              displayName: 'Wabi The Tech Nurse',
+              role: 'ADMIN',
+              status: 'ACTIVE',
+              countryCode: 'NG',
+            },
+          })
+          // Create AdminProfile with accessLevel=10 to mark as SUPER_ADMIN
+          await db.adminProfile.create({
+            data: {
+              id: randomUUID(),
+              userId: superAdmin.id,
+              accessLevel: 10,
+            },
+          })
+          superAdminSeeded = true
+        }
+      } catch (seedErr: any) {
+        console.error('Super admin seeding failed:', seedErr?.message)
+      }
+
       return NextResponse.json({
-        message: 'Database schema created successfully! All tables are ready. You can now register and log in.',
+        message: `Database schema created successfully! All tables are ready. You can now register and log in.${superAdminSeeded ? ' Super Admin account has been seeded (wabithetechnurse@nurseos.com / #Abolaji7977).' : ''}`,
         status: 'setup_complete',
         tablesCreated: createdTables.length,
+        superAdminSeeded,
       })
     } else {
       return NextResponse.json({

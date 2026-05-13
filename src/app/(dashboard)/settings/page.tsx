@@ -40,6 +40,7 @@ import {
   MapPin,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTheme } from 'next-themes'
 
 interface NotificationPreference {
   id: string
@@ -122,32 +123,35 @@ export default function SettingsPage() {
     },
   ])
 
+  // Theme - managed by next-themes
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  // Prevent hydration mismatch for theme UI
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Appearance state - persisted to localStorage
-  const [theme, setThemeState] = React.useState<'light' | 'dark' | 'system'>('system')
   const [compactMode, setCompactModeState] = React.useState(false)
   const [sidebarCollapsed, setSidebarCollapsedState] = React.useState(false)
 
-  const setTheme = (newTheme: 'light' | 'dark' | 'system') => {
-    setThemeState(newTheme)
-    try { localStorage.setItem('nurseos-theme', newTheme) } catch {}
-    toast.success(`Theme set to ${newTheme}`)
-  }
   const setCompactMode = (val: boolean) => {
     setCompactModeState(val)
     try { localStorage.setItem('nurseos-compact', String(val)) } catch {}
+    toast.info('Compact Mode is coming soon. Your preference has been saved and will apply when this feature is ready.')
   }
   const setSidebarCollapsed = (val: boolean) => {
     setSidebarCollapsedState(val)
     try { localStorage.setItem('nurseos-sidebar-collapsed', String(val)) } catch {}
+    toast.info('Collapsed Sidebar is coming soon. Your preference has been saved and will apply when this feature is ready.')
   }
 
   // Load persisted preferences on mount
   React.useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem('nurseos-theme') as 'light' | 'dark' | 'system' | null
       const savedCompact = localStorage.getItem('nurseos-compact')
       const savedSidebar = localStorage.getItem('nurseos-sidebar-collapsed')
-      if (savedTheme) setThemeState(savedTheme)
       if (savedCompact !== null) setCompactModeState(savedCompact === 'true')
       if (savedSidebar !== null) setSidebarCollapsedState(savedSidebar === 'true')
     } catch {}
@@ -176,7 +180,6 @@ export default function SettingsPage() {
   // Data & Privacy state
   const [dataRetention, setDataRetention] = React.useState('1-year')
   const [analyticsSharing, setAnalyticsSharing] = React.useState(true)
-  const [isExportingData, setIsExportingData] = React.useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
 
   const toggleNotification = (id: string) => {
@@ -341,16 +344,12 @@ export default function SettingsPage() {
     }
   }
 
-  const handleExportData = async () => {
-    setIsExportingData(true)
-    // Data export is a coming-soon feature
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setIsExportingData(false)
+  const handleExportData = () => {
     toast.info('Data export is coming soon. This feature will allow you to download all your data from NurseOS.')
   }
 
   const handleDeleteAccount = () => {
-    toast.error('Account deletion is not available in the demo. Please contact support.')
+    toast.info('Account deletion is coming soon. This feature will require confirmation before any data is removed.')
     setShowDeleteConfirm(false)
   }
 
@@ -768,11 +767,12 @@ export default function SettingsPage() {
                   <button
                     key={themeOption}
                     onClick={() => setTheme(themeOption)}
+                    disabled={!mounted}
                     className={`relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all hover:border-emerald-500/50 ${
-                      theme === themeOption
+                      mounted && theme === themeOption
                         ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
                         : 'border-border'
-                    }`}
+                    } ${!mounted ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className={`size-8 rounded-md ${
                       themeOption === 'light'
@@ -782,7 +782,7 @@ export default function SettingsPage() {
                         : 'bg-gradient-to-br from-white to-slate-900 border border-gray-200'
                     }`} />
                     <span className="text-xs font-medium capitalize">{themeOption}</span>
-                    {theme === themeOption && (
+                    {mounted && theme === themeOption && (
                       <div className="absolute top-2 right-2">
                         <Check className="size-3.5 text-emerald-600" />
                       </div>
@@ -800,7 +800,12 @@ export default function SettingsPage() {
             {/* Compact Mode */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Compact Mode</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">Compact Mode</p>
+                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
+                    Coming Soon
+                  </Badge>
+                </div>
                 <p className="text-xs text-muted-foreground">Reduce spacing and padding for denser information display</p>
               </div>
               <Switch checked={compactMode} onCheckedChange={setCompactMode} />
@@ -811,7 +816,12 @@ export default function SettingsPage() {
             {/* Sidebar Default */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Collapsed Sidebar</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">Collapsed Sidebar</p>
+                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
+                    Coming Soon
+                  </Badge>
+                </div>
                 <p className="text-xs text-muted-foreground">Start with the sidebar collapsed by default</p>
               </div>
               <Switch checked={sidebarCollapsed} onCheckedChange={setSidebarCollapsed} />
@@ -1028,20 +1038,20 @@ export default function SettingsPage() {
             {/* Export Data */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Export Your Data</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">Export Your Data</p>
+                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
+                    Coming Soon
+                  </Badge>
+                </div>
                 <p className="text-xs text-muted-foreground">Download a copy of all your data from NurseOS</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleExportData}
-                disabled={isExportingData}
               >
-                {isExportingData ? (
-                  <><Loader2 className="size-4 mr-1 animate-spin" /> Exporting...</>
-                ) : (
-                  <><Download className="size-4 mr-1" /> Export Data</>
-                )}
+                <Download className="size-4 mr-1" /> Export Data
               </Button>
             </div>
 
@@ -1050,39 +1060,43 @@ export default function SettingsPage() {
             {/* Delete Account */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-destructive">Delete Account</p>
-                <p className="text-xs text-muted-foreground">Permanently delete your account and all associated data</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-destructive">Delete Account</p>
+                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
+                    Coming Soon
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">Permanently delete your account and all associated data. This action cannot be undone.</p>
               </div>
               {showDeleteConfirm ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowDeleteConfirm(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleDeleteAccount}
-                  >
-                    <Trash2 className="size-4 mr-1" /> Confirm Delete
-                  </Button>
+                <div className="flex flex-col items-end gap-2">
+                  <p className="text-xs text-destructive font-medium">This will permanently erase all your data.</p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDeleteConfirm(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDeleteAccount}
+                    >
+                      <AlertTriangle className="size-4 mr-1" /> Confirm Delete
+                    </Button>
+                  </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
-                    Demo Only
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDeleteConfirm(true)}
-                  >
-                    <Trash2 className="size-4 mr-1" /> Delete Account
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="size-4 mr-1" /> Delete Account
+                </Button>
               )}
             </div>
           </div>

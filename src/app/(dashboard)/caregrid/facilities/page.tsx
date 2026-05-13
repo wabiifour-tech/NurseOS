@@ -379,7 +379,7 @@ export default function FacilitiesPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <MapPin className="size-4 text-emerald-600" />
-                  Facility Map
+                  Facility Distribution
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
@@ -387,7 +387,7 @@ export default function FacilitiesPage() {
                   <div className="size-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
                     <MapPin className="size-8 text-emerald-500" />
                   </div>
-                  <h3 className="font-semibold text-slate-700 mb-1">Interactive Map</h3>
+                  <h3 className="font-semibold text-slate-700 mb-1">Facility Distribution by State</h3>
                   <p className="text-sm text-muted-foreground mb-4">
                     View {facilities.length} facilities across {states.length} states
                   </p>
