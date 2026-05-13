@@ -463,7 +463,7 @@ export default function LandingPage() {
                         <h3 className="text-2xl font-bold text-foreground mb-1">{mod.title}</h3>
                         <p className="text-sm font-medium text-muted-foreground mb-3">{mod.subtitle}</p>
                         <p className="text-muted-foreground leading-relaxed mb-4">{mod.description}</p>
-                        <Link href="/features">
+                        <Link href={`/features#${mod.title.toLowerCase()}`}>
                           <Button variant="outline" size="sm" className="group">
                             Learn more <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
                           </Button>
@@ -642,11 +642,11 @@ export default function LandingPage() {
             <div>
               <h4 className="font-semibold text-foreground mb-3 text-sm">Platform</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#features" className="hover:text-foreground transition-colors">NurseAI</a></li>
-                <li><a href="#features" className="hover:text-foreground transition-colors">CareGrid</a></li>
-                <li><a href="#features" className="hover:text-foreground transition-colors">NurseAnalytics</a></li>
-                <li><a href="#features" className="hover:text-foreground transition-colors">NurseID</a></li>
-                <li><a href="#features" className="hover:text-foreground transition-colors">NurseAcademy</a></li>
+                <li><a href="/features#nurseai" className="hover:text-foreground transition-colors">NurseAI</a></li>
+                <li><a href="/features#caregrid" className="hover:text-foreground transition-colors">CareGrid</a></li>
+                <li><a href="/features#nurseanalytics" className="hover:text-foreground transition-colors">NurseAnalytics</a></li>
+                <li><a href="/features#nurseid" className="hover:text-foreground transition-colors">NurseID</a></li>
+                <li><a href="/features#nurseacademy" className="hover:text-foreground transition-colors">NurseAcademy</a></li>
               </ul>
             </div>
             <div>

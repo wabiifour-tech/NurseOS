@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   Bot,
@@ -152,6 +152,17 @@ const platformFeatures = [
 ];
 
 export default function FeaturesPage() {
+  // Support hash-based tab selection (e.g., /features#nurseai)
+  const [activeTab, setActiveTab] = React.useState("nurseai")
+
+  React.useEffect(() => {
+    const hash = window.location.hash.replace("#", "").toLowerCase()
+    const validTabs = modules.map(m => m.id)
+    if (hash && validTabs.includes(hash)) {
+      setActiveTab(hash)
+    }
+  }, [])
+
   return (
     <div className="min-h-screen">
       {/* Hero */}
@@ -180,7 +191,7 @@ export default function FeaturesPage() {
       {/* Module Deep Dives */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Tabs defaultValue="nurseai" className="space-y-10">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-10">
             <FadeIn>
               <TabsList className="flex flex-wrap justify-center gap-2 h-auto bg-muted/50 p-2 rounded-xl">
                 {modules.map((mod) => (

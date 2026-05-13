@@ -929,7 +929,7 @@ export async function POST(request: NextRequest) {
               firstName: 'Wabi',
               lastName: 'The Tech Nurse',
               displayName: 'Wabi The Tech Nurse',
-              role: 'ADMIN',
+              role: 'SUPER_ADMIN',
               status: 'ACTIVE',
               countryCode: 'NG',
             },
