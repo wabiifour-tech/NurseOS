@@ -3,6 +3,7 @@ import { db, isDatabaseConnected, resetDbConnectionStatus } from '@/lib/db'
 import { NIGERIA_FACILITIES } from '@/lib/nigeria-facilities'
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
+import { randomUUID } from 'crypto'
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10)
@@ -323,6 +324,39 @@ export async function POST(request: NextRequest) {
     }
     log.push(`Created facility analytics (7 days x ${analyticsFacilities.length} major facilities)`)
 
+    // ========== RE-CREATE SUPER ADMIN (if force mode deleted it) ==========
+    if (force) {
+      try {
+        const existingSA = await db.user.findFirst({ where: { email: 'wabithetechnurse@nurseos.com' } })
+        if (!existingSA) {
+          const saPasswordHash = await bcrypt.hash('#Abolaji7977', 10)
+          const superAdmin = await db.user.create({
+            data: {
+              id: randomUUID(),
+              email: 'wabithetechnurse@nurseos.com',
+              passwordHash: saPasswordHash,
+              firstName: 'Wabi',
+              lastName: 'The Tech Nurse',
+              displayName: 'Wabi The Tech Nurse',
+              role: 'ADMIN',
+              status: 'ACTIVE',
+              countryCode: 'NG',
+            },
+          })
+          await db.adminProfile.create({
+            data: {
+              id: randomUUID(),
+              userId: superAdmin.id,
+              accessLevel: 10,
+            },
+          })
+          log.push('Re-created Super Admin: wabithetechnurse@nurseos.com / #Abolaji7977')
+        }
+      } catch (saErr: any) {
+        log.push(`Super Admin recreation note: ${saErr?.message?.substring(0, 100) || 'skipped'}`)
+      }
+    }
+
     resetDbConnectionStatus()
 
     return NextResponse.json({
@@ -330,6 +364,7 @@ export async function POST(request: NextRequest) {
       status: 'seed_complete',
       log,
       testAccounts: {
+        superAdmin: 'wabithetechnurse@nurseos.com / #Abolaji7977',
         admin: 'admin@nurseos.ng / Admin@2024',
         nurses: [
           'chidinma.eze@nurseos.ng / Nurse@2024',
