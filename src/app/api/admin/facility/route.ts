@@ -73,6 +73,31 @@ export async function GET(req: NextRequest) {
       },
     })
 
+    // Get recent activity (last 5 audit logs for this facility's users)
+    const facilityUserIds = workers.map((w) => w.id)
+    const recentActivity = await db.auditLog.findMany({
+      where: {
+        userId: { in: facilityUserIds },
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    })
+
+    // Get patient admission trend (last 7 days)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const admissionTrend = await db.medicalRecord.groupBy({
+      by: ['encounterType'],
+      where: {
+        facilityId: authUser.facilityId,
+        createdAt: { gte: sevenDaysAgo },
+      },
+      _count: true,
+    })
+
     return NextResponse.json({
       facility,
       workers,
@@ -80,6 +105,8 @@ export async function GET(req: NextRequest) {
       recentRecordsCount,
       recentReferrals,
       subscription: facility.subscription,
+      recentActivity,
+      admissionTrend,
     })
   } catch (error) {
     console.error('Error fetching facility data:', error)

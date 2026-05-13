@@ -107,6 +107,22 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
   },
 }
 
+// Plan prices in Nigerian Naira
+export const PLAN_PRICES: Record<PlanType, number | null> = {
+  FREE: 0,
+  STARTER: 50000,
+  PRO: 150000,
+  ENTERPRISE: null, // contact sales
+}
+
+// Format plan price for display
+export function getPlanPrice(plan: PlanType): string {
+  const price = PLAN_PRICES[plan]
+  if (price === null) return 'Contact us'
+  if (price === 0) return '₦0'
+  return '₦' + price.toLocaleString('en-NG')
+}
+
 // Check if a feature is available for a given plan
 export function hasFeature(plan: PlanType, feature: keyof PlanLimits): boolean {
   return !!PLAN_LIMITS[plan]?.[feature]

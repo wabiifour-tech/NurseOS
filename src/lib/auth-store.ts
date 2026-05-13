@@ -19,6 +19,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isSuperAdmin: boolean;
   login: (user: User, token?: string) => void;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
@@ -46,21 +47,23 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      isSuperAdmin: false,
       login: (user: User, token?: string) => {
         if (!token) {
           console.error('Auth login called without a token — this should not happen');
           return;
         }
-        set({ user, token: token, isAuthenticated: true });
+        set({ user, token: token, isAuthenticated: true, isSuperAdmin: user.role === 'SUPER_ADMIN' });
         setAuthCookie(token);
       },
       logout: () => {
-        set({ user: null, token: null, isAuthenticated: false });
+        set({ user: null, token: null, isAuthenticated: false, isSuperAdmin: false });
         clearAuthCookie();
       },
       updateUser: (data: Partial<User>) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...data } : null,
+          isSuperAdmin: data.role ? data.role === 'SUPER_ADMIN' : state.isSuperAdmin,
         })),
     }),
     {

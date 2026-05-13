@@ -59,6 +59,9 @@ import {
   CheckCircle2,
   Crown,
   Shield,
+  MapPin,
+  Mail,
+  BarChart3,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -138,19 +141,6 @@ const planColorMap: Record<string, string> = {
 export default function SuperAdminDashboard() {
   const { user, token } = useAuthStore()
 
-  /* ─── Role Check ─── */
-  if (user?.role !== 'SUPER_ADMIN') {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Shield className="w-12 h-12 text-red-500 mx-auto mb-3" />
-          <h2 className="text-xl font-bold">Access Denied</h2>
-          <p className="text-muted-foreground mt-1">Only Super Admins can access this dashboard.</p>
-        </div>
-      </div>
-    )
-  }
-
   /* ─── State ─── */
   const [subscriptions, setSubscriptions] = React.useState<SubscriptionRow[]>([])
   const [subStats, setSubStats] = React.useState({
@@ -187,6 +177,18 @@ export default function SuperAdminDashboard() {
   // Create Super Admin dialog
   const [createAdminDialogOpen, setCreateAdminDialogOpen] = React.useState(false)
   const [isCreatingAdmin, setIsCreatingAdmin] = React.useState(false)
+
+  // Active tab
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'subscriptions' | 'facilities' | 'users'>('overview')
+
+  // Facilities & Users state
+  const [facilities, setFacilities] = React.useState<any[]>([])
+  const [isLoadingFacilities, setIsLoadingFacilities] = React.useState(false)
+  const [facilitySearch, setFacilitySearch] = React.useState('')
+  const [usersList, setUsersList] = React.useState<any[]>([])
+  const [isLoadingUsers, setIsLoadingUsers] = React.useState(false)
+  const [userSearch, setUserSearch] = React.useState('')
+  const [userRoleFilter, setUserRoleFilter] = React.useState('')
 
   /* ─── Auth headers helper ─── */
   const getHeaders = () => ({
@@ -253,6 +255,47 @@ export default function SuperAdminDashboard() {
   React.useEffect(() => {
     fetchAppStats()
   }, [fetchAppStats])
+
+  /* ─── Fetch facilities ─── */
+  const fetchFacilities = React.useCallback(async () => {
+    setIsLoadingFacilities(true)
+    try {
+      const params = new URLSearchParams()
+      if (facilitySearch) params.set('search', facilitySearch)
+      const res = await fetch(`/api/admin/facilities?${params.toString()}`, { headers: getHeaders() })
+      const data = await res.json()
+      if (res.ok) setFacilities(data.facilities || [])
+    } catch (error) {
+      console.error('Error fetching facilities:', error)
+    } finally {
+      setIsLoadingFacilities(false)
+    }
+  }, [facilitySearch, user?.id, token])
+
+  /* ─── Fetch users ─── */
+  const fetchUsers = React.useCallback(async () => {
+    setIsLoadingUsers(true)
+    try {
+      const params = new URLSearchParams()
+      if (userSearch) params.set('search', userSearch)
+      if (userRoleFilter) params.set('role', userRoleFilter)
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { headers: getHeaders() })
+      const data = await res.json()
+      if (res.ok) setUsersList(data.users || [])
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    } finally {
+      setIsLoadingUsers(false)
+    }
+  }, [userSearch, userRoleFilter, user?.id, token])
+
+  React.useEffect(() => {
+    if (activeTab === 'facilities') fetchFacilities()
+  }, [activeTab, fetchFacilities])
+
+  React.useEffect(() => {
+    if (activeTab === 'users') fetchUsers()
+  }, [activeTab, fetchUsers])
 
   /* ─── Subscription actions ─── */
   const handleSubscriptionAction = async (
@@ -372,6 +415,19 @@ export default function SuperAdminDashboard() {
     return true
   })
 
+  /* ─── Role Check (after all hooks) ─── */
+  if (user?.role !== 'SUPER_ADMIN') {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Shield className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h2 className="text-xl font-bold">Access Denied</h2>
+          <p className="text-muted-foreground mt-1">Only Super Admins can access this dashboard.</p>
+        </div>
+      </div>
+    )
+  }
+
   /* ─── Render ─── */
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
@@ -399,6 +455,32 @@ export default function SuperAdminDashboard() {
         </Badge>
       </div>
 
+      {/* ── Tab Navigation ── */}
+      <div className="flex gap-1.5 border-b border-border pb-0 overflow-x-auto">
+        {[
+          { id: 'overview', label: 'Overview', icon: Activity },
+          { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
+          { id: 'facilities', label: 'Facilities', icon: Building2 },
+          { id: 'users', label: 'Users', icon: Users },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'border-emerald-500 text-emerald-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <tab.icon className="size-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── OVERVIEW TAB ── */}
+      {activeTab === 'overview' && (
+        <>
       {/* ── Overview Stats Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/30 dark:to-teal-950/30">
@@ -950,8 +1032,347 @@ export default function SuperAdminDashboard() {
           </CardContent>
         </Card>
       </div>
+        </>
+      )}
 
-      {/* ── Edit Plan Dialog ── */}
+      {/* ── SUBSCRIPTIONS TAB ── */}
+      {activeTab === 'subscriptions' && (
+        <div className="space-y-6">
+          <Card className="border-amber-500/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="size-5 text-amber-500" />
+                  <CardTitle className="text-lg">Pending Verifications</CardTitle>
+                </div>
+                <Badge variant="outline" className="gap-1 text-xs border-amber-500/30 bg-amber-500/10 text-amber-600">
+                  {pendingTrials.length} pending
+                </Badge>
+              </div>
+              <CardDescription>Subscriptions awaiting payment verification</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingSubs ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-5 animate-spin text-amber-500" />
+                </div>
+              ) : pendingTrials.length === 0 ? (
+                <div className="flex flex-col items-center py-8 text-center">
+                  <CheckCircle2 className="size-8 text-emerald-500 mb-2" />
+                  <p className="text-sm text-foreground">All caught up!</p>
+                  <p className="text-xs text-muted-foreground">No pending verifications.</p>
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Plan</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Facility</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingTrials.map((sub) => (
+                        <TableRow key={sub.id}>
+                          <TableCell><p className="text-sm font-medium">{sub.user.firstName} {sub.user.lastName}</p><p className="text-xs text-muted-foreground">{sub.user.email}</p></TableCell>
+                          <TableCell><Badge variant="outline" className={`text-[10px] ${planColorMap[sub.plan] || ''}`}>{sub.plan}</Badge></TableCell>
+                          <TableCell className="text-sm font-medium">{formatNaira(sub.amountPaid)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{sub.facility?.name || '—'}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs h-7" onClick={() => handleVerify(sub.id)} disabled={actionLoading[sub.id + 'verify']}>
+                                {actionLoading[sub.id + 'verify'] ? <Loader2 className="size-3 animate-spin" /> : <ShieldCheck className="size-3" />} Verify
+                              </Button>
+                              <Button size="sm" variant="destructive" className="text-xs h-7" onClick={() => handleReject(sub.id)} disabled={actionLoading[sub.id + 'reject']}>
+                                {actionLoading[sub.id + 'reject'] ? <Loader2 className="size-3 animate-spin" /> : <XCircle className="size-3" />} Reject
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* All Subscriptions Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CreditCard className="size-5 text-emerald-600" />
+                <CardTitle className="text-lg">All Subscriptions</CardTitle>
+              </div>
+              <CardDescription>Manage all subscription records</CardDescription>
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input placeholder="Search..." className="pl-9 h-9" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full sm:w-[140px] h-9"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All</SelectItem>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="TRIALING">Trialing</SelectItem>
+                    <SelectItem value="EXPIRED">Expired</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={planFilter} onValueChange={setPlanFilter}>
+                  <SelectTrigger className="w-full sm:w-[140px] h-9"><SelectValue placeholder="Plan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Plans</SelectItem>
+                    <SelectItem value="FREE">Free</SelectItem>
+                    <SelectItem value="STARTER">Starter</SelectItem>
+                    <SelectItem value="PRO">Pro</SelectItem>
+                    <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" className="h-9 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10" onClick={() => { setStatusFilter('ALL'); setPlanFilter('ALL'); setSearchQuery(''); fetchSubscriptions() }}>
+                  <RefreshCw className="size-3.5 mr-1" /> Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingSubs ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="size-6 animate-spin text-emerald-500" /></div>
+              ) : filteredSubs.length === 0 ? (
+                <div className="flex flex-col items-center py-12 text-center"><CreditCard className="size-10 text-muted-foreground/50 mb-3" /><p className="text-sm text-foreground">No subscriptions found</p></div>
+              ) : (
+                <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Plan</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Facility</TableHead>
+                        <TableHead>Period End</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredSubs.map((sub) => (
+                        <TableRow key={sub.id}>
+                          <TableCell><div><p className="text-sm font-medium">{sub.user.firstName} {sub.user.lastName}</p><p className="text-xs text-muted-foreground">{sub.user.email}</p></div></TableCell>
+                          <TableCell><Badge variant="outline" className={`text-[10px] ${planColorMap[sub.plan] || ''}`}>{sub.plan}</Badge></TableCell>
+                          <TableCell><Badge variant="outline" className={`text-[10px] ${statusColorMap[sub.status] || ''}`}>{sub.status}</Badge></TableCell>
+                          <TableCell className="text-sm font-medium">{formatNaira(sub.amountPaid)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">{sub.facility?.name || '—'}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatDate(sub.currentPeriodEnd)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {sub.status === 'TRIALING' && <Button size="sm" variant="outline" className="text-xs h-7 px-2 border-emerald-500/30 text-emerald-600" onClick={() => handleVerify(sub.id)} disabled={actionLoading[sub.id + 'verify']}>{actionLoading[sub.id + 'verify'] ? <Loader2 className="size-3 animate-spin" /> : <ShieldCheck className="size-3" />}</Button>}
+                              {(sub.status === 'ACTIVE' || sub.status === 'EXPIRED') && <Button size="sm" variant="outline" className="text-xs h-7 px-2 border-teal-500/30 text-teal-600" onClick={() => handleRenew(sub.id)} disabled={actionLoading[sub.id + 'renew']}>{actionLoading[sub.id + 'renew'] ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}</Button>}
+                              <Button size="sm" variant="outline" className="text-xs h-7 px-2 border-cyan-500/30 text-cyan-600" onClick={() => openEditDialog(sub)}><Pencil className="size-3" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-4 text-xs text-muted-foreground">
+                <span>Showing {filteredSubs.length} of {subStats.total}</span>
+                <span>Active: {subStats.active} · Trialing: {subStats.trialing} · Expired: {subStats.expired}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Plan Distribution */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <BarChart3 className="size-5 text-emerald-600" />
+                <CardTitle className="text-lg">Plan Distribution</CardTitle>
+              </div>
+              <CardDescription>Subscription breakdown by plan</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {(() => {
+                  const planCounts: Record<string, number> = {}
+                  subscriptions.forEach((s) => { planCounts[s.plan] = (planCounts[s.plan] || 0) + 1 })
+                  const total = subscriptions.length || 1
+                  const plans = ['FREE', 'STARTER', 'PRO', 'ENTERPRISE'] as const
+                  const barColors: Record<string, string> = { FREE: 'bg-slate-500', STARTER: 'bg-cyan-500', PRO: 'bg-emerald-500', ENTERPRISE: 'bg-purple-500' }
+                  return plans.map((plan) => {
+                    const count = planCounts[plan] || 0
+                    const pct = Math.round((count / total) * 100)
+                    return (
+                      <div key={plan} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium">{plan}</span>
+                          <span className="text-muted-foreground">{count} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted">
+                          <div className={`h-full rounded-full ${barColors[plan] || 'bg-slate-500'} transition-all`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── FACILITIES TAB ── */}
+      {activeTab === 'facilities' && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Building2 className="size-5 text-emerald-600" />
+              <CardTitle className="text-lg">All Facilities</CardTitle>
+            </div>
+            <CardDescription>Manage registered healthcare facilities</CardDescription>
+            <div className="flex gap-3 pt-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input placeholder="Search facilities..." className="pl-9 h-9" value={facilitySearch} onChange={(e) => setFacilitySearch(e.target.value)} />
+              </div>
+              <Button variant="outline" size="sm" className="h-9 border-emerald-500/30 text-emerald-600" onClick={fetchFacilities}>
+                <RefreshCw className="size-3.5 mr-1" /> Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoadingFacilities ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="size-6 animate-spin text-emerald-500" /></div>
+            ) : facilities.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-center"><Building2 className="size-10 text-muted-foreground/50 mb-3" /><p className="text-sm text-foreground">No facilities found</p></div>
+            ) : (
+              <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Facility</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Plan</TableHead>
+                      <TableHead>Workers</TableHead>
+                      <TableHead>Patients</TableHead>
+                      <TableHead>Verified</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {facilities.map((f) => (
+                      <TableRow key={f.id}>
+                        <TableCell>
+                          <div>
+                            <p className="text-sm font-medium">{f.name}</p>
+                            <p className="text-xs text-muted-foreground">{f.type}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="size-3" /> {f.city}, {f.state}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-[10px] ${planColorMap[f.plan] || ''}`}>{f.plan}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">{f.workerCount}</TableCell>
+                        <TableCell className="text-sm">{f.patientCount}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-[10px] ${f.isVerified ? 'text-emerald-600 border-emerald-500/30' : 'text-amber-600 border-amber-500/30'}`}>
+                            {f.isVerified ? 'Verified' : 'Pending'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── USERS TAB ── */}
+      {activeTab === 'users' && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Users className="size-5 text-emerald-600" />
+              <CardTitle className="text-lg">User Management</CardTitle>
+            </div>
+            <CardDescription>Search and manage all platform users</CardDescription>
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input placeholder="Search by name or email..." className="pl-9 h-9" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
+              </div>
+              <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                <SelectTrigger className="w-full sm:w-[160px] h-9"><SelectValue placeholder="All Roles" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Roles</SelectItem>
+                  <SelectItem value="NURSE">Nurse</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
+                  <SelectItem value="DOCTOR">Doctor</SelectItem>
+                  <SelectItem value="MATRON">Matron</SelectItem>
+                  <SelectItem value="STUDENT">Student</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="h-9 border-emerald-500/30 text-emerald-600" onClick={fetchUsers}>
+                <RefreshCw className="size-3.5 mr-1" /> Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoadingUsers ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="size-6 animate-spin text-emerald-500" /></div>
+            ) : usersList.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-center"><Users className="size-10 text-muted-foreground/50 mb-3" /><p className="text-sm text-foreground">No users found</p></div>
+            ) : (
+              <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Facility</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last Login</TableHead>
+                      <TableHead>Joined</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {usersList.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell>
+                          <div>
+                            <p className="text-sm font-medium">{u.firstName} {u.lastName}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="size-3" /> {u.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px]">{u.role}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{u.facilityName || '—'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-[10px] ${u.status === 'ACTIVE' ? 'text-emerald-600 border-emerald-500/30' : 'text-amber-600 border-amber-500/30'}`}>{u.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{u.lastLoginAt ? formatDate(u.lastLoginAt) : 'Never'}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{formatDate(u.createdAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Dialogs (always rendered) ── */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

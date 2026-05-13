@@ -848,9 +848,12 @@ model Subscription {
   facilityId        String   @unique
   plan              String   @default("FREE")   // FREE, STARTER, PRO, ENTERPRISE
   status            String   @default("ACTIVE")  // ACTIVE, EXPIRED, TRIALING, CANCELLED
+  isActive          Boolean  @default(false)
   trialEndsAt       DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd  DateTime?
+  startDate         DateTime?  // Alias for currentPeriodStart — when this subscription period begins
+  endDate           DateTime?  // Alias for currentPeriodEnd — when this subscription period ends
   paymentMethod     String?   // BANK_TRANSFER, PAYSTACK, FLUTTERWAVE, MANUAL
   paymentReference  String?   // Transaction reference / receipt number
   amountPaid        Float?
