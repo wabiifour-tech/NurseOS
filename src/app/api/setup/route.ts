@@ -47,21 +47,48 @@ export async function POST(request: NextRequest) {
   // 🔒 Require admin authentication for destructive operations
   // Allow unauthenticated setup ONLY if no users exist yet (first-time setup)
   // Use ?force=true to drop all tables and recreate (useful for fixing schema issues)
+  // Use ?repair=true to auto-detect and fix broken/partial schemas without auth
   const { searchParams } = new URL(request.url)
   const forceReset = searchParams.get('force') === 'true'
+  const repairMode = searchParams.get('repair') === 'true'
 
   // First-time setup: if tables don't exist yet, skip auth entirely
   // This handles the case where the database is connected but has no tables
+  // Also detects when tables partially exist with wrong schema (e.g., missing columns)
   let tablesAlreadyExist = false
+  let schemaBroken = false
   try {
     await db.user.findFirst({ take: 1 })
     tablesAlreadyExist = true
-  } catch {
+  } catch (err: any) {
+    // Check if this is a "column does not exist" error, meaning tables exist but schema is wrong
+    const errMsg = (err?.message || '').toLowerCase()
+    if (errMsg.includes('does not exist') || errMsg.includes('column') || errMsg.includes('relation') === false) {
+      // Table exists but has wrong columns — partial/broken schema
+      // Check if the User table actually exists by trying a raw query
+      try {
+        const result = await db.$queryRaw`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'User')` as any[]
+        if (result?.[0]?.exists) {
+          tablesAlreadyExist = true
+          schemaBroken = true
+        }
+      } catch {
+        // Can't check — assume tables don't exist
+      }
+    }
     // Tables don't exist yet — first-time setup
   }
 
-  // Only check auth if tables already exist (i.e., this is not a first-time setup)
-  if (tablesAlreadyExist && !forceReset) {
+  // If schema is broken and no users exist, auto-repair without requiring auth
+  // This handles the common case where initial setup partially failed
+  let userCount = 0
+  try { userCount = await db.$queryRaw`SELECT COUNT(*)::int as count FROM "User"` as any[]; userCount = userCount?.[0]?.count || 0 } catch { userCount = 0 }
+
+  if (schemaBroken && userCount === 0) {
+    // Auto-force reset: schema is broken and no data to protect
+    // Drop all tables and recreate — safe because there's no data
+  } else if (tablesAlreadyExist && !forceReset && !repairMode && !schemaBroken) {
+    // Tables exist with correct schema — already set up
     return NextResponse.json({
       message: 'Database is already set up. Tables exist. You can register and log in!',
       status: 'already_setup',
@@ -74,17 +101,15 @@ export async function POST(request: NextRequest) {
   } catch {
     // Tables may not exist yet, so auth lookup fails — that's OK for first-time setup
   }
-  let userCount = 0
-  try { userCount = await db.user.count() } catch { /* tables may not exist yet */ }
 
-  // If force reset, require admin auth
-  if (forceReset) {
+  // If force reset and schema is not broken, require admin auth
+  if (forceReset && !schemaBroken) {
     if (!authUser) return unauthorizedResponse()
     if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Super Admin access required for force reset' }, { status: 403 })
     }
-  } else if (userCount > 0) {
-    // Not force reset, but users exist — require admin auth
+  } else if (userCount > 0 && !schemaBroken) {
+    // Not force reset, not broken schema, but users exist — require admin auth
     if (!authUser) return unauthorizedResponse()
     if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
@@ -101,7 +126,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Force reset: drop all tables and recreate
-    if (forceReset) {
+    // Also auto-reset when schema is broken and no users exist (safe to rebuild)
+    if (forceReset || (schemaBroken && userCount === 0)) {
       const allTables = [
         'SimulationAttempt', 'Enrollment', 'CourseModule', 'Simulation', 'Course',
         'CPDRecord', 'PortfolioEntry', 'Competency', 'Credential',
@@ -132,8 +158,8 @@ export async function POST(request: NextRequest) {
       } catch {}
     }
 
-    // Check if core tables already exist (and not force reset)
-    if (!forceReset) {
+    // Check if core tables already exist (and not force reset and not broken schema)
+    if (!forceReset && !schemaBroken) {
       try {
         await db.user.findFirst({ take: 1 })
         return NextResponse.json({
