@@ -46,6 +46,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   // 🔒 Require admin authentication for destructive operations
   // Allow unauthenticated setup ONLY if no users exist yet (first-time setup)
+  // Use ?force=true to drop all tables and recreate (useful for fixing schema issues)
+  const { searchParams } = new URL(request.url)
+  const forceReset = searchParams.get('force') === 'true'
+
   let authUser = null
   try {
     authUser = await getAuthenticatedUser(request)
@@ -54,9 +58,18 @@ export async function POST(request: NextRequest) {
   }
   let userCount = 0
   try { userCount = await db.user.count() } catch { /* tables may not exist yet */ }
-  if (userCount > 0 && (!authUser || authUser.role !== 'ADMIN')) {
-    if (!authUser) return unauthorizedResponse()
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+
+  // If force reset, allow it (but still require auth if users exist)
+  if (forceReset) {
+    if (userCount > 0 && (!authUser || authUser.role !== 'ADMIN')) {
+      if (!authUser) return unauthorizedResponse()
+      return NextResponse.json({ error: 'Admin access required for force reset with existing data' }, { status: 403 })
+    }
+  } else {
+    if (userCount > 0 && (!authUser || authUser.role !== 'ADMIN')) {
+      if (!authUser) return unauthorizedResponse()
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
   }
 
   try {
@@ -68,16 +81,50 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if core tables already exist
-    try {
-      await db.user.findFirst({ take: 1 })
-      return NextResponse.json({
-        message: 'Database is already set up. Tables exist. You can register and log in!',
-        status: 'already_setup',
+    // Force reset: drop all tables and recreate
+    if (forceReset) {
+      const allTables = [
+        'SimulationAttempt', 'Enrollment', 'CourseModule', 'Simulation', 'Course',
+        'CPDRecord', 'PortfolioEntry', 'Competency', 'Credential',
+        'StaffingPrediction', 'DiseaseSurveillance', 'FacilityAnalytics',
+        'ArticleComment', 'KnowledgeArticle',
+        'Consultation', 'Referral', 'LabOrder', 'MedicationOrder', 'AIInteraction',
+        'NursingNote', 'VitalSign', 'MedicalRecord', 'Appointment', 'VisitRecord',
+        'Department', 'Subscription', 'Notification', 'AuditLog', 'Session',
+        'PatientProfile', 'AdminProfile', 'NurseProfile',
+        'User', 'Facility',
+      ]
+      for (const table of allTables) {
+        try {
+          await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "${table}" CASCADE`)
+        } catch {
+          // Ignore errors — table might not exist
+        }
+      }
+      // Also drop any indexes that might remain
+      try {
+        const indexNames = [
+          'FacilityAnalytics_facilityId_date_period_key',
+          'Enrollment_courseId_nurseId_key',
+        ]
+        for (const idx of indexNames) {
+          try { await db.$executeRawUnsafe(`DROP INDEX IF EXISTS "${idx}"`) } catch {}
+        }
+      } catch {}
+    }
+
+    // Check if core tables already exist (and not force reset)
+    if (!forceReset) {
+      try {
+        await db.user.findFirst({ take: 1 })
+        return NextResponse.json({
+          message: 'Database is already set up. Tables exist. You can register and log in!',
+          status: 'already_setup',
       })
     } catch {
       // Tables don't exist yet — proceed with creation
     }
+    } // end if (!forceReset)
 
     // Create all tables using PostgreSQL-compatible DDL
     const tables: Array<{ name: string; sql: string }> = [
