@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, isDatabaseConnected } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcryptjs'
+import { getAuthenticatedUser } from '@/lib/auth'
 
 function generateLicenseSuffix(): string {
   const hex = randomUUID().replace(/-/g, '').slice(0, 8)
@@ -60,10 +61,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate role - expanded to include SUPER_ADMIN for internal admin dashboard
-    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER', 'SUPER_ADMIN']
+    // Validate role - SUPER_ADMIN can only be created by existing SUPER_ADMIN users
+    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER']
     const normalizedRole = role.toUpperCase()
-    if (!validRoles.includes(normalizedRole)) {
+    
+    // Check if trying to create a SUPER_ADMIN account
+    if (normalizedRole === 'SUPER_ADMIN') {
+      // Only existing SUPER_ADMIN users can create other SUPER_ADMIN accounts
+      const authToken = request.headers.get('Authorization')?.replace('Bearer ', '') || request.cookies.get('nurseos-token')?.value
+      if (!authToken) {
+        return NextResponse.json(
+          { error: 'Only authenticated Super Admins can create Super Admin accounts.' },
+          { status: 403 }
+        )
+      }
+      try {
+        const authUser = await getAuthenticatedUser(request)
+        if (!authUser || authUser.role !== 'SUPER_ADMIN') {
+          return NextResponse.json(
+            { error: 'Only Super Admins can create Super Admin accounts.' },
+            { status: 403 }
+          )
+        }
+      } catch {
+        return NextResponse.json(
+          { error: 'Authentication required to create Super Admin accounts.' },
+          { status: 403 }
+        )
+      }
+    }
+    
+    if (!validRoles.includes(normalizedRole) && normalizedRole !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: `Invalid role. Must be one of: ${validRoles.join(', ')}` },
         { status: 400 }

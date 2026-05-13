@@ -324,9 +324,14 @@ export default function SuperAdminDashboard() {
   const handleCreateSuperAdmin = async () => {
     setIsCreatingAdmin(true)
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
       const res = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           firstName: 'Super',
           lastName: 'Admin',

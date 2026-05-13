@@ -16,7 +16,14 @@ async function hashPassword(password: string): Promise<string> {
  * works from Vercel's serverless environment.
  */
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Require admin auth to check seed status (prevents info leakage)
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+  if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
   const dbConnected = await isDatabaseConnected()
   if (!dbConnected) {
     return NextResponse.json({ status: 'database_not_configured', seeded: false })
@@ -39,7 +46,7 @@ export async function POST(request: NextRequest) {
   // 🔒 Require admin authentication for destructive operations
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
-  if (authUser.role !== 'ADMIN') {
+  if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
     return NextResponse.json({ error: 'Admin access required to seed database' }, { status: 403 })
   }
 
