@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         'NursingNote', 'VitalSign', 'MedicalRecord', 'Appointment', 'VisitRecord',
         'Department', 'Subscription', 'Notification', 'AuditLog', 'Session',
         'PatientProfile', 'AdminProfile', 'NurseProfile',
-        'GeneratedReport', 'ReportSchedule', 'NotificationPreference', 'PasswordReset',
+        'ConsultationMessage', 'GeneratedReport', 'ReportSchedule', 'NotificationPreference', 'PasswordReset',
         'User', 'Facility',
       ]
       for (const table of allTables) {
@@ -192,6 +192,7 @@ export async function POST(request: NextRequest) {
           "emailVerified" BOOLEAN NOT NULL DEFAULT false,
           "phoneVerified" BOOLEAN NOT NULL DEFAULT false,
           "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false,
+          "twoFactorSecret" TEXT,
           "facilityId" TEXT,
           "lastLoginAt" TIMESTAMP(3),
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -526,8 +527,20 @@ export async function POST(request: NextRequest) {
           "transcript" TEXT,
           "aiSummary" TEXT,
           "rating" INTEGER,
+          "webrtcOffer" TEXT,
+          "webrtcAnswer" TEXT,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL
+        )`,
+      },
+      {
+        name: 'ConsultationMessage',
+        sql: `CREATE TABLE IF NOT EXISTS "ConsultationMessage" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "consultationId" TEXT NOT NULL,
+          "senderId" TEXT NOT NULL,
+          "content" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         )`,
       },
       {
@@ -981,6 +994,7 @@ export async function POST(request: NextRequest) {
       `CREATE INDEX IF NOT EXISTS "ReportSchedule_userId_idx" ON "ReportSchedule"("userId")`,
       `CREATE INDEX IF NOT EXISTS "GeneratedReport_userId_templateId_idx" ON "GeneratedReport"("userId", "templateId")`,
       `CREATE INDEX IF NOT EXISTS "GeneratedReport_userId_generatedAt_idx" ON "GeneratedReport"("userId", "generatedAt")`,
+      `CREATE INDEX IF NOT EXISTS "ConsultationMessage_consultationId_idx" ON "ConsultationMessage"("consultationId", "createdAt")`,
     ]
 
     for (const idxSql of indexes) {
@@ -1007,6 +1021,8 @@ export async function POST(request: NextRequest) {
       `ALTER TABLE "NotificationPreference" ADD CONSTRAINT "NotificationPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
       `ALTER TABLE "ReportSchedule" ADD CONSTRAINT "ReportSchedule_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
       `ALTER TABLE "GeneratedReport" ADD CONSTRAINT "GeneratedReport_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "ConsultationMessage" ADD CONSTRAINT "ConsultationMessage_consultationId_fkey" FOREIGN KEY ("consultationId") REFERENCES "Consultation"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "ConsultationMessage" ADD CONSTRAINT "ConsultationMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
     ]
 
     for (const fk of fkConstraints) {
@@ -1014,6 +1030,21 @@ export async function POST(request: NextRequest) {
         await db.$executeRawUnsafe(fk)
       } catch {
         // FK may already exist, ignore
+      }
+    }
+
+    // ── Migrate existing tables: add missing columns for new features ──
+    const migrations = [
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorSecret" TEXT`,
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "Consultation" ADD COLUMN IF NOT EXISTS "webrtcOffer" TEXT`,
+      `ALTER TABLE "Consultation" ADD COLUMN IF NOT EXISTS "webrtcAnswer" TEXT`,
+    ]
+    for (const mSql of migrations) {
+      try {
+        await db.$executeRawUnsafe(mSql)
+      } catch {
+        // Column may already exist, ignore
       }
     }
 
