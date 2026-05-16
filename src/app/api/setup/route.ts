@@ -193,6 +193,9 @@ export async function POST(request: NextRequest) {
           "phoneVerified" BOOLEAN NOT NULL DEFAULT false,
           "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false,
           "twoFactorSecret" TEXT,
+          "compactMode" BOOLEAN NOT NULL DEFAULT false,
+          "sidebarCollapsed" BOOLEAN NOT NULL DEFAULT false,
+          "deletedAt" TIMESTAMP(3),
           "facilityId" TEXT,
           "lastLoginAt" TIMESTAMP(3),
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1037,6 +1040,9 @@ export async function POST(request: NextRequest) {
     const migrations = [
       `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorSecret" TEXT`,
       `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "compactMode" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "sidebarCollapsed" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3)`,
       `ALTER TABLE "Consultation" ADD COLUMN IF NOT EXISTS "webrtcOffer" TEXT`,
       `ALTER TABLE "Consultation" ADD COLUMN IF NOT EXISTS "webrtcAnswer" TEXT`,
     ]
