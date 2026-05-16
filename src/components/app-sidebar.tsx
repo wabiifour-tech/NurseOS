@@ -38,6 +38,7 @@ import {
   Heart,
   ChevronDown,
   Crown,
+  Beaker,
 } from "lucide-react"
 import Image from "next/image"
 
@@ -91,6 +92,7 @@ const navSections: NavSection[] = [
       { title: "Vitals Dashboard", href: "/nurseai/vitals", icon: Activity },
       { title: "Medications", href: "/nurseai/medications", icon: Pill },
       { title: "Appointments", href: "/nurseai/appointments", icon: Calendar },
+      { title: "Lab Orders", href: "/nurseai/lab-orders", icon: Beaker },
     ],
   },
   {

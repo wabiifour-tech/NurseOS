@@ -78,7 +78,7 @@ function getPatientName(patient: ApiPatient): string {
 }
 
 function getNurseName(nurse: ApiRecord['attendingNurse']): string {
-  if (!nurse) return 'Unassigned'
+  if (!nurse?.user) return 'Unassigned'
   return `${nurse.user.firstName} ${nurse.user.lastName}`.trim()
 }
 

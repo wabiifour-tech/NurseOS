@@ -49,6 +49,7 @@ interface ApiMedication {
 
 // ---- Helpers ----
 function getPatientName(med: ApiMedication): string {
+  if (!med.patient?.user) return 'Unknown Patient'
   if (med.patient.user.displayName) return med.patient.user.displayName
   return `${med.patient.user.firstName} ${med.patient.user.lastName}`
 }
@@ -59,7 +60,7 @@ function getPatientInitials(med: ApiMedication): string {
 }
 
 function getVerifiedByName(med: ApiMedication): string {
-  if (!med.verifiedBy) return '—'
+  if (!med.verifiedBy?.user) return '—'
   return `${med.verifiedBy.user.firstName} ${med.verifiedBy.user.lastName}`
 }
 

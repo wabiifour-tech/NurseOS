@@ -12,7 +12,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -387,7 +387,7 @@ export default function LandingPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.8 }}
           >
-            <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> HIPAA Aligned</span>
+            <Link href="/hipaa" className="flex items-center gap-1.5 hover:text-emerald-200 transition-colors"><Shield className="w-4 h-4" /> HIPAA Aligned</Link>
             <span className="text-emerald-600">&bull;</span>
             <span className="flex items-center gap-1.5"><Zap className="w-4 h-4" /> Offline-First</span>
             <span className="text-emerald-600">&bull;</span>
@@ -660,10 +660,10 @@ export default function LandingPage() {
             <div>
               <h4 className="font-semibold text-foreground mb-3 text-sm">Legal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('Privacy Policy page coming soon') }} className="hover:text-foreground transition-colors">Privacy Policy</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('Terms of Service page coming soon') }} className="hover:text-foreground transition-colors">Terms of Service</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('NDPR Compliance page coming soon') }} className="hover:text-foreground transition-colors">NDPR Compliance</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); toast.info('HIPAA Notice page coming soon') }} className="hover:text-foreground transition-colors">HIPAA Notice</a></li>
+                <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
+                <li><Link href="/ndpr" className="hover:text-foreground transition-colors">NDPR Compliance</Link></li>
+                <li><Link href="/hipaa" className="hover:text-foreground transition-colors">HIPAA Notice</Link></li>
               </ul>
             </div>
           </div>
@@ -672,9 +672,11 @@ export default function LandingPage() {
               &copy; {new Date().getFullYear()} NurseOS — Developed by Wabi The Tech Nurse
             </p>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                <Shield className="w-3 h-3 mr-1" /> HIPAA Aligned
-              </Badge>
+              <Link href="/hipaa">
+                <Badge variant="outline" className="text-xs text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-600 cursor-pointer transition-colors">
+                  <Shield className="w-3 h-3 mr-1" /> HIPAA Aligned
+                </Badge>
+              </Link>
               <Badge variant="outline" className="text-xs text-muted-foreground">
                 <Zap className="w-3 h-3 mr-1" /> Nurse-Led
               </Badge>

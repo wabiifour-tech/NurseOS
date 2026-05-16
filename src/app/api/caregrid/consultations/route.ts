@@ -43,10 +43,10 @@ export async function GET(request: NextRequest) {
             },
           },
           requestingNurse: {
-            select: { id: true, user: { select: { firstName: true, lastName: true } } },
+            select: { id: true, user: { select: { firstName: true, lastName: true, phone: true } } },
           },
           consultingNurse: {
-            select: { id: true, user: { select: { firstName: true, lastName: true } } },
+            select: { id: true, user: { select: { firstName: true, lastName: true, phone: true } } },
           },
         },
         skip,
@@ -75,7 +75,12 @@ export async function POST(request: NextRequest) {
   try {
     const nurseId = await getNurseProfileId(authUser.id)
 
-    const body = await request.json()
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Support type allows missing consultingNurseId (for support requests)
     const isSupportRequest = body.consultationType === 'SUPPORT'
@@ -139,7 +144,12 @@ export async function PATCH(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   try {
-    const body = await request.json()
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const { consultationId, status } = body
 
     if (!consultationId) {
@@ -186,10 +196,10 @@ export async function PATCH(request: NextRequest) {
           },
         },
         requestingNurse: {
-          select: { id: true, user: { select: { firstName: true, lastName: true } } },
+          select: { id: true, user: { select: { firstName: true, lastName: true, phone: true } } },
         },
         consultingNurse: {
-          select: { id: true, user: { select: { firstName: true, lastName: true } } },
+          select: { id: true, user: { select: { firstName: true, lastName: true, phone: true } } },
         },
       },
     })

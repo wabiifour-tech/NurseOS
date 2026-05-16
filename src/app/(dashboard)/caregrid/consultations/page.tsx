@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 import { useAuthStore } from "@/lib/auth-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -36,11 +37,15 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { VideoCallDialog } from "@/components/consultations/VideoCallDialog"
+import { ChatDialog } from "@/components/consultations/ChatDialog"
+import { PhoneDialog } from "@/components/consultations/PhoneDialog"
+
 // ---------- Types ----------
 
 interface ApiNurse {
   id: string
-  user: { firstName: string; lastName: string }
+  user: { firstName: string; lastName: string; phone?: string | null }
 }
 
 interface ApiConsultation {
@@ -68,6 +73,7 @@ interface DirectoryNurse {
     lastName: string
     displayName: string | null
     email: string
+    phone?: string | null
   }
 }
 
@@ -110,7 +116,7 @@ function toDisplayStatus(apiStatus: string): DisplayStatus {
 
 function nurseName(nurse: ApiNurse): string {
   if (!nurse?.user) return "Unknown"
-  return `${nurse.user.firstName} ${nurse.user.lastName}`
+  return `${nurse.user.firstName ?? ''} ${nurse.user.lastName ?? ''}`.trim() || "Unknown"
 }
 
 function formatDate(iso: string | null): string {
@@ -130,6 +136,7 @@ function formatTime(iso: string | null): string {
 export default function ConsultationsPage() {
   const { user, token } = useAuthStore()
   const currentUserId = user?.id ?? ""
+  const searchParams = useSearchParams()
 
   // Data state
   const [consultations, setConsultations] = React.useState<ApiConsultation[]>([])
@@ -149,6 +156,9 @@ export default function ConsultationsPage() {
   const [formDescription, setFormDescription] = React.useState("")
   const [formDate, setFormDate] = React.useState("")
   const [formTime, setFormTime] = React.useState("")
+
+  // M6: Pre-fill nurse from requestNurseId query param
+  const requestNurseIdParam = searchParams.get("requestNurseId")
 
   // ---------- Fetch data ----------
 
@@ -190,6 +200,14 @@ export default function ConsultationsPage() {
     }
     load()
   }, [fetchConsultations, fetchNurses])
+
+  // M6: Auto-open dialog and pre-fill nurse when requestNurseId is present
+  React.useEffect(() => {
+    if (requestNurseIdParam && !loading && nurses.length > 0) {
+      setFormNurseId(requestNurseIdParam)
+      setDialogOpen(true)
+    }
+  }, [requestNurseIdParam, loading, nurses.length])
 
   // ---------- Create consultation ----------
 
@@ -440,7 +458,7 @@ export default function ConsultationsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filterBySearch(myRequests).map(consultation => (
-                  <ConsultationCard key={consultation.id} consultation={consultation} isIncoming={false} />
+                  <ConsultationCard key={consultation.id} consultation={consultation} isIncoming={false} currentUserId={currentUserId} token={token} />
                 ))}
               </div>
             )}
@@ -452,7 +470,7 @@ export default function ConsultationsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filterBySearch(incoming).map(consultation => (
-                  <ConsultationCard key={consultation.id} consultation={consultation} isIncoming={true} />
+                  <ConsultationCard key={consultation.id} consultation={consultation} isIncoming={true} currentUserId={currentUserId} token={token} />
                 ))}
               </div>
             )}
@@ -474,23 +492,32 @@ function EmptyState({ message }: { message: string }) {
   )
 }
 
-function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsultation; isIncoming: boolean }) {
-  const token = useAuthStore((s) => s.token)
+function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { consultation: ApiConsultation; isIncoming: boolean; currentUserId: string; token: string | null }) {
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [declining, setDeclining] = React.useState(false)
+
+  // Dialog states for H8/H9/H10
+  const [videoOpen, setVideoOpen] = React.useState(false)
+  const [chatOpen, setChatOpen] = React.useState(false)
+  const [phoneOpen, setPhoneOpen] = React.useState(false)
+
   const displayType = toDisplayType(consultation.consultationType)
   const displayStatus = toDisplayStatus(consultation.status)
   const TypeIcon = typeConfig[displayType].icon
   const StatusIcon = statusConfig[displayStatus].icon
 
+  const isRequester = consultation.requestingNurseId === currentUserId
+  const otherNurse = isRequester ? consultation.consultingNurse : consultation.requestingNurse
+  const otherName = nurseName(otherNurse)
+
   const handleActiveAction = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (consultation.consultationType === "VIDEO") {
-      toast.info("Video consultation will be available when WebRTC integration is deployed. For now, please use an external video call service and note the details in the consultation notes.")
+      setVideoOpen(true)
     } else if (consultation.consultationType === "CHAT") {
-      toast.info("In-app chat will be available when real-time messaging is deployed. For now, please use WhatsApp or another messaging service.")
+      setChatOpen(true)
     } else {
-      toast.info("Phone consultation routing will be available when telephony integration is deployed. For now, please call the consulting nurse directly.")
+      setPhoneOpen(true)
     }
   }
 
@@ -524,6 +551,9 @@ function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsu
     CHAT: { label: "Open Chat", icon: MessagesSquare },
     PHONE: { label: "Start Call", icon: Phone },
   }
+
+  // Get consultant phone for phone dialog
+  const consultantPhone = consultation.consultingNurse?.user?.phone ?? null
 
   return (
     <>
@@ -766,6 +796,37 @@ function ConsultationCard({ consultation, isIncoming }: { consultation: ApiConsu
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* H8: Video Call Dialog */}
+      <VideoCallDialog
+        open={videoOpen}
+        onOpenChange={setVideoOpen}
+        consultationId={consultation.id}
+        consultationType={consultation.consultationType}
+        isRequester={isRequester}
+        otherPartyName={otherName}
+        token={token}
+      />
+
+      {/* H9: Chat Dialog */}
+      <ChatDialog
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        consultationId={consultation.id}
+        currentNurseId={currentUserId}
+        otherPartyName={otherName}
+        token={token}
+      />
+
+      {/* H10: Phone Dialog */}
+      <PhoneDialog
+        open={phoneOpen}
+        onOpenChange={setPhoneOpen}
+        consultationId={consultation.id}
+        consultantName={otherName}
+        consultantPhone={consultantPhone}
+        token={token}
+      />
     </>
   )
 }

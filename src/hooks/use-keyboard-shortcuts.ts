@@ -23,7 +23,19 @@ export function useKeyboardShortcuts() {
         ctrl: true,
         description: 'Focus search',
         action: () => {
-          const searchInput = document.querySelector<HTMLInputElement>('input[type="search"], input[placeholder*="Search"], input[placeholder*="search"]')
+          // Multiple fallback selectors for robustness
+          const selectors = [
+            'input[data-search-input]',
+            'input[role="searchbox"]',
+            'input[type="search"]',
+            'input[placeholder*="Search"]',
+            'input[placeholder*="search"]',
+          ]
+          let searchInput: HTMLInputElement | null = null
+          for (const selector of selectors) {
+            searchInput = document.querySelector<HTMLInputElement>(selector)
+            if (searchInput) break
+          }
           if (searchInput) {
             searchInput.focus()
             searchInput.select()

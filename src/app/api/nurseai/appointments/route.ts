@@ -76,7 +76,12 @@ export async function POST(request: NextRequest) {
   if (facilityId instanceof Response) return facilityId
 
   try {
-    const body = await request.json()
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     if (!body.patientId || !body.appointmentDate) {
       return NextResponse.json(

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,7 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import {
   ArrowLeft, Phone, Mail, AlertTriangle, Activity, Heart, Thermometer,
   Droplets, Wind, Stethoscope, Pill, FileText, Calendar,
-  Shield, Loader2, Beaker, ClipboardList
+  Shield, Loader2, Beaker, ClipboardList, MapPin, Plus, Send
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -143,6 +144,16 @@ interface NursingNoteData {
   updatedAt: string
 }
 
+interface VisitRecordData {
+  id: string
+  patientId: string
+  facilityId: string | null
+  visitDate: string
+  visitType: string
+  outcome: string | null
+  createdAt: string
+}
+
 interface PatientData {
   id: string
   userId: string | null
@@ -181,6 +192,13 @@ export default function PatientDetailPage() {
   const [notFound, setNotFound] = React.useState(false)
   const [error, setError] = React.useState(false)
 
+  // Visit records state
+  const [visitRecords, setVisitRecords] = React.useState<VisitRecordData[]>([])
+  const [visitsLoading, setVisitsLoading] = React.useState(false)
+  const [newVisitType, setNewVisitType] = React.useState('')
+  const [newVisitOutcome, setNewVisitOutcome] = React.useState('')
+  const [submittingVisit, setSubmittingVisit] = React.useState(false)
+
   React.useEffect(() => {
     async function fetchPatient() {
       try {
@@ -213,6 +231,54 @@ export default function PatientDetailPage() {
       fetchPatient()
     }
   }, [patientId])
+
+  // Fetch visit records
+  const fetchVisits = React.useCallback(async () => {
+    if (!patientId) return
+    setVisitsLoading(true)
+    try {
+      const res = await fetch(`/api/nurseai/patients/${patientId}/visits`)
+      if (res.ok) {
+        const data = await res.json()
+        setVisitRecords(data.visits || [])
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setVisitsLoading(false)
+    }
+  }, [patientId])
+
+  React.useEffect(() => {
+    fetchVisits()
+  }, [fetchVisits])
+
+  const handleAddVisit = async () => {
+    if (!newVisitType.trim()) {
+      return
+    }
+    setSubmittingVisit(true)
+    try {
+      const res = await fetch(`/api/nurseai/patients/${patientId}/visits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visitType: newVisitType.trim(),
+          outcome: newVisitOutcome.trim() || null,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setVisitRecords(prev => [data.visit, ...prev])
+        setNewVisitType('')
+        setNewVisitOutcome('')
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSubmittingVisit(false)
+    }
+  }
 
   // Loading state
   if (loading) {
@@ -266,11 +332,11 @@ export default function PatientDetailPage() {
 
   // Derived data
   const patientName = patient.user
-    ? `${patient.user.firstName} ${patient.user.lastName}`
+    ? `${patient.user.firstName ?? ''} ${patient.user.lastName ?? ''}`.trim() || 'Unknown Patient'
     : 'Unknown Patient'
 
   const patientInitials = patient.user
-    ? `${patient.user.firstName.charAt(0)}${patient.user.lastName.charAt(0)}`
+    ? `${patient.user.firstName?.charAt(0) ?? ''}${patient.user.lastName?.charAt(0) ?? ''}` || 'PT'
     : 'PT'
 
   const parsedAllergies: string[] = (() => {
@@ -538,6 +604,7 @@ export default function PatientDetailPage() {
           <TabsTrigger value="records" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Records</TabsTrigger>
           <TabsTrigger value="medications" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Medications</TabsTrigger>
           <TabsTrigger value="labs" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Lab Results</TabsTrigger>
+          <TabsTrigger value="visits" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">Visit Records</TabsTrigger>
         </TabsList>
 
         {/* OVERVIEW TAB */}
@@ -1041,6 +1108,89 @@ export default function PatientDetailPage() {
                             ) : (
                               <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs">Pending</Badge>
                             )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* VISIT RECORDS TAB */}
+        <TabsContent value="visits" className="space-y-4">
+          {/* Add New Visit */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Plus className="size-4 text-emerald-600" />
+                Add Visit Record
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Input
+                  placeholder="Visit type (e.g., Outpatient, Emergency, Follow-up)"
+                  value={newVisitType}
+                  onChange={(e) => setNewVisitType(e.target.value)}
+                  className="flex-1"
+                />
+                <Input
+                  placeholder="Outcome (optional)"
+                  value={newVisitOutcome}
+                  onChange={(e) => setNewVisitOutcome(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 gap-2 shrink-0"
+                  onClick={handleAddVisit}
+                  disabled={!newVisitType.trim() || submittingVisit}
+                >
+                  {submittingVisit ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  Add
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Visit History */}
+          {visitsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-8 animate-spin text-emerald-600" />
+            </div>
+          ) : visitRecords.length === 0 ? (
+            <Card className="border-0 shadow-sm">
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <MapPin className="size-12 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No visit records yet</p>
+                <p className="text-sm mt-1">Add the first visit record for this patient above.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Visit Type</TableHead>
+                        <TableHead>Outcome</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visitRecords.map((visit) => (
+                        <TableRow key={visit.id}>
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {formatDate(visit.visitDate)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{visit.visitType}</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {visit.outcome || '—'}
                           </TableCell>
                         </TableRow>
                       ))}

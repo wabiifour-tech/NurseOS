@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
               staff: true,
               departments: true,
               analytics: true,
+              patientProfiles: true,
             },
           },
         },
@@ -108,7 +109,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Validate required fields
     if (!body.name || !body.type || !body.address || !body.city || !body.state) {

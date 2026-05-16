@@ -40,6 +40,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { CourseContentPlayer } from '@/components/CourseContentPlayer'
 
 interface CourseModule {
   id: string
@@ -87,6 +88,7 @@ export default function CourseDetailPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [activeModule, setActiveModule] = React.useState<string | null>(null)
+  const [enrollmentProgress, setEnrollmentProgress] = React.useState(0)
 
   React.useEffect(() => {
     async function fetchCourse() {
@@ -99,6 +101,7 @@ export default function CourseDetailPage() {
         if (!res.ok) throw new Error('Failed to fetch course')
         const data = await res.json()
         setCourseDetail(data)
+        setEnrollmentProgress(data.enrollmentProgress)
       } catch {
         toast.error('Failed to load course details')
         setError('Failed to load course')
@@ -174,6 +177,27 @@ export default function CourseDetailPage() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
   }
 
+  const handleModuleCompleted = (progress: number) => {
+    setEnrollmentProgress(progress)
+    // Also update the course detail state
+    if (courseDetail) {
+      setCourseDetail({
+        ...courseDetail,
+        enrollmentProgress: progress,
+        enrollmentStatus: progress >= 100 ? 'COMPLETED' : courseDetail.enrollmentStatus,
+      })
+    }
+  }
+
+  const handleContinueLearning = () => {
+    if (!courseDetail?.course.modules.length) return
+    // Find the first module or the current module
+    const currentModuleId = courseDetail.course.modules[0]?.id
+    if (currentModuleId) {
+      setActiveModule(currentModuleId)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -204,7 +228,7 @@ export default function CourseDetailPage() {
     )
   }
 
-  const { course, isEnrolled, enrollmentStatus, enrollmentProgress } = courseDetail
+  const { course, isEnrolled, enrollmentStatus } = courseDetail
   const moduleTypeLabel = (type: string) => {
     switch (type) {
       case 'VIDEO': return 'Video'
@@ -213,6 +237,11 @@ export default function CourseDetailPage() {
       default: return type
     }
   }
+
+  // Find the active module data for the content player
+  const activeModuleData = activeModule
+    ? course.modules.find((m) => m.id === activeModule)
+    : null
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
@@ -224,6 +253,18 @@ export default function CourseDetailPage() {
         <ChevronRight className="size-3.5" />
         <span className="text-foreground font-medium truncate">{course.title}</span>
       </div>
+
+      {/* Active Module Content Player */}
+      {activeModule && activeModuleData && (
+        <CourseContentPlayer
+          moduleId={activeModule}
+          moduleType={activeModuleData.type}
+          moduleTitle={activeModuleData.title}
+          courseId={course.id}
+          onClose={() => setActiveModule(null)}
+          onModuleCompleted={handleModuleCompleted}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
@@ -273,7 +314,7 @@ export default function CourseDetailPage() {
                     <span className="text-sm font-semibold text-emerald-600">{enrollmentProgress}%</span>
                   </div>
                   <Progress value={enrollmentProgress} className="h-2.5" />
-                  <Button variant="outline" className="mt-3 w-full sm:w-auto" size="sm" onClick={() => toast.info('Course content player is under development — this feature will be available soon.')}>
+                  <Button variant="outline" className="mt-3 w-full sm:w-auto" size="sm" onClick={handleContinueLearning}>
                     <Play className="size-4 mr-2" /> Continue Learning
                   </Button>
                 </div>
@@ -323,13 +364,6 @@ export default function CourseDetailPage() {
                         {isEnrolled && (
                           <Button variant="outline" size="sm" className="ml-11 mt-2" onClick={() => {
                             setActiveModule(mod.id)
-                            toast.info(
-                              mod.type === 'Quiz' || mod.type === 'QUIZ'
-                                ? 'Quiz module is under development — this feature will be available soon.'
-                                : mod.type === 'Video' || mod.type === 'VIDEO'
-                                ? 'Video player is under development — this feature will be available soon.'
-                                : 'Reading material viewer is under development — this feature will be available soon.'
-                            )
                           }}>
                             <Play className="size-3.5 mr-1.5" />
                             {mod.type === 'Quiz' || mod.type === 'QUIZ' ? 'Start Quiz' : mod.type === 'Video' || mod.type === 'VIDEO' ? 'Watch Video' : 'Read Material'}
@@ -387,7 +421,7 @@ export default function CourseDetailPage() {
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
                 onClick={async () => {
                   if (isEnrolled) {
-                    toast.info('Continue learning from where you left off')
+                    handleContinueLearning()
                     return
                   }
                   try {

@@ -31,15 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Users,
   Building2,
@@ -47,15 +39,12 @@ import {
   Crown,
   Loader2,
   Activity,
-  ArrowRightLeft,
   FileText,
   Stethoscope,
   MessageCircle,
-  RefreshCw,
   UserX,
   Shield,
   Check,
-  Zap,
   Phone,
   Mail,
   MapPin,
@@ -165,13 +154,6 @@ export default function FacilityAdminDashboard() {
   const [removingWorker, setRemovingWorker] = React.useState<WorkerRow | null>(null)
   const [isRemoving, setIsRemoving] = React.useState(false)
 
-  // Upgrade dialog
-  const [upgradeDialogOpen, setUpgradeDialogOpen] = React.useState(false)
-  const [selectedPlan, setSelectedPlan] = React.useState<PlanType | ''>('')
-  const [paymentMethod, setPaymentMethod] = React.useState('')
-  const [paymentReference, setPaymentReference] = React.useState('')
-  const [isUpgrading, setIsUpgrading] = React.useState(false)
-
   /* ─── Auth headers helper ─── */
   const getHeaders = () => ({
     'Content-Type': 'application/json',
@@ -229,47 +211,6 @@ export default function FacilityAdminDashboard() {
       toast.error('Failed to remove worker')
     } finally {
       setIsRemoving(false)
-    }
-  }
-
-  /* ─── Upgrade plan ─── */
-  const handleUpgrade = async () => {
-    if (!selectedPlan) {
-      toast.error('Please select a plan')
-      return
-    }
-    if (!paymentMethod) {
-      toast.error('Please select a payment method')
-      return
-    }
-
-    setIsUpgrading(true)
-    try {
-      const res = await fetch('/api/subscriptions/upgrade', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          plan: selectedPlan,
-          paymentMethod,
-          paymentReference: paymentReference || undefined,
-        }),
-      })
-
-      const result = await res.json()
-      if (res.ok) {
-        toast.success(result.message || 'Upgrade request submitted!')
-        setUpgradeDialogOpen(false)
-        setSelectedPlan('')
-        setPaymentMethod('')
-        setPaymentReference('')
-        fetchData()
-      } else {
-        toast.error(result.error || 'Failed to submit upgrade request')
-      }
-    } catch {
-      toast.error('Failed to submit upgrade request')
-    } finally {
-      setIsUpgrading(false)
     }
   }
 
@@ -351,7 +292,7 @@ export default function FacilityAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Workers</p>
-                <p className="text-3xl font-bold text-foreground mt-1">{data?.workers.length || 0}</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{data?.workers?.length || 0}</p>
               </div>
               <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
                 <Users className="size-6 text-white" />
@@ -453,12 +394,12 @@ export default function FacilityAdminDashboard() {
             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
               <p className="text-xs text-muted-foreground">Workers</p>
               <p className="text-lg font-bold">
-                {data?.workers.length || 0}
+                {data?.workers?.length || 0}
                 <span className="text-sm font-normal text-muted-foreground">
                   {' '}/ {currentLimits.nurseAccounts === -1 ? '∞' : currentLimits.nurseAccounts}
                 </span>
               </p>
-              {currentLimits.nurseAccounts !== -1 && (data?.workers.length || 0) >= currentLimits.nurseAccounts && (
+              {currentLimits.nurseAccounts !== -1 && (data?.workers?.length || 0) >= currentLimits.nurseAccounts && (
                 <Badge variant="outline" className="text-[10px] border-red-300 text-red-600 bg-red-50 mt-1">Limit Reached</Badge>
               )}
             </div>
@@ -521,20 +462,8 @@ export default function FacilityAdminDashboard() {
           </div>
         </CardContent>
         <CardFooter className="flex gap-2">
-          {currentPlan === 'FREE' ? (
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => {
-              setSelectedPlan('STARTER')
-              setUpgradeDialogOpen(true)
-            }}>
-              <Zap className="size-4 mr-2" /> Upgrade Plan
-            </Button>
-          ) : (
-            <Button variant="outline" onClick={() => setUpgradeDialogOpen(true)}>
-              Change Plan
-            </Button>
-          )}
           <Button variant="outline" onClick={() => router.push('/subscription')}>
-            <CreditCard className="size-4 mr-2" /> View Details
+            <CreditCard className="size-4 mr-2" /> Manage Subscription
           </Button>
           <Button variant="outline" onClick={() => window.open('https://wa.me/2347052356638', '_blank')}>
             <MessageCircle className="size-4 mr-2" /> Billing Support
@@ -551,7 +480,7 @@ export default function FacilityAdminDashboard() {
               <CardTitle className="text-lg">Workers</CardTitle>
             </div>
             <Badge variant="outline" className="text-xs">
-              {data?.workers.length || 0} workers
+              {data?.workers?.length || 0} workers
             </Badge>
           </div>
           <CardDescription>Healthcare workers in your facility</CardDescription>
@@ -647,35 +576,35 @@ export default function FacilityAdminDashboard() {
             <div className="flex items-start gap-3">
               <Building2 className="size-4 text-muted-foreground mt-0.5" />
               <div>
-                <p className="text-sm font-medium">{data?.facility.name || 'Unnamed Facility'}</p>
-                <p className="text-xs text-muted-foreground">{data?.facility.type || 'General'} Facility</p>
+                <p className="text-sm font-medium">{data?.facility?.name || 'Unnamed Facility'}</p>
+                <p className="text-xs text-muted-foreground">{data?.facility?.type || 'General'} Facility</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <MapPin className="size-4 text-muted-foreground mt-0.5" />
               <div>
-                <p className="text-sm">{data?.facility.address || 'No address'}</p>
-                <p className="text-xs text-muted-foreground">{data?.facility.city}, {data?.facility.state}</p>
+                <p className="text-sm">{data?.facility?.address || 'No address'}</p>
+                <p className="text-xs text-muted-foreground">{data?.facility?.city || '—'}, {data?.facility?.state || '—'}</p>
               </div>
             </div>
-            {data?.facility.phone && (
+            {data?.facility?.phone && (
               <div className="flex items-center gap-3">
                 <Phone className="size-4 text-muted-foreground" />
-                <p className="text-sm">{data.facility.phone}</p>
+                <p className="text-sm">{data.facility?.phone}</p>
               </div>
             )}
-            {data?.facility.email && (
+            {data?.facility?.email && (
               <div className="flex items-center gap-3">
                 <Mail className="size-4 text-muted-foreground" />
-                <p className="text-sm">{data.facility.email}</p>
+                <p className="text-sm">{data.facility?.email}</p>
               </div>
             )}
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className={`text-[10px] ${data?.facility.isVerified ? 'text-emerald-600 border-emerald-500/30' : 'text-amber-600 border-amber-500/30'}`}>
-                {data?.facility.isVerified ? 'Verified' : 'Pending Verification'}
+              <Badge variant="outline" className={`text-[10px] ${data?.facility?.isVerified ? 'text-emerald-600 border-emerald-500/30' : 'text-amber-600 border-amber-500/30'}`}>
+                {data?.facility?.isVerified ? 'Verified' : 'Pending Verification'}
               </Badge>
-              {data?.facility.bedCapacity && (
-                <span className="text-xs text-muted-foreground">{data.facility.bedCapacity} beds</span>
+              {data?.facility?.bedCapacity && (
+                <span className="text-xs text-muted-foreground">{data.facility?.bedCapacity} beds</span>
               )}
             </div>
           </CardContent>
@@ -760,7 +689,7 @@ export default function FacilityAdminDashboard() {
           <div className="py-4">
             {removingWorker && (
               <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 text-sm text-red-700 dark:text-red-300">
-                <strong>Warning:</strong> This will unassign {removingWorker.firstName} {removingWorker.lastName} ({removingWorker.email}) from {data?.facility.name || 'your facility'}. They can be re-assigned later.
+                <strong>Warning:</strong> This will unassign {removingWorker.firstName} {removingWorker.lastName} ({removingWorker.email}) from {data?.facility?.name || 'your facility'}. They can be re-assigned later.
               </div>
             )}
           </div>
@@ -774,63 +703,6 @@ export default function FacilityAdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Upgrade Dialog ── */}
-      <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Upgrade to {selectedPlan ? PLAN_LIMITS[selectedPlan].name : ''}</DialogTitle>
-            <DialogDescription>
-              Complete your upgrade request. Your 14-day free trial starts immediately.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {selectedPlan && (
-              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20">
-                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                  {PLAN_LIMITS[selectedPlan].name} — {PLAN_LIMITS[selectedPlan].price}{PLAN_LIMITS[selectedPlan].period}
-                </p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">14-day free trial included</p>
-              </div>
-            )}
-            <div className="grid gap-2">
-              <Label>Select Plan</Label>
-              <Select value={selectedPlan} onValueChange={(v) => setSelectedPlan(v as PlanType)}>
-                <SelectTrigger><SelectValue placeholder="Choose a plan" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="STARTER">Facility Starter — ₦50K/mo</SelectItem>
-                  <SelectItem value="PRO">Pro — ₦150K/mo</SelectItem>
-                  <SelectItem value="ENTERPRISE">Enterprise — Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Payment Method</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger><SelectValue placeholder="How will you pay?" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-                  <SelectItem value="MANUAL">Manual / Cash</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Payment Reference (optional)</Label>
-              <Input
-                placeholder="e.g., Transfer receipt number"
-                value={paymentReference}
-                onChange={(e) => setPaymentReference(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUpgradeDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleUpgrade} disabled={isUpgrading}>
-              {isUpgrading && <Loader2 className="size-4 mr-2 animate-spin" />}
-              Submit Upgrade Request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

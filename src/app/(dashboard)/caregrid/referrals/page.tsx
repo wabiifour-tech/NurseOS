@@ -119,11 +119,13 @@ const urgencyConfig: Record<ApiUrgency, { color: string; dot: string }> = {
 
 // --- Helper ---
 function getPatientName(referral: ApiReferral): string {
+  if (!referral.patient?.user) return 'Unknown Patient'
   if (referral.patient.user.displayName) return referral.patient.user.displayName
   return `${referral.patient.user.firstName} ${referral.patient.user.lastName}`
 }
 
 function getNurseName(referral: ApiReferral): string {
+  if (!referral.referringNurse?.user) return 'Unknown Nurse'
   return `${referral.referringNurse.user.firstName} ${referral.referringNurse.user.lastName}`
 }
 
@@ -594,7 +596,7 @@ export default function ReferralsPage() {
                             <div>
                               <p className="text-sm font-medium">{getPatientName(referral)}</p>
                               <p className="text-[10px] text-muted-foreground">
-                                {referral.patient.patientId}
+                                {referral.patient?.patientId ?? '—'}
                               </p>
                             </div>
                           </div>

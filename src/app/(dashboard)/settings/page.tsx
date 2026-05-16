@@ -38,6 +38,8 @@ import {
   Building2,
   AlertTriangle,
   MapPin,
+  Key,
+  Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from 'next-themes'
@@ -59,7 +61,7 @@ export default function SettingsPage() {
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     email: user?.email || '',
-    phone: '',
+    phone: (user as Record<string, unknown> & { phone?: string })?.phone || '',
     bio: '',
   })
 
@@ -70,18 +72,41 @@ export default function SettingsPage() {
   const [isSavingFacility, setIsSavingFacility] = React.useState(false)
   const [facilitySearch, setFacilitySearch] = React.useState('')
 
+  // Load profile data from server (including phone/bio from NurseProfile)
+  const loadProfileData = React.useCallback(async () => {
+    if (!user?.id) return
+    try {
+      const res = await fetch('/api/auth/profile')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.user) {
+          setProfileForm({
+            firstName: data.user.firstName || user.firstName || '',
+            lastName: data.user.lastName || user.lastName || '',
+            email: data.user.email || user.email || '',
+            phone: data.user.phone || '',
+            bio: data.nurseProfile?.bio || '',
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error loading profile data:', error)
+    }
+  }, [user])
+
   // Update profile form when user data changes
   React.useEffect(() => {
     if (user) {
-      setProfileForm({
+      setProfileForm(prev => ({
+        ...prev,
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         email: user.email || '',
-        phone: '',
-        bio: '',
-      })
+        phone: (user as Record<string, unknown> & { phone?: string })?.phone ?? prev.phone,
+      }))
+      loadProfileData()
     }
-  }, [user])
+  }, [user, loadProfileData])
 
   // Notification preferences state
   const [notifications, setNotifications] = React.useState<NotificationPreference[]>([
@@ -136,25 +161,76 @@ export default function SettingsPage() {
   const [compactMode, setCompactModeState] = React.useState(false)
   const [sidebarCollapsed, setSidebarCollapsedState] = React.useState(false)
 
-  const setCompactMode = (val: boolean) => {
+  const setCompactMode = async (val: boolean) => {
     setCompactModeState(val)
     try { localStorage.setItem('nurseos-compact', String(val)) } catch {}
-    toast.info('Compact Mode is coming soon. Your preference has been saved and will apply when this feature is ready.')
-  }
-  const setSidebarCollapsed = (val: boolean) => {
-    setSidebarCollapsedState(val)
-    try { localStorage.setItem('nurseos-sidebar-collapsed', String(val)) } catch {}
-    toast.info('Collapsed Sidebar is coming soon. Your preference has been saved and will apply when this feature is ready.')
+    // Apply compact mode CSS class immediately to document.body
+    if (val) {
+      document.body.classList.add('compact-mode')
+    } else {
+      document.body.classList.remove('compact-mode')
+    }
+    // Save to server via profile endpoint
+    try {
+      await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ compactMode: val }),
+      })
+    } catch {}
+    toast.success(val ? 'Compact mode enabled' : 'Compact mode disabled')
   }
 
-  // Load persisted preferences on mount
-  React.useEffect(() => {
+  const setSidebarCollapsed = async (val: boolean) => {
+    setSidebarCollapsedState(val)
+    try { localStorage.setItem('sidebarCollapsed', String(val)) } catch {}
+    // Also set the default-collapsed key for the layout
+    try { localStorage.setItem('nurseos-sidebar-default-collapsed', String(val)) } catch {}
+    // Dispatch custom event for the dashboard layout to listen for
+    window.dispatchEvent(new CustomEvent('sidebar-toggle', { detail: { collapsed: val } }))
+    // Save to server
     try {
-      const savedCompact = localStorage.getItem('nurseos-compact')
-      const savedSidebar = localStorage.getItem('nurseos-sidebar-collapsed')
-      if (savedCompact !== null) setCompactModeState(savedCompact === 'true')
-      if (savedSidebar !== null) setSidebarCollapsedState(savedSidebar === 'true')
+      await fetch('/api/settings/appearance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sidebarCollapsed: val }),
+      })
     } catch {}
+    toast.success(val ? 'Sidebar will start collapsed' : 'Sidebar will start expanded')
+  }
+
+  // Load persisted preferences on mount (from localStorage first, then server)
+  React.useEffect(() => {
+    async function loadAppearance() {
+      // Load from localStorage first for instant response
+      try {
+        const savedCompact = localStorage.getItem('nurseos-compact')
+        const savedSidebar = localStorage.getItem('sidebarCollapsed')
+        if (savedCompact !== null) {
+          setCompactModeState(savedCompact === 'true')
+          if (savedCompact === 'true') document.body.classList.add('compact-mode')
+        }
+        if (savedSidebar !== null) setSidebarCollapsedState(savedSidebar === 'true')
+      } catch {}
+      // Then load from server to sync
+      try {
+        const res = await fetch('/api/settings/appearance')
+        if (res.ok) {
+          const data = await res.json()
+          if (typeof data.compactMode === 'boolean') {
+            setCompactModeState(data.compactMode)
+            try { localStorage.setItem('nurseos-compact', String(data.compactMode)) } catch {}
+            if (data.compactMode) document.body.classList.add('compact-mode')
+            else document.body.classList.remove('compact-mode')
+          }
+          if (typeof data.sidebarCollapsed === 'boolean') {
+            setSidebarCollapsedState(data.sidebarCollapsed)
+            try { localStorage.setItem('sidebarCollapsed', String(data.sidebarCollapsed)) } catch {}
+          }
+        }
+      } catch {}
+    }
+    loadAppearance()
   }, [])
 
   // Security state
@@ -168,13 +244,107 @@ export default function SettingsPage() {
   })
   const [isChangingPassword, setIsChangingPassword] = React.useState(false)
   const [twoFactorEnabled, setTwoFactorEnabled] = React.useState(false)
+  const [twoFactorSetupData, setTwoFactorSetupData] = React.useState<{ secret: string; otpauthUrl: string; manualEntryKey: string } | null>(null)
+  const [twoFACode, setTwoFACode] = React.useState('')
+  const [isSettingUp2FA, setIsSettingUp2FA] = React.useState(false)
+  const [isVerifying2FA, setIsVerifying2FA] = React.useState(false)
+  const [isDisabling2FA, setIsDisabling2FA] = React.useState(false)
+  const [disable2FAPassword, setDisable2FAPassword] = React.useState('')
+  const [show2FASetup, setShow2FASetup] = React.useState(false)
+  const [show2FADisable, setShow2FADisable] = React.useState(false)
 
-  const handleToggle2FA = (enabled: boolean) => {
-    if (enabled) {
-      toast.info('Two-Factor Authentication is coming soon. This feature will add an extra layer of security to your account.')
+  // Load 2FA status from server on mount
+  React.useEffect(() => {
+    async function load2FAStatus() {
+      try {
+        const res = await fetch('/api/auth/profile')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.user?.twoFactorEnabled) setTwoFactorEnabled(true)
+        }
+      } catch {}
+    }
+    load2FAStatus()
+  }, [])
+
+  const handleEnable2FA = async () => {
+    setIsSettingUp2FA(true)
+    try {
+      const res = await fetch('/api/auth/2fa/setup', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to set up 2FA')
+        setIsSettingUp2FA(false)
+        return
+      }
+      setTwoFactorSetupData(data)
+      setShow2FASetup(true)
+    } catch (error) {
+      console.error('2FA setup error:', error)
+      toast.error('Failed to set up 2FA')
+    } finally {
+      setIsSettingUp2FA(false)
+    }
+  }
+
+  const handleVerify2FA = async () => {
+    if (!twoFACode || twoFACode.length !== 6) {
+      toast.error('Please enter a valid 6-digit code')
       return
     }
-    setTwoFactorEnabled(false)
+    setIsVerifying2FA(true)
+    try {
+      const res = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: twoFACode }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Invalid code')
+        setIsVerifying2FA(false)
+        return
+      }
+      setTwoFactorEnabled(true)
+      setShow2FASetup(false)
+      setTwoFACode('')
+      toast.success('Two-Factor Authentication enabled successfully!')
+    } catch (error) {
+      console.error('2FA verify error:', error)
+      toast.error('Failed to verify 2FA code')
+    } finally {
+      setIsVerifying2FA(false)
+    }
+  }
+
+  const handleDisable2FA = async () => {
+    if (!disable2FAPassword) {
+      toast.error('Please enter your password to disable 2FA')
+      return
+    }
+    setIsDisabling2FA(true)
+    try {
+      const res = await fetch('/api/auth/2fa/setup', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: disable2FAPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to disable 2FA')
+        setIsDisabling2FA(false)
+        return
+      }
+      setTwoFactorEnabled(false)
+      setShow2FADisable(false)
+      setDisable2FAPassword('')
+      toast.success('Two-Factor Authentication disabled')
+    } catch (error) {
+      console.error('2FA disable error:', error)
+      toast.error('Failed to disable 2FA')
+    } finally {
+      setIsDisabling2FA(false)
+    }
   }
 
   // Data & Privacy state
@@ -185,24 +355,49 @@ export default function SettingsPage() {
   const toggleNotification = (id: string) => {
     setNotifications((prev) => {
       const updated = prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
-      // Persist notification preferences to localStorage
+      // Persist notification preferences to localStorage AND server
       try {
         const prefs = updated.reduce((acc, n) => { acc[n.id] = n.enabled; return acc }, {} as Record<string, boolean>)
         localStorage.setItem('nurseos-notification-prefs', JSON.stringify(prefs))
       } catch {}
+      // Save to server (fire and forget)
+      fetch('/api/settings/notification-preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferences: updated.reduce((acc, n) => { acc[n.id] = n.enabled; return acc }, {} as Record<string, boolean>),
+        }),
+      }).catch(() => {})
       return updated
     })
   }
 
-  // Load persisted notification preferences on mount
+  // Load persisted notification preferences on mount (from server first, fall back to localStorage)
   React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem('nurseos-notification-prefs')
-      if (saved) {
-        const prefs = JSON.parse(saved) as Record<string, boolean>
-        setNotifications((prev) => prev.map((n) => prefs[n.id] !== undefined ? { ...n, enabled: prefs[n.id] } : n))
-      }
-    } catch {}
+    async function loadNotifPrefs() {
+      try {
+        const res = await fetch('/api/settings/notification-preferences')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.preferences && Object.keys(data.preferences).length > 0) {
+            const prefs = data.preferences as Record<string, boolean>
+            setNotifications((prev) => prev.map((n) => prefs[n.id] !== undefined ? { ...n, enabled: prefs[n.id] } : n))
+            // Sync to localStorage
+            try { localStorage.setItem('nurseos-notification-prefs', JSON.stringify(prefs)) } catch {}
+            return
+          }
+        }
+      } catch {}
+      // Fallback to localStorage if server fails
+      try {
+        const saved = localStorage.getItem('nurseos-notification-prefs')
+        if (saved) {
+          const prefs = JSON.parse(saved) as Record<string, boolean>
+          setNotifications((prev) => prev.map((n) => prefs[n.id] !== undefined ? { ...n, enabled: prefs[n.id] } : n))
+        }
+      } catch {}
+    }
+    loadNotifPrefs()
   }, [])
 
   const handleSaveProfile = async () => {
@@ -216,6 +411,7 @@ export default function SettingsPage() {
           firstName: profileForm.firstName,
           lastName: profileForm.lastName,
           phone: profileForm.phone,
+          bio: profileForm.bio,
         }),
       })
 
@@ -344,13 +540,68 @@ export default function SettingsPage() {
     }
   }
 
-  const handleExportData = () => {
-    toast.info('Data export is coming soon. This feature will allow you to download all your data from NurseOS.')
+  const [isExporting, setIsExporting] = React.useState(false)
+
+  const handleExportData = async () => {
+    setIsExporting(true)
+    try {
+      const res = await fetch('/api/settings/export')
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || 'Failed to export data')
+        setIsExporting(false)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `nurseos-export-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      toast.success('Data exported successfully')
+    } catch (error) {
+      console.error('Export error:', error)
+      toast.error('Failed to export data. Please try again.')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
-  const handleDeleteAccount = () => {
-    toast.info('Account deletion is coming soon. This feature will require confirmation before any data is removed.')
-    setShowDeleteConfirm(false)
+  const [deletePassword, setDeletePassword] = React.useState('')
+  const [isDeleting, setIsDeleting] = React.useState(false)
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      toast.error('Please enter your password to confirm account deletion')
+      return
+    }
+    setIsDeleting(true)
+    try {
+      const res = await fetch('/api/settings/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: deletePassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to delete account')
+        setIsDeleting(false)
+        return
+      }
+      // Clear local auth state
+      const { logout } = useAuthStore.getState()
+      logout()
+      toast.success('Account deleted successfully')
+      // Redirect to landing page
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Delete account error:', error)
+      toast.error('Failed to delete account. Please try again.')
+      setIsDeleting(false)
+    }
   }
 
   const firstName = user?.firstName || 'Nurse'
@@ -401,8 +652,8 @@ export default function SettingsPage() {
                         firstName: user.firstName || '',
                         lastName: user.lastName || '',
                         email: user.email || '',
-                        phone: '',
-                        bio: '',
+                        phone: profileForm.phone,
+                        bio: profileForm.bio,
                       })
                     }
                   }}
@@ -800,12 +1051,7 @@ export default function SettingsPage() {
             {/* Compact Mode */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">Compact Mode</p>
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
-                    Coming Soon
-                  </Badge>
-                </div>
+                <p className="text-sm font-medium">Compact Mode</p>
                 <p className="text-xs text-muted-foreground">Reduce spacing and padding for denser information display</p>
               </div>
               <Switch checked={compactMode} onCheckedChange={setCompactMode} />
@@ -816,12 +1062,7 @@ export default function SettingsPage() {
             {/* Sidebar Default */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">Collapsed Sidebar</p>
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
-                    Coming Soon
-                  </Badge>
-                </div>
+                <p className="text-sm font-medium">Collapsed Sidebar</p>
                 <p className="text-xs text-muted-foreground">Start with the sidebar collapsed by default</p>
               </div>
               <Switch checked={sidebarCollapsed} onCheckedChange={setSidebarCollapsed} />
@@ -842,25 +1083,152 @@ export default function SettingsPage() {
         <CardContent>
           <div className="space-y-6">
             {/* Two-Factor Authentication */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <Lock className="size-4 text-emerald-600" />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <Lock className="size-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Two-Factor Authentication</p>
+                    <p className="text-xs text-muted-foreground">Add an extra layer of security to your account</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Two-Factor Authentication</p>
-                  <p className="text-xs text-muted-foreground">Add an extra layer of security to your account</p>
+                <div className="flex items-center gap-2">
+                  {twoFactorEnabled ? (
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/30 bg-emerald-500/10 text-emerald-600">
+                      Enabled
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] border-slate-300 bg-slate-50 text-slate-500">
+                      Disabled
+                    </Badge>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge
+
+              {/* 2FA Actions */}
+              {!twoFactorEnabled && !show2FASetup && (
+                <Button
                   variant="outline"
-                  className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600"
+                  size="sm"
+                  onClick={handleEnable2FA}
+                  disabled={isSettingUp2FA}
+                  className="border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
                 >
-                  Coming Soon
-                </Badge>
-                <Switch checked={twoFactorEnabled} onCheckedChange={handleToggle2FA} disabled />
-              </div>
+                  {isSettingUp2FA ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Key className="size-4 mr-1" />}
+                  Set Up 2FA
+                </Button>
+              )}
+
+              {/* 2FA Setup Flow */}
+              {show2FASetup && twoFactorSetupData && (
+                <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Step 1: Scan QR Code or Enter Key</p>
+                    <p className="text-xs text-muted-foreground">
+                      Scan the QR code below with your authenticator app (Google Authenticator, Authy, etc.) or manually enter the secret key.
+                    </p>
+                    {/* QR Code as a data URI */}
+                    <div className="flex flex-col items-center gap-3 py-3">
+                      <div className="p-3 bg-white rounded-lg border">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(twoFactorSetupData.otpauthUrl)}`}
+                          alt="2FA QR Code"
+                          width={200}
+                          height={200}
+                          className="rounded"
+                        />
+                      </div>
+                      <div className="w-full space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium">Manual Entry Key:</p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 text-xs bg-muted p-2 rounded font-mono break-all select-all">
+                            {twoFactorSetupData.manualEntryKey}
+                          </code>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(twoFactorSetupData.manualEntryKey)
+                              toast.success('Secret key copied to clipboard')
+                            }}
+                          >
+                            <Copy className="size-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Step 2: Verify with Code</p>
+                    <p className="text-xs text-muted-foreground">Enter the 6-digit code from your authenticator app to enable 2FA.</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={twoFACode}
+                        onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        className="h-9 font-mono text-center text-lg tracking-widest w-40"
+                        maxLength={6}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleVerify2FA}
+                        disabled={isVerifying2FA || twoFACode.length !== 6}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                      >
+                        {isVerifying2FA ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Check className="size-4 mr-1" />}
+                        Verify
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setShow2FASetup(false); setTwoFACode('') }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Disable 2FA */}
+              {twoFactorEnabled && !show2FADisable && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShow2FADisable(true)}
+                  className="border-red-500/30 text-red-600 hover:bg-red-500/10"
+                >
+                  <Lock className="size-4 mr-1" /> Disable 2FA
+                </Button>
+              )}
+
+              {twoFactorEnabled && show2FADisable && (
+                <div className="space-y-3 p-4 rounded-lg border border-red-200 bg-red-50/50 dark:border-red-500/20 dark:bg-red-500/5">
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">Disable Two-Factor Authentication</p>
+                  <p className="text-xs text-muted-foreground">Enter your password to confirm. Your account will be less secure without 2FA.</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="password"
+                      value={disable2FAPassword}
+                      onChange={(e) => setDisable2FAPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="h-9 flex-1"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDisable2FA}
+                      disabled={isDisabling2FA || !disable2FAPassword}
+                    >
+                      {isDisabling2FA ? <Loader2 className="size-4 mr-1 animate-spin" /> : null}
+                      Disable
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setShow2FADisable(false); setDisable2FAPassword('') }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />
@@ -1040,9 +1408,6 @@ export default function SettingsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium">Export Your Data</p>
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
-                    Coming Soon
-                  </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">Download a copy of all your data from NurseOS</p>
               </div>
@@ -1050,8 +1415,9 @@ export default function SettingsPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleExportData}
+                disabled={isExporting}
               >
-                <Download className="size-4 mr-1" /> Export Data
+                {isExporting ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Download className="size-4 mr-1" />} Export Data
               </Button>
             </div>
 
@@ -1062,31 +1428,33 @@ export default function SettingsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-destructive">Delete Account</p>
-                  <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
-                    Coming Soon
-                  </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">Permanently delete your account and all associated data. This action cannot be undone.</p>
               </div>
               {showDeleteConfirm ? (
-                <div className="flex flex-col items-end gap-2">
-                  <p className="text-xs text-destructive font-medium">This will permanently erase all your data.</p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowDeleteConfirm(false)}
-                    >
-                      Cancel
-                    </Button>
+                <div className="flex flex-col items-end gap-3">
+                  <p className="text-xs text-destructive font-medium">This will permanently erase all your data. Enter your password to confirm.</p>
+                  <div className="flex items-center gap-2 w-full">
+                    <Input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="h-9 flex-1"
+                    />
                     <Button
                       variant="destructive"
                       size="sm"
                       onClick={handleDeleteAccount}
+                      disabled={isDeleting || !deletePassword}
                     >
-                      <AlertTriangle className="size-4 mr-1" /> Confirm Delete
+                      {isDeleting ? <Loader2 className="size-4 mr-1 animate-spin" /> : <AlertTriangle className="size-4 mr-1" />}
+                      Confirm Delete
                     </Button>
                   </div>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowDeleteConfirm(false); setDeletePassword('') }}>
+                    Cancel
+                  </Button>
                 </div>
               ) : (
                 <Button

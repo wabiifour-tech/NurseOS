@@ -328,12 +328,12 @@ export default function PatientsPage() {
                         <Link href={`/nurseai/patients/${patient.id}`} className="flex items-center gap-3">
                           <Avatar className="size-8 border border-emerald-200">
                             <AvatarFallback className="bg-emerald-50 text-emerald-700 text-xs font-medium">
-                              {patient.user ? getInitials(patient.user.firstName, patient.user.lastName) : 'PT'}
+                              {patient.user ? getInitials(patient.user.firstName ?? '', patient.user.lastName ?? '') : 'PT'}
                             </AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-medium text-sm">
-                              {patient.user ? `${patient.user.firstName} ${patient.user.lastName}` : 'Unknown'}
+                              {patient.user ? `${patient.user.firstName ?? ''} ${patient.user.lastName ?? ''}`.trim() || 'Unknown' : 'Unknown'}
                             </p>
                             <p className="text-xs text-muted-foreground">{patient.user?.email || '—'}</p>
                           </div>

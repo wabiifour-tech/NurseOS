@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,8 @@ import {
   User,
   FileText,
   Loader2,
+  XCircle,
+  Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -45,6 +48,28 @@ interface Certificate {
   }
 }
 
+interface VerificationResult {
+  valid: boolean
+  status: string
+  verification: {
+    hash: string
+    hashPrefix: string
+    timestamp: string
+    algorithm: string
+  }
+  certificate: {
+    certificateNumber: string
+    recipient: string
+    course: string
+    category: string
+    level: string
+    cpdPoints: number | null
+    issuedDate: string | null
+    issuer: string
+  }
+  message: string
+}
+
 export default function CertificatesPage() {
   const [certificates, setCertificates] = React.useState<Certificate[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -52,6 +77,11 @@ export default function CertificatesPage() {
   const [selectedCert, setSelectedCert] = React.useState<Certificate | null>(null)
   const [copied, setCopied] = React.useState(false)
   const [recipientName, setRecipientName] = React.useState<string>('')
+
+  // Verification state
+  const [verificationResult, setVerificationResult] = React.useState<VerificationResult | null>(null)
+  const [verifyInput, setVerifyInput] = React.useState('')
+  const [verifying, setVerifying] = React.useState(false)
 
   React.useEffect(() => {
     async function fetchData() {
@@ -179,7 +209,6 @@ export default function CertificatesPage() {
       text-align: center;
     }
 
-    /* Corner ornaments */
     .corner {
       position: absolute;
       width: 60px;
@@ -441,7 +470,7 @@ export default function CertificatesPage() {
 
           <div class="cert-id-footer">
             Certificate ID: ${cert.certificateNumber}
-            ${cert.isVerified ? '<span class="verified-badge"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg> Platform Verified</span>' : ''}
+            ${cert.isVerified ? '<span class="verified-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Platform Verified</span>' : ''}
           </div>
         </div>
       </div>
@@ -457,7 +486,6 @@ export default function CertificatesPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback for browsers/contexts where Clipboard API is unavailable
       try {
         const textarea = document.createElement('textarea')
         textarea.value = hash
@@ -485,6 +513,62 @@ export default function CertificatesPage() {
       })
     } catch {
       return dateStr
+    }
+  }
+
+  const handleVerifyCertificate = async (cert: Certificate) => {
+    setSelectedCert(cert)
+    setVerificationResult(null)
+    setVerifyInput('')
+    setVerifyDialogOpen(true)
+
+    // Auto-verify the certificate immediately
+    setVerifying(true)
+    try {
+      const res = await fetch(`/api/nurseacademy/certificates/${cert.id}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      setVerificationResult(data)
+    } catch {
+      setVerificationResult({
+        valid: false,
+        status: 'ERROR',
+        message: 'Failed to verify certificate.',
+        verification: { hash: '', hashPrefix: '', timestamp: new Date().toISOString(), algorithm: 'SHA-256' },
+        certificate: {
+          certificateNumber: cert.certificateNumber,
+          recipient: recipientName,
+          course: cert.course.title,
+          category: cert.course.category,
+          level: cert.course.level,
+          cpdPoints: cert.course.cpdPoints,
+          issuedDate: cert.issuedDate,
+          issuer: 'NurseOS Academy',
+        },
+      })
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  const handleVerifyByCode = async () => {
+    if (!verifyInput.trim() || !selectedCert) return
+    setVerifying(true)
+    try {
+      const res = await fetch(`/api/nurseacademy/certificates/${selectedCert.id}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verificationCode: verifyInput.trim() }),
+      })
+      const data = await res.json()
+      setVerificationResult(data)
+    } catch {
+      toast.error('Failed to verify certificate')
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -562,7 +646,7 @@ export default function CertificatesPage() {
               <p className="text-2xl font-bold text-amber-600">
                 {certificates.filter((c) => c.isVerified).length}
               </p>
-              <p className="text-sm text-muted-foreground">Platform Verified</p>
+              <p className="text-sm text-muted-foreground">Cryptographically Verified</p>
             </div>
           </CardContent>
         </Card>
@@ -646,10 +730,7 @@ export default function CertificatesPage() {
                   variant="outline"
                   size="sm"
                   className="text-xs gap-1.5"
-                  onClick={() => {
-                    setSelectedCert(cert)
-                    setVerifyDialogOpen(true)
-                  }}
+                  onClick={() => handleVerifyCertificate(cert)}
                 >
                   <Shield className="size-3.5" /> Verify
                 </Button>
@@ -681,59 +762,122 @@ export default function CertificatesPage() {
               Certificate Verification
             </DialogTitle>
             <DialogDescription>
-              This certificate has been verified by NurseOS Academy
+              Cryptographic verification using SHA-256 hashing
             </DialogDescription>
           </DialogHeader>
           {selectedCert && (
             <div className="space-y-4">
+              {/* Certificate Preview */}
               <div className="p-4 bg-emerald-50 dark:bg-emerald-500/5 rounded-lg border border-emerald-200 dark:border-emerald-500/20 text-center">
                 <Award className="size-8 text-emerald-600 mx-auto mb-2" />
                 <p className="font-bold">{selectedCert.course.title}</p>
                 <p className="text-sm text-muted-foreground">{formatDate(selectedCert.issuedDate)}</p>
               </div>
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Certificate ID</p>
-                <p className="text-sm font-mono">{selectedCert.certificateNumber}</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Verification Code</p>
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                  <code className="text-xs break-all font-mono flex-1">
-                    {selectedCert.certificateNumber}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="shrink-0 size-8 p-0"
-                    onClick={() => copyHash(selectedCert.certificateNumber)}
-                  >
-                    {copied ? (
-                      <CheckCircle2 className="size-3.5 text-emerald-600" />
-                    ) : (
-                      <Copy className="size-3.5" />
+
+              {/* Verification Result */}
+              {verifying ? (
+                <div className="flex items-center justify-center py-4 gap-3">
+                  <Loader2 className="size-5 animate-spin text-emerald-600" />
+                  <span className="text-sm text-muted-foreground">Verifying certificate...</span>
+                </div>
+              ) : verificationResult ? (
+                <>
+                  {/* Status Badge */}
+                  <div className={`p-4 rounded-lg border ${
+                    verificationResult.valid
+                      ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
+                      : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {verificationResult.valid ? (
+                        <CheckCircle2 className="size-5 text-emerald-600" />
+                      ) : (
+                        <XCircle className="size-5 text-red-500" />
+                      )}
+                      <div>
+                        <p className={`font-semibold ${
+                          verificationResult.valid ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'
+                        }`}>
+                          {verificationResult.valid ? '✓ Certificate Verified' : '✗ Verification Failed'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {verificationResult.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Verification Details */}
+                  {verificationResult.verification && verificationResult.verification.hash && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Verification Hash (SHA-256)</p>
+                      <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                        <code className="text-xs break-all font-mono flex-1">
+                          {verificationResult.verification.hash}
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="shrink-0 size-8 p-0"
+                          onClick={() => copyHash(verificationResult.verification.hash)}
+                        >
+                          {copied ? (
+                            <CheckCircle2 className="size-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="size-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Certificate Info */}
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Certificate ID</span>
+                      <span className="font-mono text-xs">{selectedCert.certificateNumber}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Verification Code</span>
+                      <span className="font-mono text-xs">{verificationResult.verification?.hashPrefix || '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Algorithm</span>
+                      <Badge variant="outline" className="text-[10px]">{verificationResult.verification?.algorithm || 'SHA-256'}</Badge>
+                    </div>
+                    {verificationResult.verification?.timestamp && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Verified At</span>
+                        <span className="text-xs">{formatDate(verificationResult.verification.timestamp)}</span>
+                      </div>
                     )}
-                  </Button>
-                </div>
-                {copied && (
-                  <p className="text-xs text-emerald-600">Code copied to clipboard!</p>
-                )}
-              </div>
-              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-                <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="size-4" />
-                  Verified and authentic
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full gap-1.5"
-                onClick={() => toast.info('Blockchain verification is a planned future feature. Currently, certificates are verified through the NurseOS platform. On-chain verification and explorer integration are coming soon!')}
-              >
-                <ExternalLink className="size-4" /> View on Blockchain Explorer
-                <Badge className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20 text-[10px] px-1.5 py-0 ml-1">
-                  Coming Soon
-                </Badge>
-              </Button>
+                  </div>
+
+                  {/* Verify by Code Input */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <p className="text-xs font-medium text-muted-foreground">Verify by entering a code:</p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter certificate ID or verification code"
+                        value={verifyInput}
+                        onChange={(e) => setVerifyInput(e.target.value)}
+                        className="text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleVerifyByCode()
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleVerifyByCode}
+                        disabled={verifying || !verifyInput.trim()}
+                      >
+                        <Search className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
           )}
         </DialogContent>

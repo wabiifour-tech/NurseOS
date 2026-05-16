@@ -409,7 +409,7 @@ export default function SuperAdminDashboard() {
       const q = searchQuery.toLowerCase()
       const name = `${s.user.firstName} ${s.user.lastName}`.toLowerCase()
       const email = s.user.email.toLowerCase()
-      const facility = s.facility?.name.toLowerCase() || ''
+      const facility = (s.facility?.name || '').toLowerCase()
       if (!name.includes(q) && !email.includes(q) && !facility.includes(q)) return false
     }
     return true

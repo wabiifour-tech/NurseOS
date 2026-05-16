@@ -2,13 +2,56 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
+// GET /api/auth/profile — Load full profile including NurseProfile data
+export async function GET(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
+  try {
+    const user = await db.user.findUnique({
+      where: { id: authUser.id },
+      include: {
+        nurseProfile: {
+          select: {
+            bio: true,
+            licenseNumber: true,
+            specialization: true,
+            yearsOfExperience: true,
+          },
+        },
+      },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    const { passwordHash: _, ...userWithoutPassword } = user
+    return NextResponse.json({
+      user: userWithoutPassword,
+      nurseProfile: user.nurseProfile,
+    })
+  } catch (error) {
+    console.error('Profile fetch error:', error)
+    return NextResponse.json(
+      { error: 'An error occurred while fetching your profile.' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
   try {
-    const body = await request.json()
-    const { firstName, lastName, phone, bio, facilityId } = body
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const { firstName, lastName, phone, bio, facilityId, compactMode } = body
 
     // Use the authenticated user's ID from the session, not from the request body
     const userId = authUser.id
@@ -31,6 +74,7 @@ export async function PATCH(request: NextRequest) {
     if (lastName !== undefined) updateData.lastName = lastName
     if (firstName && lastName) updateData.displayName = `${firstName} ${lastName}`
     if (phone !== undefined) updateData.phone = phone
+    if (typeof compactMode === 'boolean') updateData.compactMode = compactMode
 
     // Update the user
     const updatedUser = await db.user.update({

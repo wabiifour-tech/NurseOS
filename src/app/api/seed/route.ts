@@ -9,6 +9,42 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10)
 }
 
+// Generate a secure random password
+function generateSecurePassword(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%'
+  const length = 16
+  let password = ''
+  const randomBytes = new Uint8Array(length)
+  // Use crypto.randomUUID for entropy since we can't use crypto.getRandomValues in all environments
+  const uuids = Array.from({ length: 4 }, () => randomUUID()).join('')
+  for (let i = 0; i < length; i++) {
+    const charCode = uuids.charCodeAt(i % uuids.length)
+    password += chars[charCode % chars.length]
+  }
+  // Ensure it meets password requirements: uppercase, number, special char
+  if (!/[A-Z]/.test(password)) password = 'A' + password.slice(1)
+  if (!/[0-9]/.test(password)) password = password.slice(0, -2) + '9!'
+  if (!/[!@#$%]/.test(password)) password = password.slice(0, -1) + '!'
+  return password
+}
+
+// Simple in-memory rate limiter: blocks after 3 calls per hour
+const seedCallTimestamps: number[] = []
+const RATE_LIMIT_MAX_CALLS = 3
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+
+function checkRateLimit(): { allowed: boolean; remainingCalls: number } {
+  const now = Date.now()
+  // Remove timestamps older than 1 hour
+  while (seedCallTimestamps.length > 0 && seedCallTimestamps[0] < now - RATE_LIMIT_WINDOW_MS) {
+    seedCallTimestamps.shift()
+  }
+  if (seedCallTimestamps.length >= RATE_LIMIT_MAX_CALLS) {
+    return { allowed: false, remainingCalls: 0 }
+  }
+  return { allowed: true, remainingCalls: RATE_LIMIT_MAX_CALLS - seedCallTimestamps.length - 1 }
+}
+
 /**
  * GET /api/seed — Check if database has been seeded
  * POST /api/seed — Seed the database with demo data
@@ -51,6 +87,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required to seed database' }, { status: 403 })
   }
 
+  // 🔒 Rate limit: max 3 seed calls per hour
+  const rateCheck = checkRateLimit()
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Maximum 3 seed operations per hour. Please try again later.' },
+      { status: 429 }
+    )
+  }
+  seedCallTimestamps.push(Date.now())
+
   try {
     const dbConnected = await isDatabaseConnected()
     if (!dbConnected) {
@@ -73,7 +119,12 @@ export async function POST(request: NextRequest) {
     const log: string[] = []
 
     // Check if already seeded (unless force=true)
-    const body = await request.json().catch(() => ({}))
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
     const force = body?.force === true || new URL(request.url).searchParams.get('force') === 'true'
     const existingUsers = await db.user.count()
     if (existingUsers > 0 && !force) {
@@ -108,6 +159,11 @@ export async function POST(request: NextRequest) {
       log.push('Cleared existing data')
     }
 
+    // ========== GENERATE SECURE PASSWORDS ==========
+    const adminPassword = process.env.SEED_ADMIN_PASSWORD || generateSecurePassword()
+    const nursePassword = process.env.SEED_NURSE_PASSWORD || generateSecurePassword()
+    const superAdminPassword = process.env.SEED_SUPER_ADMIN_PASSWORD || generateSecurePassword()
+
     // ========== CREATE FACILITIES ==========
     log.push('Creating facilities...')
     const facilities = []
@@ -121,13 +177,13 @@ export async function POST(request: NextRequest) {
     log.push('Creating admin user...')
     const adminUser = await db.user.create({
       data: {
-        email: 'admin@nurseos.ng', passwordHash: await hashPassword('Admin@2024'),
+        email: 'admin@nurseos.ng', passwordHash: await hashPassword(adminPassword),
         firstName: 'Amina', lastName: 'Okonkwo', middleName: 'Blessing', displayName: 'Amina Okonkwo',
         phone: '+234-803-000-0001', countryCode: 'NG', role: 'ADMIN', status: 'ACTIVE', emailVerified: true,
         adminProfile: { create: { facilityId: facilities[0].id, department: 'Administration', accessLevel: 5 } },
       },
     })
-    log.push('Admin: admin@nurseos.ng / Admin@2024')
+    log.push('Admin user created: admin@nurseos.ng')
 
     // ========== CREATE NURSE USERS ==========
     log.push('Creating nurse users...')
@@ -143,7 +199,7 @@ export async function POST(request: NextRequest) {
     for (const nd of nurseData) {
       const user = await db.user.create({
         data: {
-          email: nd.email, passwordHash: await hashPassword('Nurse@2024'),
+          email: nd.email, passwordHash: await hashPassword(nursePassword),
           firstName: nd.firstName, lastName: nd.lastName, middleName: nd.middleName || null,
           displayName: `${nd.firstName} ${nd.lastName}`, phone: nd.phone, countryCode: 'NG',
           role: 'NURSE', status: 'ACTIVE', emailVerified: true,
@@ -165,7 +221,7 @@ export async function POST(request: NextRequest) {
       })
       nurses.push(user)
     }
-    log.push(`Created ${nurses.length} nurses (password: Nurse@2024)`)
+    log.push(`Created ${nurses.length} nurse users`)
 
     // ========== CREATE PATIENTS ==========
     log.push('Creating patients...')
@@ -193,8 +249,9 @@ export async function POST(request: NextRequest) {
       const patientId = `PT/2024/${String(i + 1).padStart(5, '0')}`
       let userId: string | null = null
       if (pd.email) {
+        const patientPwd = generateSecurePassword()
         const user = await db.user.create({
-          data: { email: pd.email.toLowerCase(), passwordHash: await hashPassword(`patient-seed-${i}`), firstName: pd.firstName, lastName: pd.lastName, displayName: `${pd.firstName} ${pd.lastName}`, countryCode: 'NG', role: 'PATIENT', status: 'ACTIVE' },
+          data: { email: pd.email.toLowerCase(), passwordHash: await hashPassword(patientPwd), firstName: pd.firstName, lastName: pd.lastName, displayName: `${pd.firstName} ${pd.lastName}`, countryCode: 'NG', role: 'PATIENT', status: 'ACTIVE' },
         })
         userId = user.id
       }
@@ -329,7 +386,7 @@ export async function POST(request: NextRequest) {
       try {
         const existingSA = await db.user.findFirst({ where: { email: 'wabithetechnurse@nurseos.com' } })
         if (!existingSA) {
-          const saPasswordHash = await bcrypt.hash('#Abolaji7977', 10)
+          const saPasswordHash = await bcrypt.hash(superAdminPassword, 10)
           const superAdmin = await db.user.create({
             data: {
               id: randomUUID(),
@@ -350,7 +407,7 @@ export async function POST(request: NextRequest) {
               accessLevel: 10,
             },
           })
-          log.push('Re-created Super Admin: wabithetechnurse@nurseos.com / #Abolaji7977')
+          log.push('Re-created Super Admin: wabithetechnurse@nurseos.com')
         }
       } catch (saErr: any) {
         log.push(`Super Admin recreation note: ${saErr?.message?.substring(0, 100) || 'skipped'}`)
@@ -359,21 +416,23 @@ export async function POST(request: NextRequest) {
 
     resetDbConnectionStatus()
 
+    // Build credentials info — passwords are shown only once in the response
+    // for the admin who triggered the seed. They should store these securely.
+    const credentialsInfo: Record<string, string> = {
+      admin: `admin@nurseos.ng / ${adminPassword}`,
+    }
+    for (const nd of nurseData) {
+      credentialsInfo[nd.email] = nursePassword
+    }
+    if (force) {
+      credentialsInfo['superAdmin'] = `wabithetechnurse@nurseos.com / ${superAdminPassword}`
+    }
+
     return NextResponse.json({
-      message: 'Database seeded successfully!',
+      message: 'Database seeded successfully! Save these credentials securely — they will not be shown again.',
       status: 'seed_complete',
       log,
-      testAccounts: {
-        superAdmin: 'wabithetechnurse@nurseos.com / #Abolaji7977',
-        admin: 'admin@nurseos.ng / Admin@2024',
-        nurses: [
-          'chidinma.eze@nurseos.ng / Nurse@2024',
-          'adamu.bello@nurseos.ng / Nurse@2024',
-          'folake.adeyemi@nurseos.ng / Nurse@2024',
-          'ngozi.okafor@nurseos.ng / Nurse@2024',
-          'blessing.ibrahim@nurseos.ng / Nurse@2024',
-        ],
-      },
+      credentials: credentialsInfo,
       summary: {
         facilities: facilities.length,
         states: [...new Set(NIGERIA_FACILITIES.map(f => f.state))].length,

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import {
   Card,
@@ -45,6 +45,8 @@ import {
   Stethoscope,
   Award,
   Loader2,
+  ArrowLeft,
+  MessageCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -68,16 +70,17 @@ interface NurseProfileData {
   createdAt: string
   user: {
     id: string
-    email: string
+    email?: string
     firstName: string
     lastName: string
     middleName: string | null
     displayName: string | null
     avatarUrl: string | null
-    phone: string | null
+    phone?: string | null
     countryCode: string
-    status: string
+    status?: string
     createdAt: string
+    memberSince?: string
   }
   facility: {
     id: string
@@ -86,20 +89,23 @@ interface NurseProfileData {
     city: string
     state: string
   } | null
-  credentials: { id: string; credentialName: string; credentialType: string }[]
+  credentials: { id: string; credentialName: string; credentialType: string; isVerified?: boolean }[]
   competencies: { id: string; competencyArea: string; level: string }[]
-  portfolioEntries: { id: string; title: string; entryType: string }[]
-  cpdRecords: { id: string; title: string; cpdPoints: number }[]
+  portfolioEntries: { id: string; title: string; entryType: string; description?: string }[]
+  cpdRecords?: { id: string; title: string; cpdPoints: number }[]
 }
 
 export default function NurseProfilePage() {
   const { user, token } = useAuthStore()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
   const [profile, setProfile] = React.useState<NurseProfileData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [isEditing, setIsEditing] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [showPreview, setShowPreview] = React.useState(false)
+  const [isPublicView, setIsPublicView] = React.useState(false)
 
   // Editable fields
   const [editData, setEditData] = React.useState({
@@ -118,6 +124,9 @@ export default function NurseProfilePage() {
   const [newSkill, setNewSkill] = React.useState('')
   const [newLanguage, setNewLanguage] = React.useState('')
 
+  // H16: Read nurseId query parameter for public profile view
+  const nurseIdParam = searchParams.get('nurseId')
+
   // Fetch profile
   React.useEffect(() => {
     async function fetchProfile() {
@@ -126,6 +135,29 @@ export default function NurseProfilePage() {
         if (token) {
           headers['Authorization'] = `Bearer ${token}`
         }
+
+        // H16: If nurseId is present AND different from current user, fetch public profile
+        if (nurseIdParam) {
+          const currentNurseProfileId = user?.nurseProfileId
+          if (currentNurseProfileId && nurseIdParam !== currentNurseProfileId) {
+            // Public profile view
+            setIsPublicView(true)
+            const res = await fetch(`/api/nurseid/profile/${nurseIdParam}`, { headers })
+            if (res.ok) {
+              const data = await res.json()
+              setProfile(data.profile as NurseProfileData)
+              try { setSkills(JSON.parse(data.profile.skills || '[]')) } catch { setSkills([]) }
+              try { setLanguages(JSON.parse(data.profile.languages || '["English"]')) } catch { setLanguages(['English']) }
+            } else {
+              toast.error('Failed to load this nurse\'s profile.')
+            }
+            setLoading(false)
+            return
+          }
+        }
+
+        // Own profile (default behavior)
+        setIsPublicView(false)
         const res = await fetch('/api/nurseid/profile', { headers })
         if (res.ok) {
           const data = await res.json()
@@ -154,7 +186,7 @@ export default function NurseProfilePage() {
       }
     }
     fetchProfile()
-  }, [token])
+  }, [token, nurseIdParam, user?.nurseProfileId])
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -251,10 +283,13 @@ export default function NurseProfilePage() {
             <Shield className="size-12 text-muted-foreground/30 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Profile Not Found</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              We couldn&apos;t load your nurse profile. Please ensure you are logged in with a nurse account.
+              {isPublicView
+                ? "We couldn't find this nurse's profile."
+                : "We couldn't load your nurse profile. Please ensure you are logged in with a nurse account."
+              }
             </p>
-            <Button variant="outline" onClick={() => router.push('/login')}>
-              Go to Login
+            <Button variant="outline" onClick={() => router.push(isPublicView ? '/caregrid/directory' : '/login')}>
+              {isPublicView ? 'Back to Directory' : 'Go to Login'}
             </Button>
           </CardContent>
         </Card>
@@ -263,12 +298,272 @@ export default function NurseProfilePage() {
   }
 
   const fullName = `${profile.user.firstName} ${profile.user.lastName}`
-  const initials = `${profile.user.firstName[0]}${profile.user.lastName[0]}`
+  const initials = `${profile.user.firstName?.[0] || ''}${profile.user.lastName?.[0] || ''}`
+
+  // Public view rendering
+  if (isPublicView) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+        {/* Back button */}
+        <Button variant="ghost" size="sm" className="gap-1" onClick={() => router.back()}>
+          <ArrowLeft className="size-4" /> Back
+        </Button>
+
+        {/* Public Profile Header */}
+        <Card className="border-emerald-500/20 overflow-hidden">
+          <div className="h-32 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 relative">
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiLz48L3N2Zz4=')] opacity-50" />
+          </div>
+          <CardContent className="relative pb-6">
+            <div className="flex flex-col sm:flex-row gap-4 -mt-12">
+              <Avatar className="size-24 border-4 border-background shadow-lg">
+                <AvatarImage src={profile.user.avatarUrl || ''} alt={fullName} />
+                <AvatarFallback className="bg-emerald-500/20 text-emerald-700 text-2xl font-bold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 sm:mt-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-2xl font-bold">{fullName}</h1>
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1">
+                        <Eye className="size-3" />
+                        Public Profile
+                      </Badge>
+                    </div>
+                    <p className="text-muted-foreground">{profile.specialization || 'Registered Nurse'}</p>
+                  </div>
+                  <div className="flex items-center gap-2 sm:ml-auto">
+                    {profile.availableForConsult && (
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                        onClick={() => {
+                          router.push(`/caregrid/consultations?requestNurseId=${profile.id}`)
+                        }}
+                      >
+                        <MessageCircle className="size-4 mr-1" /> Request Consultation
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 mt-3 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Shield className="size-3.5 text-emerald-600" />
+                    {profile.licenseNumber}
+                  </span>
+                  {profile.specialization && (
+                    <span className="flex items-center gap-1">
+                      <Stethoscope className="size-3.5" />
+                      {profile.specialization}
+                    </span>
+                  )}
+                  {profile.facility && (
+                    <span className="flex items-center gap-1">
+                      <Building2 className="size-3.5" />
+                      {profile.facility.name}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Bio */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Professional Bio</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed">{profile.bio || 'No bio available.'}</p>
+              </CardContent>
+            </Card>
+
+            {/* Professional Info */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Professional Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">License Number</Label>
+                    <p className="text-sm font-medium flex items-center gap-1">
+                      <Shield className="size-3.5 text-emerald-600" /> {profile.licenseNumber}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Specialization</Label>
+                    <p className="text-sm font-medium">{profile.specialization || 'Not specified'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Current Facility</Label>
+                    <p className="text-sm font-medium flex items-center gap-1">
+                      <Building2 className="size-3.5 text-muted-foreground" /> {profile.facility?.name || 'Not assigned'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Years of Experience</Label>
+                    <p className="text-sm font-medium">{profile.yearsOfExperience ?? 0} years</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Degree</Label>
+                    <p className="text-sm font-medium">{profile.degree || 'Not specified'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">University</Label>
+                    <p className="text-sm font-medium">{profile.university || 'Not specified'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Skills */}
+            {skills.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Skills</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((skill) => (
+                      <Badge key={skill} variant="secondary" className="py-1.5 px-3 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Languages */}
+            {languages.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Languages</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {languages.map((lang) => (
+                      <Badge key={lang} variant="outline" className="py-1.5 px-3 flex items-center gap-1">
+                        <Globe className="size-3 text-emerald-600" />
+                        {lang}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Public Portfolio Entries */}
+            {profile.portfolioEntries && profile.portfolioEntries.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Portfolio</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {profile.portfolioEntries.map((entry) => (
+                    <div key={entry.id} className="border rounded-lg p-3">
+                      <h4 className="text-sm font-semibold">{entry.title}</h4>
+                      <Badge variant="outline" className="text-[10px] mt-1">{entry.entryType}</Badge>
+                      {entry.description && <p className="text-xs text-muted-foreground mt-1">{entry.description}</p>}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-6">
+            {/* Rating Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Rating</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl font-bold text-emerald-600">{profile.rating}</span>
+                  <div>
+                    <div className="flex">{renderStars(profile.rating)}</div>
+                    <p className="text-xs text-muted-foreground">{profile.totalRatings} reviews</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Credentials */}
+            {profile.credentials && profile.credentials.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Credentials</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {profile.credentials.map((cred) => (
+                    <div key={cred.id} className="flex items-center gap-2 text-sm">
+                      <Award className="size-4 text-emerald-600 shrink-0" />
+                      <span className="font-medium">{cred.credentialName}</span>
+                      {cred.isVerified && (
+                        <Badge className="text-[8px] bg-emerald-50 text-emerald-700">Verified</Badge>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Quick Stats</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Award className="size-4 text-emerald-600" /> Credentials
+                  </span>
+                  <span className="font-semibold">{profile.credentials?.length || 0}</span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Stethoscope className="size-4 text-emerald-600" /> Years Experience
+                  </span>
+                  <span className="font-semibold">{profile.yearsOfExperience ?? 0}</span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Globe className="size-4 text-emerald-600" /> Languages
+                  </span>
+                  <span className="font-semibold">{languages.length}</span>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Building2 className="size-4 text-emerald-600" /> Portfolio Items
+                  </span>
+                  <span className="font-semibold">{profile.portfolioEntries?.length || 0}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Own profile (existing behavior)
   const profileCompletion = Math.min(100, [
     profile.bio,
     profile.specialization,
     profile.yearsOfExperience,
-    profile.user.phone,
+    profile.user?.phone,
     skills.length > 0,
     languages.length > 0,
     profile.degree,
@@ -458,7 +753,7 @@ export default function NurseProfilePage() {
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Email</Label>
                   <p className="text-sm font-medium flex items-center gap-1">
-                    <Mail className="size-3.5 text-muted-foreground" /> {profile.user.email}
+                    <Mail className="size-3.5 text-muted-foreground" /> {profile.user?.email ?? '—'}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -471,14 +766,14 @@ export default function NurseProfilePage() {
                     />
                   ) : (
                     <p className="text-sm font-medium flex items-center gap-1">
-                      <Phone className="size-3.5 text-muted-foreground" /> {profile.user.phone || 'Not provided'}
+                      <Phone className="size-3.5 text-muted-foreground" /> {profile.user?.phone || 'Not provided'}
                     </p>
                   )}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Member Since</Label>
                   <p className="text-sm font-medium flex items-center gap-1">
-                    <Calendar className="size-3.5 text-muted-foreground" /> {new Date(profile.user.createdAt).toLocaleDateString()}
+                    <Calendar className="size-3.5 text-muted-foreground" /> {new Date(profile.user?.createdAt ?? profile.createdAt).toLocaleDateString()}
                   </p>
                 </div>
               </div>

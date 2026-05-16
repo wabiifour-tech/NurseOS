@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ import {
   ArrowRight,
   MessageCircle,
   Shield,
+  ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -64,6 +66,7 @@ interface SubscriptionData {
 
 export default function SubscriptionPage() {
   const { user, token } = useAuthStore()
+  const searchParams = useSearchParams()
   const [data, setData] = React.useState<SubscriptionData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [upgradeDialogOpen, setUpgradeDialogOpen] = React.useState(false)
@@ -71,6 +74,9 @@ export default function SubscriptionPage() {
   const [paymentMethod, setPaymentMethod] = React.useState('')
   const [paymentReference, setPaymentReference] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
+  const [payingOnline, setPayingOnline] = React.useState(false)
+  const [verifying, setVerifying] = React.useState(false)
+  const [paystackConfigured, setPaystackConfigured] = React.useState<boolean | null>(null)
 
   const fetchSubscription = React.useCallback(async () => {
     setLoading(true)
@@ -91,9 +97,122 @@ export default function SubscriptionPage() {
     }
   }, [token, user?.id])
 
+  // Auto-verify payment if reference param exists in URL
+  React.useEffect(() => {
+    const reference = searchParams.get('reference')
+    if (!reference) return
+
+    const verifyPayment = async () => {
+      setVerifying(true)
+      try {
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        if (user?.id) headers['x-user-id'] = user.id
+
+        const res = await fetch(`/api/payment/verify?reference=${encodeURIComponent(reference)}`, { headers })
+        const result = await res.json()
+
+        if (res.ok && result.verified) {
+          toast.success(result.message || 'Payment verified successfully! Your plan is now active.')
+        } else if (res.status === 503) {
+          toast.info('Payment received. Our team will verify your payment shortly.')
+        } else {
+          toast.error(result.error || result.message || 'Payment verification failed. Please contact support.')
+        }
+      } catch {
+        toast.error('Failed to verify payment. Please contact support.')
+      } finally {
+        setVerifying(false)
+        // Clean the URL by removing the reference param
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('reference')
+          window.history.replaceState({}, '', url.pathname)
+        }
+        fetchSubscription()
+      }
+    }
+
+    verifyPayment()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, token, user?.id])
+
   React.useEffect(() => {
     fetchSubscription()
   }, [fetchSubscription])
+
+  // Check if Paystack is configured
+  React.useEffect(() => {
+    const checkConfig = async () => {
+      try {
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        if (user?.id) headers['x-user-id'] = user.id
+
+        // Try a lightweight check — if we get 503, Paystack is not configured
+        const res = await fetch('/api/payment/initialize', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: 'STARTER' }),
+        })
+        const data = await res.json()
+
+        if (res.status === 503) {
+          setPaystackConfigured(false)
+        } else if (res.ok && data.authorizationUrl) {
+          // Paystack is configured — don't redirect, just note it
+          setPaystackConfigured(true)
+        } else {
+          // Some other error — assume not configured
+          setPaystackConfigured(false)
+        }
+      } catch {
+        setPaystackConfigured(false)
+      }
+    }
+    checkConfig()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleOnlinePayment = async (plan: PlanType) => {
+    setPayingOnline(true)
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      if (user?.id) headers['x-user-id'] = user.id
+
+      const res = await fetch('/api/payment/initialize', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ plan }),
+      })
+
+      const result = await res.json()
+
+      if (res.status === 503) {
+        toast.info('Online payment is being configured. Please use bank transfer for now.')
+        return
+      }
+
+      if (!res.ok) {
+        toast.error(result.error || 'Failed to initialize payment')
+        return
+      }
+
+      // Redirect to Paystack authorization URL
+      if (result.authorizationUrl) {
+        window.location.href = result.authorizationUrl
+      } else {
+        toast.error('Payment initialization failed. Please try again.')
+      }
+    } catch {
+      toast.error('Failed to initialize payment. Please try again.')
+    } finally {
+      setPayingOnline(false)
+    }
+  }
 
   const handleUpgrade = async () => {
     if (!selectedPlan) {
@@ -102,6 +221,13 @@ export default function SubscriptionPage() {
     }
     if (!paymentMethod) {
       toast.error('Please select a payment method')
+      return
+    }
+
+    // If Paystack is selected, redirect to online payment
+    if (paymentMethod === 'PAYSTACK') {
+      setUpgradeDialogOpen(false)
+      await handleOnlinePayment(selectedPlan)
       return
     }
 
@@ -157,6 +283,19 @@ export default function SubscriptionPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+      {/* Verifying Payment Banner */}
+      {verifying && (
+        <Card className="border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <Loader2 className="size-5 animate-spin text-emerald-600" />
+            <div>
+              <p className="font-medium text-emerald-700 dark:text-emerald-300">Verifying your payment...</p>
+              <p className="text-sm text-emerald-600 dark:text-emerald-400">Please wait while we confirm your transaction.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -217,9 +356,9 @@ export default function SubscriptionPage() {
             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
               <p className="text-xs text-muted-foreground">Patients</p>
               <p className="text-lg font-bold">
-                {data?.usage.patients || 0}
+                {data?.usage?.patients || 0}
                 <span className="text-sm font-normal text-muted-foreground">
-                  / {data?.usage.patientLimit === -1 ? '∞' : data?.usage.patientLimit}
+                  / {data?.usage?.patientLimit === -1 ? '∞' : data?.usage?.patientLimit}
                 </span>
               </p>
               {data?.isPatientLimitReached && (
@@ -229,9 +368,9 @@ export default function SubscriptionPage() {
             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
               <p className="text-xs text-muted-foreground">Nurse Accounts</p>
               <p className="text-lg font-bold">
-                {data?.usage.nurses || 0}
+                {data?.usage?.nurses || 0}
                 <span className="text-sm font-normal text-muted-foreground">
-                  / {data?.usage.nurseLimit === -1 ? '∞' : data?.usage.nurseLimit}
+                  / {data?.usage?.nurseLimit === -1 ? '∞' : data?.usage?.nurseLimit}
                 </span>
               </p>
               {data?.isNurseLimitReached && (
@@ -241,9 +380,9 @@ export default function SubscriptionPage() {
             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
               <p className="text-xs text-muted-foreground">AI Queries/Day</p>
               <p className="text-lg font-bold">
-                {data?.usage.aiQueriesToday || 0}
+                {data?.usage?.aiQueriesToday || 0}
                 <span className="text-sm font-normal text-muted-foreground">
-                  / {data?.usage.aiQueryLimit === -1 ? '∞' : data?.usage.aiQueryLimit}
+                  / {data?.usage?.aiQueryLimit === -1 ? '∞' : data?.usage?.aiQueryLimit}
                 </span>
               </p>
             </div>
@@ -412,10 +551,30 @@ export default function SubscriptionPage() {
             </div>
             <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 space-y-2">
               <h4 className="font-medium flex items-center gap-2"><Shield className="size-4 text-emerald-600" /> Online Payment</h4>
-              <p className="text-sm text-muted-foreground">Pay securely online with your card or bank. Payment is verified automatically.</p>
-              <Button variant="outline" size="sm" onClick={() => toast.info('Online payment integration (Paystack/Flutterwave) is coming soon!')}>
-                <CreditCard className="size-3.5 mr-1.5" /> Pay Online
-              </Button>
+              <p className="text-sm text-muted-foreground">Pay securely online with your card or bank via Paystack. Payment is verified automatically.</p>
+              {paystackConfigured === false ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Online payment is being configured. Please use bank transfer for now.</p>
+                  <Button variant="outline" size="sm" disabled>
+                    <CreditCard className="size-3.5 mr-1.5" /> Pay Online
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (currentPlan === 'FREE') {
+                      setSelectedPlan('STARTER')
+                      setUpgradeDialogOpen(true)
+                    } else {
+                      setUpgradeDialogOpen(true)
+                    }
+                  }}
+                >
+                  <CreditCard className="size-3.5 mr-1.5" /> Pay Online
+                </Button>
+              )}
             </div>
           </div>
           <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 text-sm text-amber-700 dark:text-amber-300">
@@ -455,26 +614,45 @@ export default function SubscriptionPage() {
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                 <SelectTrigger><SelectValue placeholder="How will you pay?" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="PAYSTACK">
+                    <span className="flex items-center gap-1.5">
+                      <CreditCard className="size-3.5" /> Paystack (Online — Instant Activation)
+                    </span>
+                  </SelectItem>
                   <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-                  <SelectItem value="PAYSTACK">Paystack (Online)</SelectItem>
                   <SelectItem value="MANUAL">Manual / Cash</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label>Payment Reference (optional)</Label>
-              <Input
-                placeholder="e.g., Transfer receipt number"
-                value={paymentReference}
-                onChange={(e) => setPaymentReference(e.target.value)}
-              />
-            </div>
+            {paymentMethod === 'PAYSTACK' && (
+              <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-500/5 border border-teal-200 dark:border-teal-500/20 text-sm text-teal-700 dark:text-teal-300">
+                <div className="flex items-center gap-2 mb-1">
+                  <ExternalLink className="size-4" />
+                  <strong>Secure Online Payment</strong>
+                </div>
+                <p>You will be redirected to Paystack to complete your payment securely. Your subscription will be activated automatically upon successful payment.</p>
+              </div>
+            )}
+            {paymentMethod !== 'PAYSTACK' && (
+              <div className="grid gap-2">
+                <Label>Payment Reference (optional)</Label>
+                <Input
+                  placeholder="e.g., Transfer receipt number"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setUpgradeDialogOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleUpgrade} disabled={submitting}>
-              {submitting && <Loader2 className="size-4 mr-2 animate-spin" />}
-              Submit Upgrade Request
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleUpgrade}
+              disabled={submitting || payingOnline}
+            >
+              {(submitting || payingOnline) && <Loader2 className="size-4 mr-2 animate-spin" />}
+              {paymentMethod === 'PAYSTACK' ? 'Pay Online' : 'Submit Upgrade Request'}
             </Button>
           </DialogFooter>
         </DialogContent>

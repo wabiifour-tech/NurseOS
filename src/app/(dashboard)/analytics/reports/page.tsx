@@ -37,20 +37,41 @@ import {
   AlertTriangle,
   Database,
   Check,
+  Download,
+  Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
 
-interface DashboardData {
+interface SectionMetric {
+  metric: string
+  value: string
+  status: string
+  label: string
+}
+
+interface ReportData {
   overview: {
     totalPatients: number
-    totalFacilities: number
     totalNurses: number
     activeEncounters: number
-    avgWaitTimeMin: number
-    bedOccupancyRate: number
+    totalFacilities: number
+    avgWaitTimeMin: number | null
+    bedOccupancyRate: number | null
   }
+  sectionMetrics: Record<string, SectionMetric[]>
+  period: { start: string; end: string }
   generatedAt: string
-  isMockData: boolean
+}
+
+interface GeneratedReport {
+  id: string
+  templateId: string
+  title: string
+  reportType: string
+  period: string
+  fileSize: number | null
+  generatedAt: string
+  createdAt: string
 }
 
 function EmptyState({ icon: Icon, title, description }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string }) {
@@ -82,9 +103,30 @@ function getNextDate(frequency: string): string {
   return "N/A"
 }
 
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
+function formatPeriodLabel(period: string): string {
+  const now = new Date()
+  const map: Record<string, string> = {
+    "this-month": `This Month (${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`,
+    "last-month": `Last Month (${new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`,
+    "this-quarter": `This Quarter (Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()})`,
+    "last-quarter": `Last Quarter (Q${Math.floor((now.getMonth() - 3 + 12) / 3) % 4 || 4} ${now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear()})`,
+    "this-year": `This Year (${now.getFullYear()})`,
+    "custom": "Custom Range",
+  }
+  return map[period] || period
+}
+
 export default function ReportsPage() {
   const token = useAuthStore((s) => s.token)
-  const [data, setData] = React.useState<DashboardData | null>(null)
+  const [reportData, setReportData] = React.useState<ReportData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState(false)
   const [generateTemplate, setGenerateTemplate] = React.useState("")
@@ -100,8 +142,13 @@ export default function ReportsPage() {
     "disease-surveillance": { enabled: true, frequency: "Weekly", recipients: "" },
   })
 
+  // Generated reports from database
+  const [generatedReports, setGeneratedReports] = React.useState<GeneratedReport[]>([])
+  const [lastGeneratedMap, setLastGeneratedMap] = React.useState<Record<string, string>>({})
+
+  // Fetch report data
   React.useEffect(() => {
-    async function fetchReports() {
+    async function fetchReportData() {
       try {
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
@@ -109,10 +156,10 @@ export default function ReportsPage() {
         if (token) {
           headers["Authorization"] = `Bearer ${token}`
         }
-        const res = await fetch("/api/nurseanalytics/dashboard", { headers })
+        const res = await fetch("/api/analytics/report-data", { headers })
         if (!res.ok) throw new Error("Failed to fetch report data")
         const d = await res.json()
-        setData(d)
+        setReportData(d)
       } catch {
         setError(true)
         toast.error("Failed to load reports data. Please try again.")
@@ -120,7 +167,52 @@ export default function ReportsPage() {
         setLoading(false)
       }
     }
-    fetchReports()
+    fetchReportData()
+  }, [token])
+
+  // Load report schedules from server on mount
+  React.useEffect(() => {
+    async function loadSchedules() {
+      try {
+        const res = await fetch('/api/analytics/report-schedules')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.schedules && Array.isArray(data.schedules)) {
+            const serverConfig: Record<string, { enabled: boolean; frequency: string; recipients: string }> = {}
+            for (const schedule of data.schedules) {
+              serverConfig[schedule.templateId] = {
+                enabled: schedule.enabled,
+                frequency: schedule.frequency,
+                recipients: schedule.recipients || '',
+              }
+            }
+            setSchedulerConfig(prev => ({ ...prev, ...serverConfig }))
+          }
+        }
+      } catch {
+        // Silently fail — schedules will use defaults
+      }
+    }
+    loadSchedules()
+  }, [])
+
+  // Load generated reports and lastGenerated timestamps
+  React.useEffect(() => {
+    async function loadGeneratedReports() {
+      try {
+        const headers: Record<string, string> = {}
+        if (token) headers["Authorization"] = `Bearer ${token}`
+        const res = await fetch('/api/analytics/generated-reports', { headers })
+        if (res.ok) {
+          const data = await res.json()
+          setGeneratedReports(data.reports || [])
+          setLastGeneratedMap(data.lastGeneratedMap || {})
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    loadGeneratedReports()
   }, [token])
 
   if (loading) {
@@ -132,7 +224,7 @@ export default function ReportsPage() {
     )
   }
 
-  if (error && !data) {
+  if (error && !reportData) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
         <AlertTriangle className="size-10 text-red-400 mb-3" />
@@ -148,38 +240,63 @@ export default function ReportsPage() {
     )
   }
 
-  const overview = data?.overview || {
+  const overview = reportData?.overview || {
     totalPatients: 0,
-    totalFacilities: 0,
     totalNurses: 0,
     activeEncounters: 0,
-    avgWaitTimeMin: 0,
-    bedOccupancyRate: 0,
+    totalFacilities: 0,
+    avgWaitTimeMin: null,
+    bedOccupancyRate: null,
   }
+
+  const sectionMetrics = reportData?.sectionMetrics || {}
 
   const hasData = overview.totalPatients > 0 || overview.totalFacilities > 0
 
-  // Get period label for display
-  function getPeriodLabel(period: string): string {
-    const now = new Date()
-    const map: Record<string, string> = {
-      "this-month": `This Month (${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`,
-      "last-month": `Last Month (${new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`,
-      "this-quarter": `This Quarter (Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()})`,
-      "last-quarter": `Last Quarter (Q${Math.floor((now.getMonth() - 3 + 12) / 3) % 4 || 4} ${now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear()})`,
-      "this-year": `This Year (${now.getFullYear()})`,
-      "custom": "Custom Range",
-    }
-    return map[period] || period
-  }
+  // Report templates
+  const reportTemplates = [
+    {
+      id: "monthly-summary",
+      name: "Monthly Summary Report",
+      description: "Comprehensive overview of facility operations, patient metrics, and staffing",
+      frequency: "Monthly",
+      sections: ["Patient Volume", "Staffing", "Quality Metrics"],
+    },
+    {
+      id: "quarterly-performance",
+      name: "Quarterly Performance Report",
+      description: "Performance analysis across all departments with trend comparisons",
+      frequency: "Quarterly",
+      sections: ["Department Performance", "KPI Trends", "Budget Analysis"],
+    },
+    {
+      id: "staffing-report",
+      name: "Staffing & Scheduling Report",
+      description: "Nurse staffing levels, shift coverage, and workforce analytics",
+      frequency: "Weekly",
+      sections: ["Shift Coverage", "Overtime Analysis", "Leave Tracking"],
+    },
+    {
+      id: "disease-surveillance",
+      name: "Disease Surveillance Report",
+      description: "Outbreak monitoring, case tracking, and epidemiological analysis",
+      frequency: "Weekly",
+      sections: ["Active Alerts", "Case Trends", "Regional Data"],
+    },
+  ]
 
   // Generate PDF report (opens in new tab for print/save-as-PDF)
-  function generatePdfReport(templateId: string, period: string) {
+  async function generatePdfReport(templateId: string, period: string) {
     const template = reportTemplates.find(t => t.id === templateId)
     if (!template) return
 
-    const periodLabel = getPeriodLabel(period)
+    const periodLabel = formatPeriodLabel(period)
     const generatedDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+    const displayValue = (val: number | null | undefined, suffix: string = '') => {
+      if (val === null || val === undefined) return 'Insufficient data'
+      return `${val.toLocaleString()}${suffix}`
+    }
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -253,6 +370,7 @@ export default function ReportsPage() {
     .stat-card .label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
     .stat-card .value { font-size: 28px; font-weight: 700; color: #0f172a; margin-top: 4px; }
     .stat-card .unit { font-size: 13px; color: #64748b; font-weight: 400; }
+    .stat-card .no-data { font-size: 16px; font-weight: 500; color: #94a3b8; margin-top: 4px; font-style: italic; }
     .section-table {
       width: 100%;
       border-collapse: collapse;
@@ -314,15 +432,15 @@ export default function ReportsPage() {
     </div>
     <div class="header-right">
       <div>Generated: ${generatedDate}</div>
-      <div style="margin-top:4px;">${data?.isMockData ? '⚠ Sample Data' : '✓ Live Data'}</div>
+      <div style="margin-top:4px;">Live Data</div>
     </div>
   </div>
 
   <div class="report-title">${template.name}</div>
   <div class="report-meta">
-    <span>📅 Period: ${periodLabel}</span>
-    <span>📋 Template: ${template.name}</span>
-    <span>🔄 Frequency: ${template.frequency}</span>
+    <span>Period: ${periodLabel}</span>
+    <span>Template: ${template.name}</span>
+    <span>Frequency: ${template.frequency}</span>
     <span><span class="badge badge-green">Official Report</span></span>
   </div>
 
@@ -330,32 +448,53 @@ export default function ReportsPage() {
   <div class="stats-grid">
     <div class="stat-card">
       <div class="label">Total Patients</div>
-      <div class="value">${overview.totalPatients.toLocaleString()}</div>
+      ${overview.totalPatients > 0
+        ? `<div class="value">${overview.totalPatients.toLocaleString()}</div>`
+        : `<div class="no-data">Insufficient data</div>`
+      }
     </div>
     <div class="stat-card">
       <div class="label">Active Encounters</div>
-      <div class="value">${overview.activeEncounters.toLocaleString()}</div>
+      ${overview.activeEncounters > 0
+        ? `<div class="value">${overview.activeEncounters.toLocaleString()}</div>`
+        : `<div class="no-data">Insufficient data</div>`
+      }
     </div>
     <div class="stat-card">
       <div class="label">Total Nurses</div>
-      <div class="value">${overview.totalNurses.toLocaleString()}</div>
+      ${overview.totalNurses > 0
+        ? `<div class="value">${overview.totalNurses.toLocaleString()}</div>`
+        : `<div class="no-data">Insufficient data</div>`
+      }
     </div>
     <div class="stat-card">
       <div class="label">Facilities</div>
-      <div class="value">${overview.totalFacilities.toLocaleString()}</div>
+      ${overview.totalFacilities > 0
+        ? `<div class="value">${overview.totalFacilities.toLocaleString()}</div>`
+        : `<div class="no-data">Insufficient data</div>`
+      }
     </div>
     <div class="stat-card">
       <div class="label">Avg Wait Time</div>
-      <div class="value">${overview.avgWaitTimeMin} <span class="unit">min</span></div>
+      ${overview.avgWaitTimeMin !== null && overview.avgWaitTimeMin !== undefined
+        ? `<div class="value">${overview.avgWaitTimeMin} <span class="unit">min</span></div>`
+        : `<div class="no-data">Insufficient data</div>`
+      }
     </div>
     <div class="stat-card">
       <div class="label">Bed Occupancy</div>
-      <div class="value">${overview.bedOccupancyRate}%</div>
+      ${overview.bedOccupancyRate !== null && overview.bedOccupancyRate !== undefined
+        ? `<div class="value">${overview.bedOccupancyRate}%</div>`
+        : `<div class="no-data">Insufficient data</div>`
+      }
     </div>
   </div>
 
-  ${template.sections.map((section, idx) => `
+  ${template.sections.map((section) => {
+    const metrics = sectionMetrics[section] || []
+    return `
   <div class="section-title">${section}</div>
+  ${metrics.length > 0 ? `
   <table class="section-table">
     <thead>
       <tr>
@@ -365,80 +504,20 @@ export default function ReportsPage() {
       </tr>
     </thead>
     <tbody>
-      ${section === 'Patient Volume' ? [
-          ['New Admissions', overview.totalPatients.toLocaleString(), 'green', 'On Track'],
-          ['Readmission Rate', '4.2%', 'amber', 'Monitor'],
-          ['Discharge Rate', '87%', 'green', 'On Track'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Staffing' ? [
-          ['Nurses on Duty', overview.totalNurses.toLocaleString(), 'green', 'Adequate'],
-          ['Shift Coverage', '94%', 'green', 'On Track'],
-          ['Overtime Hours', '12 hrs', 'amber', 'Monitor'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Quality Metrics' ? [
-          ['Patient Satisfaction', '92%', 'green', 'Excellent'],
-          ['Incident Reports', '3', 'green', 'Low'],
-          ['Compliance Score', '98%', 'green', 'Excellent'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Department Performance' ? [
-          ['Emergency Dept', '92%', 'green', 'On Track'],
-          ['ICU', '88%', 'green', 'On Track'],
-          ['Pediatrics', '95%', 'green', 'Excellent'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'KPI Trends' ? [
-          ['Avg Response Time', '8 min', 'green', 'Improving'],
-          ['Bed Turnover', '3.2/day', 'green', 'On Track'],
-          ['Staff Retention', '91%', 'green', 'Stable'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Budget Analysis' ? [
-          ['Operational Budget', '$1.2M', 'green', 'On Budget'],
-          ['Supply Costs', '$340K', 'amber', 'Slightly Over'],
-          ['Labor Costs', '$680K', 'green', 'On Budget'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Shift Coverage' ? [
-          ['Day Shift', '96%', 'green', 'Fully Staffed'],
-          ['Night Shift', '88%', 'green', 'Adequate'],
-          ['Weekend Coverage', '82%', 'amber', 'Monitor'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Overtime Analysis' ? [
-          ['Total OT Hours', '156 hrs', 'amber', 'Above Target'],
-          ['OT per Nurse', '4.2 hrs', 'amber', 'Monitor'],
-          ['Cost Impact', '$12.4K', 'green', 'Managed'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Leave Tracking' ? [
-          ['Approved Leave', '12 staff', 'green', 'On Track'],
-          ['Pending Requests', '3', 'blue', 'Pending'],
-          ['Sick Leave Rate', '2.1%', 'green', 'Normal'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Active Alerts' ? [
-          ['Flu Season Alert', 'Active', 'amber', 'Monitoring'],
-          ['RSV Surveillance', 'Active', 'green', 'Normal Levels'],
-          ['Gastro Outbreak', 'Contained', 'green', 'Resolved'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Case Trends' ? [
-          ['New Cases (Week)', '24', 'amber', 'Slight Increase'],
-          ['Recovery Rate', '94%', 'green', 'On Track'],
-          ['Hospitalization Rate', '8%', 'green', 'Low'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : section === 'Regional Data' ? [
-          ['District A', '12 cases', 'green', 'Controlled'],
-          ['District B', '8 cases', 'green', 'Controlled'],
-          ['District C', '4 cases', 'green', 'Declining'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-        : [
-          ['No data', '—', 'blue', 'Awaiting Data'],
-        ].map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><span class="badge badge-${r[2]}">${r[3]}</span></td></tr>`).join('')
-      }
+      ${metrics.map((m) => `<tr><td>${m.metric}</td><td>${m.value}</td><td><span class="badge badge-${m.status}">${m.label}</span></td></tr>`).join('')}
     </tbody>
   </table>
-  `).join('')}
+  ` : `
+  <p style="color: #94a3b8; font-style: italic; margin-bottom: 24px;">No data available for this section.</p>
+  `}
+  `}).join('')}
 
   <div class="footer">
     <div>NurseOS Report — Confidential</div>
-    <div>Page 1 of 1 • Generated on ${generatedDate}</div>
+    <div>Page 1 of 1 — Generated on ${generatedDate}</div>
   </div>
 
-  <button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  <button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
 </body>
 </html>`
 
@@ -448,47 +527,75 @@ export default function ReportsPage() {
     if (!win) {
       toast.error('Pop-up blocked — please allow pop-ups for NurseOS to generate reports.')
     }
+
+    // Save report metadata to database
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers["Authorization"] = `Bearer ${token}`
+      await fetch('/api/analytics/generated-reports', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          templateId,
+          title: `${template.name} — ${periodLabel}`,
+          reportType: 'pdf',
+          period,
+          fileSize: html.length,
+        }),
+      })
+      // Refresh generated reports list
+      const res = await fetch('/api/analytics/generated-reports', { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setGeneratedReports(data.reports || [])
+        setLastGeneratedMap(data.lastGeneratedMap || {})
+      }
+    } catch {
+      // Don't fail if save fails
+    }
   }
 
   // Generate CSV report
-  function generateCsvReport(templateId: string, period: string) {
+  async function generateCsvReport(templateId: string, period: string) {
     const template = reportTemplates.find(t => t.id === templateId)
     if (!template) return
 
-    const periodLabel = getPeriodLabel(period)
+    const periodLabel = formatPeriodLabel(period)
     const generatedDate = new Date().toISOString()
+
+    const displayVal = (val: number | null | undefined) => {
+      if (val === null || val === undefined) return 'Insufficient data'
+      return String(val)
+    }
 
     const rows: string[][] = [
       ['NurseOS Report'],
       ['Template', template.name],
       ['Period', periodLabel],
       ['Generated', generatedDate],
-      ['Data Source', data?.isMockData ? 'Sample Data' : 'Live Data'],
+      ['Data Source', 'Live Data'],
       [],
       ['Executive Overview'],
       ['Metric', 'Value'],
-      ['Total Patients', String(overview.totalPatients)],
-      ['Active Encounters', String(overview.activeEncounters)],
-      ['Total Nurses', String(overview.totalNurses)],
-      ['Total Facilities', String(overview.totalFacilities)],
-      ['Avg Wait Time (min)', String(overview.avgWaitTimeMin)],
-      ['Bed Occupancy Rate (%)', String(overview.bedOccupancyRate)],
+      ['Total Patients', displayVal(overview.totalPatients)],
+      ['Active Encounters', displayVal(overview.activeEncounters)],
+      ['Total Nurses', displayVal(overview.totalNurses)],
+      ['Total Facilities', displayVal(overview.totalFacilities)],
+      ['Avg Wait Time (min)', displayVal(overview.avgWaitTimeMin)],
+      ['Bed Occupancy Rate (%)', displayVal(overview.bedOccupancyRate)],
       [],
     ]
 
-    template.sections.forEach(section => {
+    template.sections.forEach((section) => {
       rows.push([section])
       rows.push(['Metric', 'Value', 'Status'])
-      if (section === 'Patient Volume') {
-        rows.push(['New Admissions', String(overview.totalPatients), 'On Track'])
-        rows.push(['Readmission Rate', '4.2%', 'Monitor'])
-        rows.push(['Discharge Rate', '87%', 'On Track'])
-      } else if (section === 'Staffing') {
-        rows.push(['Nurses on Duty', String(overview.totalNurses), 'Adequate'])
-        rows.push(['Shift Coverage', '94%', 'On Track'])
-        rows.push(['Overtime Hours', '12 hrs', 'Monitor'])
+      const metrics = sectionMetrics[section] || []
+      if (metrics.length > 0) {
+        metrics.forEach((m) => {
+          rows.push([m.metric, m.value, m.label])
+        })
       } else {
-        rows.push(['Data', '—', 'Awaiting Data'])
+        rows.push(['No data', '—', 'Awaiting Data'])
       }
       rows.push([])
     })
@@ -506,6 +613,31 @@ export default function ReportsPage() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+
+    // Save report metadata to database
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers["Authorization"] = `Bearer ${token}`
+      await fetch('/api/analytics/generated-reports', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          templateId,
+          title: `${template.name} — ${periodLabel}`,
+          reportType: 'csv',
+          period,
+          fileSize: csvContent.length,
+        }),
+      })
+      const res = await fetch('/api/analytics/generated-reports', { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setGeneratedReports(data.reports || [])
+        setLastGeneratedMap(data.lastGeneratedMap || {})
+      }
+    } catch {
+      // Don't fail if save fails
+    }
   }
 
   // Main generate handler
@@ -516,13 +648,10 @@ export default function ReportsPage() {
     }
     setGenerating(true)
     try {
-      // Small delay to show the loading state
-      await new Promise(r => setTimeout(r, 600))
-
       if (generateFormat === 'csv') {
-        generateCsvReport(generateTemplate, generatePeriod)
+        await generateCsvReport(generateTemplate, generatePeriod)
       } else {
-        generatePdfReport(generateTemplate, generatePeriod)
+        await generatePdfReport(generateTemplate, generatePeriod)
       }
 
       toast.success(`Report generated successfully!${generateFormat === 'pdf' ? ' Use Print > Save as PDF in the new tab.' : ''}`)
@@ -535,41 +664,22 @@ export default function ReportsPage() {
     }
   }
 
-  // Default report templates that are always available
-  const reportTemplates = [
-    {
-      id: "monthly-summary",
-      name: "Monthly Summary Report",
-      description: "Comprehensive overview of facility operations, patient metrics, and staffing",
-      frequency: "Monthly",
-      sections: ["Patient Volume", "Staffing", "Quality Metrics"],
-      lastGenerated: "Not yet generated",
-    },
-    {
-      id: "quarterly-performance",
-      name: "Quarterly Performance Report",
-      description: "Performance analysis across all departments with trend comparisons",
-      frequency: "Quarterly",
-      sections: ["Department Performance", "KPI Trends", "Budget Analysis"],
-      lastGenerated: "Not yet generated",
-    },
-    {
-      id: "staffing-report",
-      name: "Staffing & Scheduling Report",
-      description: "Nurse staffing levels, shift coverage, and workforce analytics",
-      frequency: "Weekly",
-      sections: ["Shift Coverage", "Overtime Analysis", "Leave Tracking"],
-      lastGenerated: "Not yet generated",
-    },
-    {
-      id: "disease-surveillance",
-      name: "Disease Surveillance Report",
-      description: "Outbreak monitoring, case tracking, and epidemiological analysis",
-      frequency: "Weekly",
-      sections: ["Active Alerts", "Case Trends", "Regional Data"],
-      lastGenerated: "Not yet generated",
-    },
-  ]
+  // Delete a generated report
+  async function handleDeleteReport(reportId: string) {
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers["Authorization"] = `Bearer ${token}`
+      await fetch('/api/analytics/generated-reports', {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({ reportId }),
+      })
+      setGeneratedReports(prev => prev.filter(r => r.id !== reportId))
+      toast.success('Report deleted.')
+    } catch {
+      toast.error('Failed to delete report.')
+    }
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -583,11 +693,6 @@ export default function ReportsPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Generate, schedule, and export facility reports
           </p>
-          {data?.isMockData && (
-            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300 bg-amber-50 mt-2">
-              Showing sample data — reports will populate as the system is used
-            </Badge>
-          )}
         </div>
         <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
           <DialogTrigger asChild>
@@ -672,39 +777,42 @@ export default function ReportsPage() {
       <div>
         <h2 className="text-lg font-semibold text-slate-900 mb-3">Report Templates</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {reportTemplates.map(template => (
-            <Card key={template.id} className="hover:shadow-md transition-shadow border-slate-200 cursor-pointer group">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-lg bg-emerald-100">
-                    <FileBarChart className="size-5 text-emerald-600" />
+          {reportTemplates.map(template => {
+            const lastGen = lastGeneratedMap[template.id]
+            return (
+              <Card key={template.id} className="hover:shadow-md transition-shadow border-slate-200 cursor-pointer group">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 rounded-lg bg-emerald-100">
+                      <FileBarChart className="size-5 text-emerald-600" />
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">{template.frequency}</Badge>
                   </div>
-                  <Badge variant="outline" className="text-[10px]">{template.frequency}</Badge>
-                </div>
-                <h3 className="font-semibold text-sm text-slate-900">{template.name}</h3>
-                <p className="text-xs text-muted-foreground">{template.description}</p>
-                <div className="flex flex-wrap gap-1">
-                  {template.sections.slice(0, 2).map(section => (
-                    <span key={section} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                      {section}
+                  <h3 className="font-semibold text-sm text-slate-900">{template.name}</h3>
+                  <p className="text-xs text-muted-foreground">{template.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {template.sections.slice(0, 2).map(section => (
+                      <span key={section} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                        {section}
+                      </span>
+                    ))}
+                    {template.sections.length > 2 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        +{template.sections.length - 2} more
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="size-3" />
+                      Last: {lastGen ? formatDate(lastGen) : 'Not yet generated'}
                     </span>
-                  ))}
-                  {template.sections.length > 2 && (
-                    <span className="text-[10px] text-muted-foreground">
-                      +{template.sections.length - 2} more
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Clock className="size-3" />
-                    Last: {template.lastGenerated}
-                  </span>
-                  <ChevronRight className="size-3 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    <ChevronRight className="size-3 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       </div>
 
@@ -713,15 +821,65 @@ export default function ReportsPage() {
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold">Generated Reports</CardTitle>
-            <Badge variant="secondary" className="text-xs">0 reports</Badge>
+            <Badge variant="secondary" className="text-xs">{generatedReports.length} report{generatedReports.length !== 1 ? 's' : ''}</Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <EmptyState
-            icon={Database}
-            title="No Generated Reports Yet"
-            description="Reports will appear here once they are generated. Use the templates above to create your first report — data will populate as the system collects clinical and operational information."
-          />
+          {generatedReports.length === 0 ? (
+            <EmptyState
+              icon={Database}
+              title="No Generated Reports Yet"
+              description="Reports will appear here once they are generated. Use the templates above to create your first report — data will populate as the system collects clinical and operational information."
+            />
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {generatedReports.map(report => (
+                <div key={report.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border hover:bg-slate-100 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-lg bg-white border shrink-0">
+                      {report.reportType === 'pdf' ? (
+                        <FileText className="size-4 text-red-500" />
+                      ) : (
+                        <FileSpreadsheet className="size-4 text-emerald-500" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{report.title}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="uppercase">{report.reportType}</span>
+                        <span>•</span>
+                        <span>{formatPeriodLabel(report.period)}</span>
+                        <span>•</span>
+                        <span>{formatDate(report.generatedAt)}</span>
+                        {report.fileSize && (
+                          <>
+                            <span>•</span>
+                            <span>{(report.fileSize / 1024).toFixed(1)} KB</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => {
+                      // Re-generate the report with same parameters for re-download
+                      if (report.reportType === 'csv') {
+                        generateCsvReport(report.templateId, report.period)
+                      } else {
+                        generatePdfReport(report.templateId, report.period)
+                      }
+                    }}>
+                      <Download className="size-3 mr-1" />
+                      Re-download
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-xs h-7 text-red-500 hover:text-red-700" onClick={() => handleDeleteReport(report.id)}>
+                      <Trash2 className="size-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -829,9 +987,26 @@ export default function ReportsPage() {
             <Button variant="outline" onClick={() => setConfigureTemplate(null)}>Cancel</Button>
             <Button
               className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-              onClick={() => {
-                toast.success('Schedule configuration saved successfully.')
-                setConfigureTemplate(null)
+              onClick={async () => {
+                try {
+                  if (configureTemplate) {
+                    const config = schedulerConfig[configureTemplate]
+                    await fetch('/api/analytics/report-schedules', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        templateId: configureTemplate,
+                        enabled: config?.enabled !== false,
+                        frequency: config?.frequency || 'Monthly',
+                        recipients: config?.recipients || '',
+                      }),
+                    })
+                  }
+                  toast.success('Schedule configuration saved successfully.')
+                  setConfigureTemplate(null)
+                } catch {
+                  toast.error('Failed to save schedule configuration.')
+                }
               }}
             >
               <Check className="size-4" />

@@ -54,7 +54,12 @@ export async function POST(request: NextRequest) {
   if (facilityId instanceof Response) return facilityId
 
   try {
-    const body = await request.json()
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const { text, noteType = 'SOAP', patientContext, recordId } = body
 
     // Validate required fields
@@ -106,25 +111,61 @@ export async function POST(request: NextRequest) {
 
     // Try to parse the AI response as JSON
     let structuredNote: Record<string, unknown>
+    let wasParsedFromRaw = false
     try {
       // Try to extract JSON from the response (it might be wrapped in markdown code blocks)
       const jsonMatch = aiContent.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, aiContent]
       const jsonStr = jsonMatch[1] || aiContent
       structuredNote = JSON.parse(jsonStr.trim())
     } catch {
-      // If parsing fails, wrap the raw content in a structured format
-      structuredNote = {
-        rawContent: aiContent,
-        noteType: normalizedNoteType,
-        confidenceScore: 0.5,
-        parseWarning: 'AI response could not be parsed as structured JSON. Raw content included.',
+      // If parsing fails, restructure the raw content into a proper format
+      // based on the note type, so the frontend always receives valid structured data
+      wasParsedFromRaw = true
+      const rawText = aiContent.trim()
+
+      switch (normalizedNoteType) {
+        case 'SOAP':
+          structuredNote = {
+            subjective: rawText,
+            objective: '',
+            assessment: '',
+            plan: '',
+          }
+          break
+        case 'SBAR':
+          structuredNote = {
+            situation: rawText,
+            background: '',
+            assessment: '',
+            recommendation: '',
+          }
+          break
+        case 'NARRATIVE':
+          structuredNote = {
+            narrative: rawText,
+            keyFindings: [],
+            actionItems: [],
+          }
+          break
+        case 'FLOW':
+          structuredNote = {
+            vitals: {},
+            intakeOutput: {},
+            assessments: [rawText],
+            interventions: [],
+          }
+          break
+        default:
+          structuredNote = {
+            content: rawText,
+          }
       }
     }
 
-    // Calculate confidence score
+    // Calculate confidence score — lower for fallback-structured responses
     const confidenceScore = typeof structuredNote.confidenceScore === 'number'
       ? Math.min(1, Math.max(0, structuredNote.confidenceScore))
-      : 0.7
+      : wasParsedFromRaw ? 0.5 : 0.7
 
     // Save the AI interaction to the database if recordId is provided
     if (authUser.nurseProfileId && recordId) {

@@ -75,32 +75,11 @@ const DEFAULT_SCENARIOS: Record<string, string> = {
   Default: 'You are assigned to care for a patient who has just been admitted with multiple comorbidities. The patient appears anxious and has several questions about their care plan. Describe your initial assessment and nursing approach.',
 }
 
-const FEEDBACK_TEMPLATES: Record<string, { strengths: string[]; improvements: string[]; notes: string }> = {
-  Emergency: {
-    strengths: ['Recognized the urgency of the situation', 'Prioritized patient assessment', 'Considered vital sign interpretation'],
-    improvements: ['Include activation of rapid response team', 'Consider IV fluid resuscitation steps', 'Document timeline of interventions'],
-    notes: 'Emergency scenarios require systematic ABC (Airway, Breathing, Circulation) approach with clear delegation and timely escalation.',
-  },
-  'Clinical Decision': {
-    strengths: ['Identified critical lab abnormalities', 'Considered the patient\'s clinical context', 'Recognized potential complications'],
-    improvements: ['Specify notification protocols for provider', 'Detail electrolyte replacement guidelines', 'Include ongoing monitoring parameters'],
-    notes: 'Clinical decisions should integrate lab data with patient presentation and follow institutional protocols for critical values.',
-  },
-  Communication: {
-    strengths: ['Demonstrated empathy for family members', 'Recognized different emotional responses', 'Showed awareness of patient needs'],
-    improvements: ['Include therapeutic communication techniques', 'Consider cultural sensitivity', 'Plan for follow-up support resources'],
-    notes: 'Effective communication in crisis involves active listening, acknowledging emotions, and providing clear, compassionate information.',
-  },
-  'Ethical Dilemma': {
-    strengths: ['Respected patient autonomy', 'Acknowledged family concerns', 'Recognized the ethical complexity'],
-    improvements: ['Involve ethics committee consultation', 'Document patient decision-making capacity', 'Coordinate with social work and chaplaincy'],
-    notes: 'Ethical dilemmas require balancing autonomy, beneficence, and non-maleficence while following institutional policies and legal frameworks.',
-  },
-  Default: {
-    strengths: ['Demonstrated patient-centered approach', 'Showed thoroughness in assessment', 'Considered holistic care needs'],
-    improvements: ['Include specific assessment tools', 'Detail patient education components', 'Plan for care coordination'],
-    notes: 'Comprehensive nursing care integrates assessment, intervention, patient education, and interdisciplinary collaboration.',
-  },
+interface FeedbackData {
+  strengths: string[]
+  improvements: string[]
+  notes: string
+  score: number
 }
 
 function generateScore(response: string, difficulty: string): number {
@@ -130,6 +109,8 @@ export default function SimulationsPage() {
   const [userResponse, setUserResponse] = React.useState('')
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [simScore, setSimScore] = React.useState(0)
+  const [feedbackData, setFeedbackData] = React.useState<FeedbackData | null>(null)
+  const [feedbackUsedAI, setFeedbackUsedAI] = React.useState(false)
 
   // Fetch simulations from API
   const fetchSimulations = React.useCallback(async () => {
@@ -421,6 +402,8 @@ export default function SimulationsPage() {
                   setSimPhase('overview')
                   setUserResponse('')
                   setSimScore(0)
+                  setFeedbackData(null)
+                  setFeedbackUsedAI(false)
                   setIsSubmitting(false)
                   setSimDialogOpen(true)
                 }}>
@@ -565,10 +548,40 @@ export default function SimulationsPage() {
                       disabled={!userResponse.trim() || isSubmitting}
                       onClick={async () => {
                         setIsSubmitting(true)
-                        // Simulate AI feedback generation delay
-                        await new Promise((resolve) => setTimeout(resolve, 1500))
-                        const score = generateScore(userResponse, selectedSim.difficulty)
-                        setSimScore(score)
+                        try {
+                          // Call the AI-powered simulation feedback API
+                          const res = await fetch('/api/academy/simulation-feedback', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              scenarioType: selectedSim.scenarioType,
+                              userResponse: userResponse.trim(),
+                              scenarioContext: selectedSim.scenario || DEFAULT_SCENARIOS[selectedSim.scenarioType] || DEFAULT_SCENARIOS.Default,
+                              simulationId: selectedSim.id,
+                              difficulty: selectedSim.difficulty,
+                            }),
+                          })
+
+                          if (res.ok) {
+                            const data = await res.json()
+                            const feedback: FeedbackData = data.feedback
+                            setSimScore(feedback.score)
+                            setFeedbackData(feedback)
+                            setFeedbackUsedAI(data.usedAI || false)
+                          } else {
+                            // API error — use local score calculation as fallback
+                            const score = generateScore(userResponse, selectedSim.difficulty)
+                            setSimScore(score)
+                            setFeedbackData(null)
+                            setFeedbackUsedAI(false)
+                          }
+                        } catch {
+                          // Network error — use local score calculation as fallback
+                          const score = generateScore(userResponse, selectedSim.difficulty)
+                          setSimScore(score)
+                          setFeedbackData(null)
+                          setFeedbackUsedAI(false)
+                        }
                         setIsSubmitting(false)
                         setSimPhase('feedback')
                       }}
@@ -603,46 +616,52 @@ export default function SimulationsPage() {
                       <p className="text-4xl font-bold text-emerald-600">{simScore}%</p>
                       <p className="text-sm text-muted-foreground mt-1">Your Score</p>
                       <Progress value={simScore} className="mt-3 h-2" />
+                      {feedbackUsedAI && (
+                        <p className="text-xs text-emerald-600 mt-2">AI-Powered Feedback</p>
+                      )}
                     </div>
 
                     {/* Feedback Sections */}
-                    {(() => {
-                      const template =
-                        FEEDBACK_TEMPLATES[selectedSim.scenarioType] ||
-                        FEEDBACK_TEMPLATES.Default
-                      return (
-                        <>
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                              <CheckCircle2 className="size-4" /> Strengths
-                            </p>
-                            <ul className="space-y-1 ml-6">
-                              {template.strengths.map((s) => (
-                                <li key={s} className="text-sm text-muted-foreground list-disc">
-                                  {s}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                              <AlertTriangle className="size-4" /> Areas for Improvement
-                            </p>
-                            <ul className="space-y-1 ml-6">
-                              {template.improvements.map((s) => (
-                                <li key={s} className="text-sm text-muted-foreground list-disc">
-                                  {s}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="p-3 rounded-lg bg-muted/50 border">
-                            <p className="text-sm font-medium mb-1">Clinical Note</p>
-                            <p className="text-sm text-muted-foreground">{template.notes}</p>
-                          </div>
-                        </>
-                      )
-                    })()}
+                    {feedbackData ? (
+                      <>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                            <CheckCircle2 className="size-4" /> Strengths
+                          </p>
+                          <ul className="space-y-1 ml-6">
+                            {feedbackData.strengths.map((s) => (
+                              <li key={s} className="text-sm text-muted-foreground list-disc">
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                            <AlertTriangle className="size-4" /> Areas for Improvement
+                          </p>
+                          <ul className="space-y-1 ml-6">
+                            {feedbackData.improvements.map((s) => (
+                              <li key={s} className="text-sm text-muted-foreground list-disc">
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="p-3 rounded-lg bg-muted/50 border">
+                          <p className="text-sm font-medium mb-1">Clinical Note</p>
+                          <p className="text-sm text-muted-foreground">{feedbackData.notes}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                        <p className="text-sm font-medium text-amber-700 mb-1">AI Feedback Unavailable</p>
+                        <p className="text-sm text-muted-foreground">
+                          Personalized feedback could not be generated at this time. Your score has been calculated based on response quality.
+                          Please try again later for detailed AI-powered feedback.
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <DialogFooter className="gap-2 sm:gap-2">
                     <Button
@@ -652,6 +671,7 @@ export default function SimulationsPage() {
                         setSimPhase('scenario')
                         setUserResponse('')
                         setSimScore(0)
+                        setFeedbackData(null)
                       }}
                     >
                       <RotateCcw className="size-4" /> Retry

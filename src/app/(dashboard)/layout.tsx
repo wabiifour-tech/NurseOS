@@ -106,6 +106,8 @@ function DashboardHeader() {
         <Input
           type="search"
           placeholder="Search patients, records, facilities..."
+          data-search-input
+          role="searchbox"
           className="pl-9 h-8 w-full bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-emerald-500/30 text-sm"
         />
       </div>
@@ -216,9 +218,30 @@ export default function DashboardLayout({
   const { isAuthenticated } = useAuthStore()
   const router = useRouter()
   const [hydrated, setHydrated] = React.useState(false)
+  const [defaultCollapsed, setDefaultCollapsed] = React.useState(false)
 
   // Enable keyboard shortcuts
   useKeyboardShortcuts()
+
+  // Load sidebar collapsed preference on mount
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('sidebarCollapsed') || localStorage.getItem('nurseos-sidebar-default-collapsed')
+      if (saved === 'true') setDefaultCollapsed(true)
+    } catch {}
+  }, [])
+
+  // Listen for sidebar-toggle custom event from settings page
+  React.useEffect(() => {
+    const handleSidebarToggle = (e: Event) => {
+      const customEvent = e as CustomEvent<{ collapsed: boolean }>
+      if (customEvent.detail?.collapsed !== undefined) {
+        setDefaultCollapsed(customEvent.detail.collapsed)
+      }
+    }
+    window.addEventListener('sidebar-toggle', handleSidebarToggle)
+    return () => window.removeEventListener('sidebar-toggle', handleSidebarToggle)
+  }, [])
 
   React.useEffect(() => {
     // Wait for Zustand persist to hydrate from localStorage
@@ -269,7 +292,7 @@ export default function DashboardLayout({
 
   return (
     <ThemeProvider>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={!defaultCollapsed}>
         <AppSidebar />
         <SidebarInset>
           <DashboardHeader />

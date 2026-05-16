@@ -33,7 +33,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json().catch(() => ({}));
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
     const forceReimport = body?.force === true;
 
     // Check current course count

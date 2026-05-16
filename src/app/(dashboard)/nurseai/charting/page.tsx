@@ -667,7 +667,7 @@ export default function ChartingPage() {
               ) : (
                 recentNotes.map(note => {
                   const patientName = note.medicalRecord?.patient?.user
-                    ? `${note.medicalRecord.patient.user.firstName} ${note.medicalRecord.patient.user.lastName}`
+                    ? `${note.medicalRecord?.patient?.user?.firstName ?? ''} ${note.medicalRecord?.patient?.user?.lastName ?? ''}`
                     : note.medicalRecord?.patient?.patientId || 'Unknown'
                   const status = note.isSigned ? 'Accepted' : note.aiGenerated ? 'Pending Review' : 'Accepted'
                   return (

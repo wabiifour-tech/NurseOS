@@ -137,6 +137,7 @@ export async function POST(request: NextRequest) {
         'NursingNote', 'VitalSign', 'MedicalRecord', 'Appointment', 'VisitRecord',
         'Department', 'Subscription', 'Notification', 'AuditLog', 'Session',
         'PatientProfile', 'AdminProfile', 'NurseProfile',
+        'GeneratedReport', 'ReportSchedule', 'NotificationPreference', 'PasswordReset',
         'User', 'Facility',
       ]
       for (const table of allTables) {
@@ -864,6 +865,65 @@ export async function POST(request: NextRequest) {
           "updatedAt" TIMESTAMP(3) NOT NULL
         )`,
       },
+      {
+        name: 'PasswordReset',
+        sql: `CREATE TABLE IF NOT EXISTS "PasswordReset" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL,
+          "token" TEXT NOT NULL UNIQUE,
+          "expiresAt" TIMESTAMP(3) NOT NULL,
+          "usedAt" TIMESTAMP(3),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )`,
+      },
+      {
+        name: 'NotificationPreference',
+        sql: `CREATE TABLE IF NOT EXISTS "NotificationPreference" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL,
+          "key" TEXT NOT NULL,
+          "enabled" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL
+        )`,
+      },
+      {
+        name: 'NotificationPreference_unique',
+        sql: `CREATE UNIQUE INDEX IF NOT EXISTS "NotificationPreference_userId_key_key" ON "NotificationPreference"("userId", "key")`,
+      },
+      {
+        name: 'ReportSchedule',
+        sql: `CREATE TABLE IF NOT EXISTS "ReportSchedule" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL,
+          "templateId" TEXT NOT NULL,
+          "enabled" BOOLEAN NOT NULL DEFAULT true,
+          "frequency" TEXT NOT NULL DEFAULT 'Monthly',
+          "recipients" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL
+        )`,
+      },
+      {
+        name: 'ReportSchedule_unique',
+        sql: `CREATE UNIQUE INDEX IF NOT EXISTS "ReportSchedule_userId_templateId_key" ON "ReportSchedule"("userId", "templateId")`,
+      },
+      {
+        name: 'GeneratedReport',
+        sql: `CREATE TABLE IF NOT EXISTS "GeneratedReport" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL,
+          "facilityId" TEXT,
+          "templateId" TEXT NOT NULL,
+          "title" TEXT NOT NULL,
+          "reportType" TEXT NOT NULL,
+          "period" TEXT NOT NULL,
+          "contentBlob" TEXT,
+          "fileSize" INTEGER,
+          "generatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )`,
+      },
     ]
 
     const createdTables: string[] = []
@@ -915,6 +975,12 @@ export async function POST(request: NextRequest) {
       `CREATE INDEX IF NOT EXISTS "Subscription_userId_idx" ON "Subscription"("userId")`,
       `CREATE INDEX IF NOT EXISTS "Subscription_facilityId_idx" ON "Subscription"("facilityId")`,
       `CREATE INDEX IF NOT EXISTS "Subscription_status_idx" ON "Subscription"("status")`,
+      `CREATE INDEX IF NOT EXISTS "PasswordReset_token_idx" ON "PasswordReset"("token")`,
+      `CREATE INDEX IF NOT EXISTS "PasswordReset_userId_idx" ON "PasswordReset"("userId")`,
+      `CREATE INDEX IF NOT EXISTS "NotificationPreference_userId_idx" ON "NotificationPreference"("userId")`,
+      `CREATE INDEX IF NOT EXISTS "ReportSchedule_userId_idx" ON "ReportSchedule"("userId")`,
+      `CREATE INDEX IF NOT EXISTS "GeneratedReport_userId_templateId_idx" ON "GeneratedReport"("userId", "templateId")`,
+      `CREATE INDEX IF NOT EXISTS "GeneratedReport_userId_generatedAt_idx" ON "GeneratedReport"("userId", "generatedAt")`,
     ]
 
     for (const idxSql of indexes) {
@@ -937,6 +1003,10 @@ export async function POST(request: NextRequest) {
       `ALTER TABLE "User" ADD CONSTRAINT "User_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
       `ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
       `ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "PasswordReset" ADD CONSTRAINT "PasswordReset_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "NotificationPreference" ADD CONSTRAINT "NotificationPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "ReportSchedule" ADD CONSTRAINT "ReportSchedule_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "GeneratedReport" ADD CONSTRAINT "GeneratedReport_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
     ]
 
     for (const fk of fkConstraints) {

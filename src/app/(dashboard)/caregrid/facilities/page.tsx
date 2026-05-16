@@ -30,6 +30,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
+import { NigeriaZoneMap, type FacilityZoneData } from "@/components/NigeriaZoneMap"
 
 interface Facility {
   id: string
@@ -52,6 +53,7 @@ interface Facility {
     staff: number
     departments: number
     analytics: number
+    patientProfiles: number
   }
 }
 
@@ -152,6 +154,42 @@ export default function FacilitiesPage() {
   const formatFacilityType = (type: string) => {
     return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   }
+
+  // Map states to geopolitical zones
+  const stateToZone: Record<string, string> = {
+    'Sokoto': 'North West', 'Zamfara': 'North West', 'Kebbi': 'North West', 'Katsina': 'North West', 'Kano': 'North West', 'Jigawa': 'North West', 'Kaduna': 'North West',
+    'Borno': 'North East', 'Yobe': 'North East', 'Bauchi': 'North East', 'Gombe': 'North East', 'Adamawa': 'North East', 'Taraba': 'North East',
+    'Niger': 'North Central', 'Kwara': 'North Central', 'Kogi': 'North Central', 'Benue': 'North Central', 'Plateau': 'North Central', 'FCT': 'North Central', 'Nasarawa': 'North Central',
+    'Lagos': 'South West', 'Ogun': 'South West', 'Oyo': 'South West', 'Osun': 'South West', 'Ondo': 'South West', 'Ekiti': 'South West',
+    'Enugu': 'South East', 'Anambra': 'South East', 'Imo': 'South East', 'Abia': 'South East', 'Ebonyi': 'South East',
+    'Edo': 'South South', 'Delta': 'South South', 'Bayelsa': 'South South', 'Rivers': 'South South', 'Akwa Ibom': 'South South', 'Cross River': 'South South',
+  }
+
+  // Aggregate facilities by geopolitical zone
+  const zoneData = React.useMemo<FacilityZoneData[]>(() => {
+    const zoneMap = new Map<string, { count: number; beds: number; types: Record<string, number> }>()
+    const zones = ['North West', 'North East', 'North Central', 'South West', 'South East', 'South South']
+    zones.forEach(z => zoneMap.set(z, { count: 0, beds: 0, types: {} }))
+
+    facilities.forEach(f => {
+      const zone = stateToZone[f.state]
+      if (zone) {
+        const existing = zoneMap.get(zone)!
+        existing.count++
+        existing.beds += f.bedCapacity || 0
+        if (f.type) {
+          existing.types[f.type] = (existing.types[f.type] || 0) + 1
+        }
+      }
+    })
+
+    return zones.map(zone => ({
+      zone,
+      facilityCount: zoneMap.get(zone)?.count || 0,
+      bedCapacity: zoneMap.get(zone)?.beds || 0,
+      types: zoneMap.get(zone)?.types || {},
+    }))
+  }, [facilities])
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -373,7 +411,7 @@ export default function FacilitiesPage() {
             )}
           </div>
 
-          {/* Map Placeholder */}
+          {/* Map */}
           <div className="lg:col-span-1">
             <Card className="h-full min-h-[400px]">
               <CardHeader className="pb-3">
@@ -383,34 +421,10 @@ export default function FacilitiesPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
-                <div className="h-[350px] rounded-lg bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-100 flex flex-col items-center justify-center text-center p-6">
-                  <div className="size-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-                    <MapPin className="size-8 text-emerald-500" />
-                  </div>
-                  <h3 className="font-semibold text-slate-700 mb-1">Facility Distribution by State</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    View {facilities.length} facilities across {states.length} states
-                  </p>
-                  <div className="space-y-2 w-full">
-                    {states.slice(0, 8).map(state => {
-                      const count = facilities.filter(f => f.state === state).length
-                      return (
-                        <div key={state} className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">{state}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 bg-emerald-100 rounded-full h-2">
-                              <div
-                                className="bg-emerald-500 h-2 rounded-full"
-                                style={{ width: `${totalFacilities > 0 ? (count / totalFacilities) * 100 : 0}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-medium">{count}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
+                <NigeriaZoneMap
+                  data={zoneData}
+                  totalFacilities={totalFacilities}
+                />
               </CardContent>
             </Card>
           </div>
@@ -425,7 +439,7 @@ function FacilityCard({ facility, formatFacilityType }: { facility: Facility; fo
     try { return JSON.parse(facility.servicesOffered) } catch { return [] }
   })()
 
-  const staffCount = facility._count?.staff || facility.staffCount || 0
+  const patientCount = facility._count?.patientProfiles || 0
 
   return (
     <Card className="hover:shadow-md transition-shadow border-slate-200">
@@ -461,12 +475,12 @@ function FacilityCard({ facility, formatFacilityType }: { facility: Facility; fo
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground flex items-center gap-1">
-                <Bed className="size-3" /> Bed Capacity
+                <Bed className="size-3" /> Bed Occupancy
               </span>
-              <span className="font-medium">{staffCount}/{facility.bedCapacity}</span>
+              <span className="font-medium">{patientCount}/{facility.bedCapacity}</span>
             </div>
-            <Progress value={facility.bedCapacity > 0 ? (staffCount / facility.bedCapacity) * 100 : 0} className="h-1.5" />
-            <p className="text-[10px] text-muted-foreground text-right">{facility.bedCapacity > 0 ? Math.round((staffCount / facility.bedCapacity) * 100) : 0}% occupied</p>
+            <Progress value={facility.bedCapacity > 0 ? (patientCount / facility.bedCapacity) * 100 : 0} className="h-1.5" />
+            <p className="text-[10px] text-muted-foreground text-right">{facility.bedCapacity > 0 ? Math.round((patientCount / facility.bedCapacity) * 100) : 0}% occupied</p>
           </div>
         )}
 

@@ -29,19 +29,27 @@ model User {
   emailVerified    Boolean  @default(false)
   phoneVerified    Boolean  @default(false)
   twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+  compactMode      Boolean  @default(false)
+  sidebarCollapsed Boolean  @default(false)
+  deletedAt        DateTime?
   facilityId       String?
   lastLoginAt      DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  nurseProfile   NurseProfile?
-  adminProfile   AdminProfile?
-  patientProfile PatientProfile?
-  facility       Facility?  @relation("UserFacility", fields: [facilityId], references: [id])
-  auditLogs      AuditLog[]
-  notifications  Notification[]
-  sessions       Session[]
-  subscriptions  Subscription[]
+  nurseProfile           NurseProfile?
+  adminProfile           AdminProfile?
+  patientProfile         PatientProfile?
+  facility               Facility?  @relation("UserFacility", fields: [facilityId], references: [id])
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  sessions               Session[]
+  subscriptions          Subscription[]
+  passwordResets         PasswordReset[]
+  notificationPreferences NotificationPreference[]
+  reportSchedules        ReportSchedule[]
+  generatedReports       GeneratedReport[]
 
   @@index([email])
 }
@@ -88,6 +96,7 @@ model NurseProfile {
   incomingReferrals      Referral[]        @relation("AcceptingNurse")
   requestedConsultations Consultation[]    @relation("RequestedConsultations")
   receivedConsultations  Consultation[]    @relation("ReceivedConsultations")
+  sentMessages           ConsultationMessage[] @relation("SentMessages")
   authoredArticles       KnowledgeArticle[] @relation("AuthoredArticles")
   articleComments        ArticleComment[]  @relation("ArticleComments")
   enrollments            Enrollment[]      @relation("Enrollments")
@@ -106,6 +115,20 @@ model AdminProfile {
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   facility Facility? @relation(fields: [facilityId], references: [id])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
 }
 
 model PatientProfile {
@@ -424,14 +447,30 @@ model Consultation {
   transcript        String?
   aiSummary         String?
   rating            Int?
+  webrtcOffer       String?
+  webrtcAnswer      String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   requestingNurse NurseProfile    @relation("RequestedConsultations", fields: [requestingNurseId], references: [id])
   consultingNurse NurseProfile    @relation("ReceivedConsultations", fields: [consultingNurseId], references: [id])
   patient         PatientProfile? @relation(fields: [patientId], references: [id])
+  messages        ConsultationMessage[]
 
   @@index([requestingNurseId, status])
+}
+
+model ConsultationMessage {
+  id              String   @id @default(cuid())
+  consultationId  String
+  senderId        String
+  content         String
+  createdAt       DateTime @default(now())
+
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  sender       NurseProfile @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([consultationId, createdAt])
 }
 
 model KnowledgeArticle {
@@ -870,4 +909,55 @@ model Subscription {
   @@index([userId])
   @@index([facilityId])
   @@index([status])
+}
+
+// ===== USER SETTINGS =====
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String   // e.g. 'patient-alerts', 'appointment-reminders'
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model ReportSchedule {
+  id         String   @id @default(cuid())
+  userId     String
+  templateId String   // e.g. 'monthly-summary', 'quarterly-performance'
+  enabled    Boolean  @default(true)
+  frequency  String   @default("Monthly") // Weekly, Monthly, Quarterly
+  recipients String?  // comma-separated emails
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, templateId])
+  @@index([userId])
+}
+
+model GeneratedReport {
+  id          String   @id @default(cuid())
+  userId      String
+  facilityId  String?
+  templateId  String   // e.g. 'monthly-summary', 'quarterly-performance'
+  title       String
+  reportType  String   // e.g. 'pdf', 'csv'
+  period      String   // e.g. 'this-month', 'last-quarter'
+  contentBlob String?  // Base64-encoded report content for re-download
+  fileSize    Int?     // Size in bytes
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, templateId])
+  @@index([userId, generatedAt])
 }

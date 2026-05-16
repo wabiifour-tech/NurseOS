@@ -49,6 +49,7 @@ import {
   Legend,
 } from "recharts"
 import { toast } from "sonner"
+import { SurveillanceMap, type DiseaseZoneData } from "@/components/SurveillanceMap"
 
 interface DiseaseSurveillanceItem {
   disease: string
@@ -243,6 +244,48 @@ export default function SurveillancePage() {
   const weeklyTrends = data?.weeklyTrends || []
   const selectedDiseaseAlerts = diseaseAlerts.filter(d => d.disease === selectedDisease)
 
+  // Map states to geopolitical zones for the disease map
+  const stateToZone: Record<string, string> = {
+    'Sokoto': 'North West', 'Zamfara': 'North West', 'Kebbi': 'North West', 'Katsina': 'North West', 'Kano': 'North West', 'Jigawa': 'North West', 'Kaduna': 'North West',
+    'Borno': 'North East', 'Yobe': 'North East', 'Bauchi': 'North East', 'Gombe': 'North East', 'Adamawa': 'North East', 'Taraba': 'North East',
+    'Niger': 'North Central', 'Kwara': 'North Central', 'Kogi': 'North Central', 'Benue': 'North Central', 'Plateau': 'North Central', 'FCT': 'North Central', 'Nasarawa': 'North Central',
+    'Lagos': 'South West', 'Ogun': 'South West', 'Oyo': 'South West', 'Osun': 'South West', 'Ondo': 'South West', 'Ekiti': 'South West',
+    'Enugu': 'South East', 'Anambra': 'South East', 'Imo': 'South East', 'Abia': 'South East', 'Ebonyi': 'South East',
+    'Edo': 'South South', 'Delta': 'South South', 'Bayelsa': 'South South', 'Rivers': 'South South', 'Akwa Ibom': 'South South', 'Cross River': 'South South',
+  }
+
+  // Aggregate disease data by geopolitical zone
+  const diseaseZoneData = React.useMemo<DiseaseZoneData[]>(() => {
+    const zoneMap = new Map<string, { totalCases: number; maxSeverity: string; diseases: { name: string; cases: number; alertLevel: string }[] }>()
+    const zones = ['North West', 'North East', 'North Central', 'South West', 'South East', 'South South']
+    zones.forEach(z => zoneMap.set(z, { totalCases: 0, maxSeverity: 'Watch', diseases: [] }))
+
+    const severityOrder = ['Low', 'Watch', 'Warning', 'Medium', 'Alert', 'High', 'Emergency']
+
+    diseaseAlerts.forEach(alert => {
+      const zone = stateToZone[alert.region] || null
+      // Also try matching region directly as a zone name
+      const targetZone = zone || (zones.includes(alert.region) ? alert.region : null)
+      if (targetZone) {
+        const existing = zoneMap.get(targetZone)!
+        existing.totalCases += alert.cases
+        existing.diseases.push({ name: alert.disease, cases: alert.cases, alertLevel: alert.alertLevel })
+
+        // Determine max severity
+        const currentIdx = severityOrder.indexOf(existing.maxSeverity)
+        const newIdx = severityOrder.indexOf(alert.alertLevel)
+        if (newIdx > currentIdx) existing.maxSeverity = alert.alertLevel
+      }
+    })
+
+    return zones.map(zone => ({
+      zone,
+      totalCases: zoneMap.get(zone)?.totalCases || 0,
+      maxSeverity: zoneMap.get(zone)?.maxSeverity || 'Watch',
+      diseases: zoneMap.get(zone)?.diseases || [],
+    }))
+  }, [diseaseAlerts])
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Page Header */}
@@ -304,7 +347,7 @@ export default function SurveillancePage() {
         </Dialog>
       </div>
 
-      {/* Map Placeholder */}
+      {/* Disease Map */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -313,30 +356,18 @@ export default function SurveillancePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] rounded-lg bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-100 flex flex-col items-center justify-center p-6">
-            <div className="size-20 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-              <MapPin className="size-10 text-emerald-500" />
-            </div>
-            <h3 className="font-semibold text-slate-700 mb-2">Interactive Disease Map</h3>
-            <p className="text-sm text-muted-foreground text-center mb-4 max-w-md">
-              Real-time visualization of disease outbreaks across Nigerian states
-            </p>
+          <div className="rounded-lg border border-emerald-100 bg-white">
             {hasDiseaseData ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-lg">
-                {diseaseAlerts.map((alert, idx) => {
-                  const config = severityConfig[getSeverity(alert.alertLevel)] || severityConfig.Watch
-                  return (
-                    <div key={idx} className="bg-white rounded-lg p-3 border shadow-sm text-center">
-                      <p className="text-lg font-bold text-slate-900">{alert.cases.toLocaleString()}</p>
-                      <p className="text-[10px] text-muted-foreground font-medium">{alert.disease}</p>
-                      <Badge className={`text-[8px] mt-1 ${config.color}`}>{getSeverity(alert.alertLevel)}</Badge>
-                    </div>
-                  )
-                })}
-              </div>
+              <SurveillanceMap data={diseaseZoneData} totalAlerts={diseaseAlerts.length} />
             ) : (
-              <div className="bg-white rounded-lg p-4 border shadow-sm max-w-sm">
-                <p className="text-sm text-muted-foreground">No disease outbreak data available yet. Case data will appear here as reports are submitted.</p>
+              <div className="flex flex-col items-center justify-center text-center p-8">
+                <div className="size-20 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                  <MapPin className="size-10 text-emerald-500" />
+                </div>
+                <h3 className="font-semibold text-slate-700 mb-2">Interactive Disease Map</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  No disease outbreak data available yet. Case data will appear here as reports are submitted.
+                </p>
               </div>
             )}
           </div>

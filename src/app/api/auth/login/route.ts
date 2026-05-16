@@ -14,7 +14,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const { email, password } = body
 
     // Validate required fields
@@ -119,7 +124,7 @@ export async function POST(request: NextRequest) {
 
     // Normalize role: If user has AdminProfile with accessLevel >= 10, treat as SUPER_ADMIN
     // The register route maps SUPER_ADMIN → ADMIN in DB, so we need to recover the true role
-    if (userWithoutPassword.role === 'ADMIN' && user.adminProfile && (user.adminProfile as any).accessLevel >= 10) {
+    if (userWithoutPassword.role === 'ADMIN' && user.adminProfile && user.adminProfile.accessLevel >= 10) {
       userWithoutPassword.role = 'SUPER_ADMIN'
     }
 
