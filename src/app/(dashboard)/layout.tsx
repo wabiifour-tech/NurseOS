@@ -336,15 +336,17 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider defaultOpen={!defaultCollapsed}>
-      <AppSidebar />
-      <SidebarInset>
-        <DashboardHeader />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-    <PWAInstallBanner />
+    <>
+      <SidebarProvider defaultOpen={!defaultCollapsed}>
+        <AppSidebar />
+        <SidebarInset>
+          <DashboardHeader />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+      <PWAInstallBanner />
+    </>
   )
 }
