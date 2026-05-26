@@ -1,26 +1,34 @@
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Resolve all issues with inter and intra-facility communication, add notification system
+Task: Implement inter/intra-facility communication and notification system for NurseOS
 
 Work Log:
-- Audited entire codebase for communication and notification features
-- Found 5 critical issues: broken notification bell, ID mismatch in consultations, missing referral PATCH endpoint, no notification triggers, no real-time notification delivery
-- Created /api/notifications route (GET list with pagination, PATCH mark-read/mark-all-read, DELETE dismiss)
-- Created /api/notifications/count route (unread count + type breakdown for badges)
-- Created useNotifications hook with 30s polling interval for real-time updates
-- Fixed ConsultationPage currentUserId vs nurseProfileId mismatch (tab filtering, ChatDialog, ConsultationCard)
-- Created /api/caregrid/referrals/[id] PATCH endpoint with authorization checks per status transition
-- Added referral action buttons to ReferralsPage UI (Accept/Reject/Complete/Cancel with detail dialog)
-- Added notification triggers for: consultation created/accepted, consultation status changed, new chat message, referral created, referral status updated
-- Rewired notification bell dropdown with real data, unread badge, type icons, mark read, dismiss
-- Added sidebar notification badge counts for Consultations and Referrals using typeBreakdown
-- Replaced window.location.reload() with onRefresh() callback pattern in consultation actions
-- Build succeeded, committed and pushed to main
+- Audited existing communication infrastructure: found Notification model, Consultation/ConsultationMessage models, polling-based notification hook, ChatDialog/PhoneDialog/VideoCallDialog components, NotificationBell in layout
+- Identified 12 critical gaps: no standalone messaging, no announcements, no preference-aware notifications, no disease outbreak notifications, no real-time push
+- Updated Prisma schema with 3 new models: DirectMessage, Announcement, AnnouncementRead
+- Created lib/notify.ts: centralized notification helper with preference-aware creation, bulk notifications, facility-wide notifications, admin notifications
+- Built /api/messages: full CRUD for direct messages (GET conversations, GET thread, POST send, PATCH mark-read)
+- Built /api/messages/unread-count: unread DM count endpoint
+- Built /api/announcements: full CRUD with facility-scoped + system-wide support, priority levels, categories, read tracking
+- Built /api/announcements/[id]: PATCH update, DELETE (soft) for admin management
+- Built /api/announcements/[id]/read: POST mark-as-read endpoint
+- Built /api/nurseanalytics/surveillance: GET + POST with automatic outbreak notifications
+- Built /messages page: full inbox UI with conversation list, thread view, real-time polling, inter-facility badges, new message dialog with user search
+- Built /announcements page: announcement center with category filters, priority badges, read tracking, create dialog for admins, pin support
+- Updated sidebar: added Messages and Announcements nav items with badge counts
+- Updated NotificationBell: added DM, ANNOUNCEMENT, OUTBREAK, SHIFT, APPOINTMENT, COURSE type icons/colors
+- Updated notification click handler: navigates to /messages for DMs, /announcements for announcements
+- Updated settings: added direct-messages, consultation-updates, announcements, training-updates preference toggles
+- Migrated all 6 existing db.notification.create calls across 5 API routes to use createNotification helper
+- Build successful, committed, pushed to GitHub
 
 Stage Summary:
-- 11 files changed, 1233 insertions, 79 deletions
-- Commit: 0f9e9d7
-- All inter-facility communication flows now working with proper notification delivery
-- Nurses receive real-time notifications for consultations, messages, and referrals
-- Referral lifecycle fully operational (create → accept/reject → complete/cancel)
+- 20 files changed, 2148 insertions, 119 deletions
+- Commit: 4852718 "feat: implement inter/intra-facility communication & notification system"
+- New Prisma models: DirectMessage, Announcement, AnnouncementRead
+- New API routes: /api/messages, /api/messages/unread-count, /api/announcements, /api/announcements/[id], /api/announcements/[id]/read, /api/nurseanalytics/surveillance
+- New pages: /messages, /announcements
+- Notification system is now preference-aware across all routes
+- Disease outbreak alerts automatically notify facility users
+- Deployment triggered via git push (Vercel auto-deploy)
