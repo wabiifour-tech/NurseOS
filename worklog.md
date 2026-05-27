@@ -32,3 +32,37 @@ Stage Summary:
 - Notification system is now preference-aware across all routes
 - Disease outbreak alerts automatically notify facility users
 - Deployment triggered via git push (Vercel auto-deploy)
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix critical auth regression — sign-in and sign-up both redirecting to login
+
+Work Log:
+- Investigated all auth-related files: auth-store.ts, middleware.ts, login page, register page, dashboard layout, auth-provider.tsx
+- Compared current project with NurseOS backup to identify discrepancies
+- ROOT CAUSE IDENTIFIED: After window.location.assign('/dashboard') following login, Zustand persist sometimes fails to rehydrate from localStorage before the dashboard layout's redirect logic fires. The layout immediately redirected to /login when Zustand said unauthenticated, without checking if the HttpOnly cookie was still valid.
+- Evidence chain: Middleware lets user through (cookie valid) → Dashboard layout shows "Redirecting to login..." (Zustand says unauthenticated) → Proves it's Zustand hydration failure, not cookie/middleware/redirect logic issue
+- Additional bugs found: /api/auth/me endpoint MISSING, use-notifications hook MISSING, NotificationBell was simple static dropdown, many API routes not deployed
+- Created /api/auth/me endpoint for server-side auth verification using HttpOnly cookie
+- Rewrote dashboard layout auth guard with 2-step verification:
+  1. Wait for Zustand hydration
+  2. If Zustand says authenticated → render normally
+  3. If Zustand says NOT authenticated → call /api/auth/me (uses HttpOnly cookie)
+  4. If /api/auth/me succeeds → re-populate Zustand from server and render
+  5. If /api/auth/me fails → genuinely redirect to /login
+- Added authChecked state to prevent premature redirect
+- Added use-notifications hook with real-time polling
+- Synced full NotificationBell component with type icons, colors, mark read, dismiss
+- Copied missing API routes from NurseOS backup (notifications, messages, announcements, surveillance)
+- Copied missing pages (messages, announcements)
+- Added notify.ts helper
+- Updated Prisma schema with DirectMessage, Announcement, AnnouncementRead models
+- Build succeeded, committed, force-pushed to GitHub
+
+Stage Summary:
+- 15 files changed, 2708 insertions, 31 deletions
+- Commit: a655ca3 "fix: auth redirect loop - add /api/auth/me recovery mechanism"
+- Critical fix: Auth recovery via /api/auth/me prevents redirect loop when Zustand fails to rehydrate
+- All missing communication/notification routes now deployed
+- Deployment triggered via git push (Vercel auto-deploy)
