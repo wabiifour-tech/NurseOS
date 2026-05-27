@@ -49,6 +49,10 @@ model User {
   notificationPreferences NotificationPreference[]
   reportSchedules        ReportSchedule[]
   generatedReports       GeneratedReport[]
+  sentDirectMessages     DirectMessage[]     @relation("SentDirectMessages")
+  receivedDirectMessages DirectMessage[]     @relation("ReceivedDirectMessages")
+  announcements          Announcement[]     @relation("AuthoredAnnouncements")
+  announcementReads      AnnouncementRead[]
 
   @@index([email])
 }
@@ -209,6 +213,7 @@ model Facility {
   subscription     Subscription?
   diseaseSurveillance DiseaseSurveillance[]
   staffingPredictions StaffingPrediction[]
+  announcements       Announcement[]     @relation("AnnouncementFacility")
 
   @@index([type, city, state])
   @@index([isVerified])
@@ -959,4 +964,62 @@ model GeneratedReport {
 
   @@index([userId, templateId])
   @@index([userId, generatedAt])
+}
+
+// ===== MESSAGING & COMMUNICATION =====
+
+// Direct Messages — one-to-one messages between users (intra-facility & inter-facility)
+model DirectMessage {
+  id         String   @id @default(cuid())
+  threadKey  String   // Composite key: sorted userIds joined with "__" (e.g., "userA__userB")
+  senderId   String
+  recipientId String
+  content    String
+  isRead     Boolean  @default(false)
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  sender    User @relation("SentDirectMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("ReceivedDirectMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([threadKey, createdAt])
+  @@index([recipientId, isRead])
+  @@index([senderId])
+}
+
+// Announcements — facility-wide or system-wide broadcasts from admins
+model Announcement {
+  id          String   @id @default(cuid())
+  authorId    String
+  facilityId  String?
+  title       String
+  message   String
+  category    String   @default("GENERAL") // GENERAL, POLICY, EMERGENCY, TRAINING, MAINTENANCE
+  priority    String   @default("NORMAL")   // LOW, NORMAL, HIGH, URGENT, CRITICAL
+  isPinned    Boolean  @default(false)
+  isGlobal    Boolean  @default(false)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author    User              @relation("AuthoredAnnouncements", fields: [authorId], references: [id])
+  facility  Facility?         @relation("AnnouncementFacility", fields: [facilityId], references: [id])
+  reads     AnnouncementRead[]
+
+  @@index([facilityId, createdAt])
+  @@index([isGlobal, createdAt])
+  @@index([priority, createdAt])
+}
+
+model AnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId])
 }
