@@ -118,3 +118,24 @@ Stage Summary:
 - Googlebot will no longer see redirects on protected pages (X-Robots-Tag approach)
 - Auth pages are marked noindex in both HTTP header and meta tags
 - Vercel auto-deploy triggered
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix canonical domain mismatch causing "Page with redirect" error
+
+Work Log:
+- Discovered PRIMARY root cause: Vercel redirects nurseos.digital → www.nurseos.digital with 307, but all canonical URLs, metadata, and sitemap pointed to nurseos.digital (non-www)
+- Google crawls nurseos.digital URLs (from sitemap/canonical) → gets 307 redirect → "Page with redirect" error
+- Updated metadataBase, canonical URL, and OpenGraph URL in root layout to www.nurseos.digital
+- Updated sitemap.ts BASE_URL to www.nurseos.digital
+- Updated robots.txt Sitemap URL to www.nurseos.digital  
+- Fixed payment callback URL fallback from nurseos.vercel.app to www.nurseos.digital
+- Removed PAT tokens from worklog.md (GitHub push protection)
+- Build succeeded, pushed to GitHub (90ebebb)
+- Verified deployment: all public pages return 200, auth pages have noindex header, sitemap uses www URLs
+
+Stage Summary:
+- The canonical domain mismatch was the PRIMARY cause of the Google indexing issue
+- All URLs now consistently use www.nurseos.digital (matches Vercel's primary domain)
+- No more 307 redirects for Google when following canonical/sitemap URLs
+- Deployment live and verified
