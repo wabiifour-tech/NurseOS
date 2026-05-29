@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { ShieldCheck, ArrowLeft } from 'lucide-react'
 
 export const metadata = {
+  alternates: { canonical: 'https://www.nurseos.digital/hipaa' },
   title: 'HIPAA Notice — NurseOS',
   description: 'NurseOS alignment with HIPAA principles — encryption, access controls, and audit trails.',
 }

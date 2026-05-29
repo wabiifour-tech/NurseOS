@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { Scale, ArrowLeft } from 'lucide-react'
 
 export const metadata = {
+  alternates: { canonical: 'https://www.nurseos.digital/ndpr' },
   title: 'NDPR Compliance — NurseOS',
   description: 'NurseOS compliance with the Nigeria Data Protection Regulation (NDPR).',
 }

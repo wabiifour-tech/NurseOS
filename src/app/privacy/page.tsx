@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { Shield, ArrowLeft } from 'lucide-react'
 
 export const metadata = {
+  alternates: { canonical: 'https://www.nurseos.digital/privacy' },
   title: 'Privacy Policy — NurseOS',
   description: 'NurseOS Privacy Policy — How we collect, use, and protect your healthcare data.',
 }

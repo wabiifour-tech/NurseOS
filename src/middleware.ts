@@ -99,10 +99,15 @@ const isPublicPath = (pathname: string): boolean => {
   return false
 }
 
+// Paths that should never get a noindex header (technical files)
+const neverNoindexPaths = ['/sitemap.xml', '/robots.txt']
+
 // Check if a path should be indexed by search engines (public + indexable)
 const isIndexablePath = (pathname: string): boolean => {
   const normalized = normalizePath(pathname)
-  return indexablePublicRoutes.includes(normalized) || indexablePublicRoutes.includes(pathname)
+  return indexablePublicRoutes.includes(normalized) || 
+         indexablePublicRoutes.includes(pathname) ||
+         neverNoindexPaths.includes(pathname)
 }
 
 // Check if a path is accessible without a facility assignment
@@ -181,6 +186,7 @@ export function middleware(request: NextRequest) {
 
   // For public pages that shouldn't be indexed (login, register, etc.)
   // Add noindex header to prevent them from appearing in search results
+  // Exception: sitemap.xml and robots.txt are technical files that should NOT get noindex
   if (isPublicPath(pathname) && !isIndexablePath(pathname)) {
     const response = NextResponse.next()
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')

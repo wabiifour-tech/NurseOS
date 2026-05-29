@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { FileText, ArrowLeft } from 'lucide-react'
 
 export const metadata = {
+  alternates: { canonical: 'https://www.nurseos.digital/terms' },
   title: 'Terms of Service — NurseOS',
   description: 'NurseOS Terms of Service — Your responsibilities and our commitments.',
 }
