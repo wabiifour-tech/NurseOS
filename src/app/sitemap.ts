@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next'
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://nurseos.digital'
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.nurseos.digital'
 
 /**
  * Dynamic sitemap generation for NurseOS.

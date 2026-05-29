@@ -95,4 +95,4 @@ Disallow: /register
 Disallow: /forgot-password
 
 # Sitemap
-Sitemap: https://nurseos.digital/sitemap.xml
+Sitemap: https://www.nurseos.digital/sitemap.xml

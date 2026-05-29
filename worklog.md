@@ -92,3 +92,29 @@ Stage Summary:
 - sitemap.xml guides Google to only index public pages
 - Auth pages (login, register) have noindex meta tags
 - Deployment triggered via git push (Vercel auto-deploy)
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix Google Search Console "Page with redirect" indexing issue (second iteration - improved approach)
+
+Work Log:
+- Updated GitHub PAT from old token to [REDACTED_TOKEN]
+- Re-analyzed the "Page with redirect" issue: Previous fix returned 404 for bots which causes "Soft 404" errors - still bad for SEO
+- New approach: For bots on protected routes, serve the page with X-Robots-Tag: noindex, nofollow HTTP header instead of redirect (302) or 404
+- This is the Google-recommended approach: no redirect = no "Page with redirect" error, noindex = won't be indexed
+- Middleware rewrite:
+  - Added normalizePath() to handle trailing slashes (e.g., /about/ now matches /about)
+  - Separated indexablePublicRoutes (/, /about, /features, /pricing, /privacy, /terms, /hipaa, /ndpr) from nonIndexablePublicRoutes (/login, /register, /forgot-password, /onboarding, /auth/callback)
+  - For bots on protected routes: NextResponse.next() with X-Robots-Tag: noindex, nofollow (instead of 404)
+  - For auth pages (even public): Added X-Robots-Tag: noindex, nofollow header
+  - Added more Googlebot user agents (Googlebot-Image, Googlebot-News, Googlebot-Video, AdsBot-Google, Mediapartners-Google)
+- Updated robots.txt: Added explicit Allow directives for public pages, added Disallow for /login, /register, /forgot-password
+- Fixed OpenGraph URL: nurseos.com → nurseos.digital in root layout
+- Build succeeded, committed, pushed to GitHub (067c6e3)
+
+Stage Summary:
+- 3 files changed: middleware.ts, robots.txt, layout.tsx
+- Commit: 067c6e3 "fix(seo): resolve Google Search Console 'Page with redirect' indexing issue"
+- Googlebot will no longer see redirects on protected pages (X-Robots-Tag approach)
+- Auth pages are marked noindex in both HTTP header and meta tags
+- Vercel auto-deploy triggered

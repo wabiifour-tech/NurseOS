@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // Paystack expects amount in kobo (smallest currency unit for NGN)
     const amountInKobo = amount * 100
 
-    const callbackUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://nurseos.vercel.app'}/subscription`
+    const callbackUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.nurseos.digital'}/subscription`
 
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',

@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://nurseos.digital"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.nurseos.digital"),
   title: "NurseOS — The Operating System for Global Nursing Care",
   description:
     "Built by a Nurse. For the World. NurseOS empowers healthcare facilities with AI-powered nursing care, workforce management, analytics, identity verification, and continuous education.",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
   creator: "Wabi The Tech Nurse",
   publisher: "NurseOS",
   alternates: {
-    canonical: "https://nurseos.digital",
+    canonical: "https://www.nurseos.digital",
   },
   manifest: "/manifest.webmanifest",
   icons: {
@@ -82,7 +82,7 @@ export const metadata: Metadata = {
     title: "NurseOS — The Operating System for Global Nursing Care",
     description:
       "Built by a Nurse. For the World. Empowering healthcare facilities with intelligent nursing technology.",
-    url: "https://nurseos.digital",
+    url: "https://www.nurseos.digital",
     siteName: "NurseOS",
     type: "website",
     images: ["/nurseos-hero.png"],
