@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+/**
+ * NurseOS Middleware — Authentication + SEO/Crawler Handling
+ *
+ * Key design decisions for Google Search Console compliance:
+ * 1. Public pages (/, /about, /features, /pricing, /privacy, /terms) are fully
+ *    accessible to all visitors including search engine bots — no redirect, no block.
+ * 2. Auth pages (/login, /register) are accessible but marked noindex (shouldn't
+ *    appear in search results).
+ * 3. Protected pages (/dashboard, /nurseai, etc.) — for bots, we serve the page
+ *    with X-Robots-Tag: noindex instead of redirecting (which causes "Page with
+ *    redirect" in Google Search Console) or returning 404 (which causes "Soft 404").
+ * 4. For regular unauthenticated users, protected pages redirect to /login.
+ */
+
 // Routes that don't require authentication and SHOULD be indexed by Google
-const publicRoutes = [
+const indexablePublicRoutes = [
   '/',
-  '/login',
-  '/register',
-  '/forgot-password',
   '/about',
   '/features',
   '/pricing',
@@ -13,10 +24,19 @@ const publicRoutes = [
   '/terms',
   '/hipaa',
   '/ndpr',
+]
+
+// Routes that don't require auth but should NOT be indexed (auth flow pages)
+const nonIndexablePublicRoutes = [
+  '/login',
+  '/register',
+  '/forgot-password',
   '/onboarding',
   '/auth/callback',
-  '/sitemap.xml',
 ]
+
+// All public routes combined
+const publicRoutes = [...indexablePublicRoutes, ...nonIndexablePublicRoutes, '/sitemap.xml']
 
 // Auth routes - redirect to dashboard if already authenticated
 const authRoutes = ['/login', '/register', '/forgot-password']
@@ -57,8 +77,17 @@ const noFacilityRequiredRoutes = [
   '/announcements',
 ]
 
+// Normalize a pathname: remove trailing slash (except for root), lowercase
+const normalizePath = (pathname: string): string => {
+  if (pathname === '/') return '/'
+  return pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+}
+
 // Check if a path is public (doesn't require auth)
 const isPublicPath = (pathname: string): boolean => {
+  const normalized = normalizePath(pathname)
+  if (publicRoutes.includes(normalized)) return true
+  // Also check without normalization for direct match
   if (publicRoutes.includes(pathname)) return true
   // Only allow specifically whitelisted API routes without auth
   if (pathname.startsWith('/api/')) {
@@ -68,6 +97,12 @@ const isPublicPath = (pathname: string): boolean => {
   if (pathname.startsWith('/_next/')) return true
   if (pathname.includes('.')) return true // static files
   return false
+}
+
+// Check if a path should be indexed by search engines (public + indexable)
+const isIndexablePath = (pathname: string): boolean => {
+  const normalized = normalizePath(pathname)
+  return indexablePublicRoutes.includes(normalized) || indexablePublicRoutes.includes(pathname)
 }
 
 // Check if a path is accessible without a facility assignment
@@ -83,6 +118,8 @@ const isSearchBot = (request: NextRequest): boolean => {
     'Googlebot', 'Bingbot', 'Slurp', 'DuckDuckBot', 'Baiduspider',
     'YandexBot', 'Sogou', 'Exabot', 'facebot', 'facebookexternalhit',
     'ia_archiver', 'AhrefsBot', 'MJ12bot', 'SemrushBot',
+    'Googlebot-Image', 'Googlebot-News', 'Googlebot-Video',
+    'AdsBot-Google', 'Mediapartners-Google',
   ]
   return botPatterns.some(bot => ua.includes(bot))
 }
@@ -125,18 +162,29 @@ export function middleware(request: NextRequest) {
       )
     }
 
-    // For search engine bots: return 404 instead of redirecting to /login.
-    // This tells Google "this page doesn't exist for unauthenticated users"
-    // instead of "this page redirects somewhere else", which prevents the
-    // "Page with redirect" indexing issue in Google Search Console.
+    // For search engine bots: let the page render but add noindex header.
+    // This prevents "Page with redirect" errors in Google Search Console
+    // because we don't redirect the bot — we serve the page content with
+    // an instruction not to index it. The client-side auth logic will show
+    // a redirect/loading screen, but Google won't flag it as a redirect.
     if (isSearchBot(request)) {
-      return new NextResponse(null, { status: 404 })
+      const response = NextResponse.next()
+      response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+      return response
     }
 
     // For regular users: redirect to login with callback
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // For public pages that shouldn't be indexed (login, register, etc.)
+  // Add noindex header to prevent them from appearing in search results
+  if (isPublicPath(pathname) && !isIndexablePath(pathname)) {
+    const response = NextResponse.next()
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    return response
   }
 
   return NextResponse.next()

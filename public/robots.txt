@@ -1,15 +1,23 @@
 # NurseOS — https://nurseos.digital
 # robots.txt — Guides search engine crawlers
 
+# Google: Allow public pages, block auth-only areas
 User-agent: Googlebot
 Allow: /
+Allow: /about
+Allow: /features
+Allow: /pricing
+Allow: /privacy
+Allow: /terms
+Allow: /hipaa
+Allow: /ndpr
 Disallow: /dashboard
 Disallow: /settings
-Disallow: /nurseai/
-Disallow: /caregrid/
-Disallow: /nurseid/
-Disallow: /academy/
-Disallow: /analytics/
+Disallow: /nurseai
+Disallow: /caregrid
+Disallow: /nurseid
+Disallow: /academy
+Disallow: /analytics
 Disallow: /admin
 Disallow: /superadmin
 Disallow: /subscription
@@ -19,16 +27,27 @@ Disallow: /help
 Disallow: /onboarding
 Disallow: /api/
 Disallow: /auth/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
 
+# Bing: Same as Google
 User-agent: Bingbot
 Allow: /
+Allow: /about
+Allow: /features
+Allow: /pricing
+Allow: /privacy
+Allow: /terms
+Allow: /hipaa
+Allow: /ndpr
 Disallow: /dashboard
 Disallow: /settings
-Disallow: /nurseai/
-Disallow: /caregrid/
-Disallow: /nurseid/
-Disallow: /academy/
-Disallow: /analytics/
+Disallow: /nurseai
+Disallow: /caregrid
+Disallow: /nurseid
+Disallow: /academy
+Disallow: /analytics
 Disallow: /admin
 Disallow: /superadmin
 Disallow: /subscription
@@ -38,6 +57,9 @@ Disallow: /help
 Disallow: /onboarding
 Disallow: /api/
 Disallow: /auth/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
 
 # Social media crawlers — allow full access for link previews
 User-agent: Twitterbot
@@ -54,11 +76,11 @@ User-agent: *
 Allow: /
 Disallow: /dashboard
 Disallow: /settings
-Disallow: /nurseai/
-Disallow: /caregrid/
-Disallow: /nurseid/
-Disallow: /academy/
-Disallow: /analytics/
+Disallow: /nurseai
+Disallow: /caregrid
+Disallow: /nurseid
+Disallow: /academy
+Disallow: /analytics
 Disallow: /admin
 Disallow: /superadmin
 Disallow: /subscription
@@ -68,6 +90,9 @@ Disallow: /help
 Disallow: /onboarding
 Disallow: /api/
 Disallow: /auth/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
 
 # Sitemap
 Sitemap: https://nurseos.digital/sitemap.xml

@@ -82,7 +82,7 @@ export const metadata: Metadata = {
     title: "NurseOS — The Operating System for Global Nursing Care",
     description:
       "Built by a Nurse. For the World. Empowering healthcare facilities with intelligent nursing technology.",
-    url: "https://nurseos.com",
+    url: "https://nurseos.digital",
     siteName: "NurseOS",
     type: "website",
     images: ["/nurseos-hero.png"],
