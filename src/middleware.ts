@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Routes that don't require authentication
+// Routes that don't require authentication and SHOULD be indexed by Google
 const publicRoutes = [
   '/',
   '/login',
@@ -15,6 +15,7 @@ const publicRoutes = [
   '/ndpr',
   '/onboarding',
   '/auth/callback',
+  '/sitemap.xml',
 ]
 
 // Auth routes - redirect to dashboard if already authenticated
@@ -52,6 +53,8 @@ const noFacilityRequiredRoutes = [
   '/admin',
   '/superadmin',
   '/subscription',
+  '/messages',
+  '/announcements',
 ]
 
 // Check if a path is public (doesn't require auth)
@@ -71,6 +74,17 @@ const isPublicPath = (pathname: string): boolean => {
 const isNoFacilityRequiredPath = (pathname: string): boolean => {
   if (noFacilityRequiredRoutes.some(route => pathname.startsWith(route))) return true
   return false
+}
+
+// Detect if the request is from a search engine bot
+const isSearchBot = (request: NextRequest): boolean => {
+  const ua = request.headers.get('user-agent') || ''
+  const botPatterns = [
+    'Googlebot', 'Bingbot', 'Slurp', 'DuckDuckBot', 'Baiduspider',
+    'YandexBot', 'Sogou', 'Exabot', 'facebot', 'facebookexternalhit',
+    'ia_archiver', 'AhrefsBot', 'MJ12bot', 'SemrushBot',
+  ]
+  return botPatterns.some(bot => ua.includes(bot))
 }
 
 export function middleware(request: NextRequest) {
@@ -101,7 +115,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(dashboardUrl)
   }
 
-  // If user is not authenticated and trying to access protected routes, redirect to login
+  // If user is not authenticated and trying to access protected routes
   if (!isAuthenticated && !isPublicPath(pathname)) {
     // For API routes, return 401 instead of redirecting
     if (pathname.startsWith('/api/')) {
@@ -110,6 +124,16 @@ export function middleware(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // For search engine bots: return 404 instead of redirecting to /login.
+    // This tells Google "this page doesn't exist for unauthenticated users"
+    // instead of "this page redirects somewhere else", which prevents the
+    // "Page with redirect" indexing issue in Google Search Console.
+    if (isSearchBot(request)) {
+      return new NextResponse(null, { status: 404 })
+    }
+
+    // For regular users: redirect to login with callback
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(loginUrl)

@@ -1,14 +1,73 @@
+# NurseOS — https://nurseos.digital
+# robots.txt — Guides search engine crawlers
+
 User-agent: Googlebot
 Allow: /
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /nurseai/
+Disallow: /caregrid/
+Disallow: /nurseid/
+Disallow: /academy/
+Disallow: /analytics/
+Disallow: /admin
+Disallow: /superadmin
+Disallow: /subscription
+Disallow: /messages
+Disallow: /announcements
+Disallow: /help
+Disallow: /onboarding
+Disallow: /api/
+Disallow: /auth/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /nurseai/
+Disallow: /caregrid/
+Disallow: /nurseid/
+Disallow: /academy/
+Disallow: /analytics/
+Disallow: /admin
+Disallow: /superadmin
+Disallow: /subscription
+Disallow: /messages
+Disallow: /announcements
+Disallow: /help
+Disallow: /onboarding
+Disallow: /api/
+Disallow: /auth/
 
+# Social media crawlers — allow full access for link previews
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
 Allow: /
 
+User-agent: LinkedInBot
+Allow: /
+
+# All other bots
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /nurseai/
+Disallow: /caregrid/
+Disallow: /nurseid/
+Disallow: /academy/
+Disallow: /analytics/
+Disallow: /admin
+Disallow: /superadmin
+Disallow: /subscription
+Disallow: /messages
+Disallow: /announcements
+Disallow: /help
+Disallow: /onboarding
+Disallow: /api/
+Disallow: /auth/
+
+# Sitemap
+Sitemap: https://nurseos.digital/sitemap.xml

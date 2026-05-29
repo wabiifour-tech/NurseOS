@@ -445,6 +445,22 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const { isAuthenticated, isLoggingOut } = useAuthStore()
+
+  // Prevent search engines from indexing any dashboard pages
+  React.useEffect(() => {
+    // Add noindex meta tag to prevent Google from indexing dashboard pages
+    let meta = document.querySelector('meta[name="robots"][content*="noindex"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'robots')
+      meta.setAttribute('content', 'noindex, nofollow')
+      document.head.appendChild(meta)
+    }
+    return () => {
+      // Clean up on unmount (though dashboard layout rarely unmounts)
+      meta?.remove()
+    }
+  }, [])
   const [hydrated, setHydrated] = React.useState(false)
   const [authChecked, setAuthChecked] = React.useState(false)
   const [defaultCollapsed, setDefaultCollapsed] = React.useState(false)
