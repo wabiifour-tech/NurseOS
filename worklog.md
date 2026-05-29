@@ -66,3 +66,29 @@ Stage Summary:
 - Critical fix: Auth recovery via /api/auth/me prevents redirect loop when Zustand fails to rehydrate
 - All missing communication/notification routes now deployed
 - Deployment triggered via git push (Vercel auto-deploy)
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix Google Search Console "Page with redirect" indexing issue
+
+Work Log:
+- Analyzed the "Page with redirect" error from Google Search Console
+- Root cause: Middleware redirected all unauthenticated requests (including Googlebot) from dashboard pages to /login with 307 status, causing Google to classify these as "pages with redirect"
+- Middleware fix: Added isSearchBot() detection - returns 404 for bots on protected routes instead of redirecting (tells Google "page doesn't exist" vs "page redirects")
+- Rewrote robots.txt with comprehensive Disallow rules for all authenticated routes and Sitemap reference
+- Created dynamic sitemap.ts with only public, indexable pages (/, /features, /pricing, /about, /privacy, /terms, /hipaa, /ndpr)
+- Auth layout: Added noindex/nofollow meta tags (split into server component + client shell for Next.js metadata support)
+- Public layout: Added index/follow meta tags (split into server + client shell)
+- Dashboard layout: Added client-side noindex meta tag injection
+- Root layout: Fixed metadataBase from nurseos.vercel.app to nurseos.digital, added canonical URL, creator, publisher
+- Build succeeded, committed, pushed to GitHub
+
+Stage Summary:
+- 22 files changed, 394 insertions, 189 deletions
+- Commit: 6964306 "fix: resolve Google Search Console 'Page with redirect' indexing issue"
+- Googlebot now gets 404 on protected pages (not redirect) = no more "Page with redirect" error
+- robots.txt blocks crawling of all authenticated routes
+- sitemap.xml guides Google to only index public pages
+- Auth pages (login, register) have noindex meta tags
+- Deployment triggered via git push (Vercel auto-deploy)
