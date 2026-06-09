@@ -196,3 +196,25 @@ Stage Summary:
 - Production database is now CONNECTED and tables exist
 - All 5 subsystems (login, register, patients, facilities, payments) now route to DB correctly
 - Commit: 359c4c0, pushed to main
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix auth system - database tables, Google OAuth, and error handling
+
+Work Log:
+- Investigated entire auth system: NextAuth config, register/login routes, OAuth routes, middleware, onboarding flow
+- Identified root cause: /api/setup used raw SQL DDL that drifted from Prisma schema (missing tables, missing FKs, missing columns)
+- Identified root cause: middleware blocked /api/auth/callback/google with "Authentication required" because NextAuth catch-all routes weren't whitelisted
+- Replaced /api/setup raw SQL approach with `prisma db push` (ensures schema always matches Prisma exactly)
+- Fixed middleware to whitelist all /api/auth/* routes (using prefix check instead of specific route list)
+- Improved NextAuth config: Google OAuth env var checks, email validation, DB error handling, error page redirect
+- Added /api/auth/setup-status endpoint for frontend setup status checks
+- Added DB_NOT_CONFIGURED error handling to OAuth link and complete routes
+- Improved auth callback page: handle unauthenticated status, show helpful DB setup messages
+- Removed hardcoded super admin credentials from setup route (now uses env vars)
+- Committed and pushed to GitHub (commit f9eac44)
+
+Stage Summary:
+- All code changes pushed to GitHub and will auto-deploy to Vercel
+- User needs to: (1) set Google OAuth env vars on Vercel, (2) call POST /api/setup on production, (3) set NEXTAUTH_URL and NEXTAUTH_SECRET
+- The onboarding flow for Google OAuth with role selection already exists at /onboarding page
