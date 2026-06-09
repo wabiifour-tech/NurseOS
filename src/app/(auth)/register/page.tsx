@@ -184,7 +184,7 @@ export default function RegisterPage() {
   useEffect(() => {
     async function fetchFacilities() {
       try {
-        const res = await fetch("/api/caregrid/facilities?limit=200");
+        const res = await fetch("/api/facilities/public?limit=200");
         if (res.ok) {
           const data = await res.json();
           setFacilities(data.facilities || []);

@@ -49,6 +49,7 @@ const publicApiRoutes = [
   '/api/auth/reset-password',
   '/api/auth/oauth/link',
   '/api/auth/oauth/complete',
+  '/api/facilities/public',
   '/api/health',
   '/api/setup',
 ]
