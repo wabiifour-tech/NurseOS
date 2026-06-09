@@ -52,6 +52,7 @@ const publicApiRoutes = [
   '/api/facilities/public',
   '/api/health',
   '/api/setup',
+  '/api/seed',
 ]
 
 // NextAuth.js internal routes that must be public
