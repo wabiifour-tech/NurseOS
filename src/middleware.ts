@@ -49,21 +49,16 @@ const publicApiRoutes = [
   '/api/auth/reset-password',
   '/api/auth/oauth/link',
   '/api/auth/oauth/complete',
+  '/api/auth/setup-status',
   '/api/facilities/public',
   '/api/health',
   '/api/setup',
   '/api/seed',
 ]
 
-// NextAuth.js internal routes that must be public
-const nextAuthRoutes = [
-  '/api/auth/providers',
-  '/api/auth/session',
-  '/api/auth/csrf',
-  '/api/auth/signin',
-  '/api/auth/signout',
-  '/api/auth/callback',
-]
+// NextAuth.js catch-all route prefix — any request to /api/auth/* must be public
+// This covers /api/auth/signin, /api/auth/callback/google, /api/auth/session, etc.
+const NEXTAUTH_ROUTE_PREFIX = '/api/auth/'
 
 // Routes that are accessible even without a facility assignment
 const noFacilityRequiredRoutes = [
@@ -93,8 +88,11 @@ const isPublicPath = (pathname: string): boolean => {
   if (publicRoutes.includes(pathname)) return true
   // Only allow specifically whitelisted API routes without auth
   if (pathname.startsWith('/api/')) {
-    return publicApiRoutes.some(route => pathname === route || pathname.startsWith(route + '/')) ||
-           nextAuthRoutes.some(route => pathname === route || pathname.startsWith(route + '/'))
+    // NextAuth.js catch-all route: any path under /api/auth/* is public
+    // This covers /api/auth/signin, /api/auth/callback/google, /api/auth/session, etc.
+    if (pathname.startsWith(NEXTAUTH_ROUTE_PREFIX)) return true
+    // Other specifically whitelisted API routes
+    return publicApiRoutes.some(route => pathname === route || pathname.startsWith(route + '/'))
   }
   if (pathname.startsWith('/_next/')) return true
   if (pathname.includes('.')) return true // static files

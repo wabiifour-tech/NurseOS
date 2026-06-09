@@ -118,8 +118,16 @@ export async function POST(request: NextRequest) {
       status: 'PENDING',
       message: 'Your account has been created. Please wait for the facility admin to approve your access.',
     })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('OAuth complete error:', error)
+    const errMsg = (error as Error)?.message || ''
+    // Check if it's a database connection/table error
+    if (errMsg.includes('connect') || errMsg.includes('ECONNREFUSED') || errMsg.includes('P1001') || errMsg.includes('server is not reachable') || errMsg.includes('does not exist')) {
+      return NextResponse.json(
+        { error: 'Database tables are not set up yet. Please visit /api/setup to create the database schema, then try again.', errorType: 'DB_NOT_CONFIGURED' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json({ error: 'Failed to complete registration' }, { status: 500 })
   }
 }

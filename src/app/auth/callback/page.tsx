@@ -14,6 +14,14 @@ export default function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null)
   const [pendingApproval, setPendingApproval] = useState(false)
 
+  // Handle unauthenticated status (Google sign-in failed or was cancelled)
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      setError("Google sign-in was cancelled or failed. Please try again.")
+      setProcessing(false)
+    }
+  }, [status])
+
   useEffect(() => {
     if (status !== "authenticated" || !session?.user) return
 
@@ -74,6 +82,10 @@ export default function AuthCallbackPage() {
         }
 
         setError(data.error || "Failed to process authentication")
+        // If the error is about database not being set up, show a more helpful message
+        if (data.errorType === 'DB_NOT_CONFIGURED') {
+          setError("Database tables are not set up yet. An administrator needs to visit /api/setup to create the database tables first.")
+        }
         setProcessing(false)
       } catch (err) {
         console.error("OAuth callback error:", err)
