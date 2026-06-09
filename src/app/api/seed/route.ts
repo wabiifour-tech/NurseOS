@@ -15,11 +15,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid seed secret' }, { status: 403 })
     }
 
-    // Only seed if no facilities exist
+    // Only seed if no facilities exist (unless force=true)
+    const force = searchParams.get('force') === 'true'
     const existingCount = await db.facility.count()
-    if (existingCount > 0) {
+    if (existingCount > 0 && !force) {
       return NextResponse.json({
-        message: `Database already has ${existingCount} facilities. Skipping seed.`,
+        message: `Database already has ${existingCount} facilities. Skipping seed. Use ?force=true to override.`,
         status: 'already_seeded',
       })
     }
