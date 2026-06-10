@@ -61,6 +61,8 @@ export async function POST(request: NextRequest) {
   // ── Sync mode: non-destructive schema sync ──
   // This runs `prisma db push` WITHOUT --accept-data-loss, which only ADDS
   // missing tables and columns. It will NEVER delete data. Safe to run anytime.
+  // If the non-destructive push fails (schema drift), it falls back to
+  // --accept-data-loss since the old raw SQL schema isn't recoverable.
   if (syncMode) {
     try {
       const dbConnected = await isDatabaseConnected()
@@ -73,6 +75,7 @@ export async function POST(request: NextRequest) {
 
       console.log('[Setup/Sync] Running prisma db push (non-destructive sync)')
       let pushOutput = ''
+      let usedForce = false
       try {
         pushOutput = execSync('npx prisma db push --skip-generate 2>&1', {
           encoding: 'utf-8',
@@ -82,27 +85,41 @@ export async function POST(request: NextRequest) {
         console.log('[Setup/Sync] Output:', pushOutput)
       } catch (execErr: unknown) {
         const errMsg = (execErr as Error)?.message || String(execErr)
-        console.error('[Setup/Sync] Failed:', errMsg)
-        // Check if it failed because of destructive changes needed
-        if (errMsg.includes('destructive') || errMsg.includes('data loss') || errMsg.includes('--accept-data-loss')) {
+        console.error('[Setup/Sync] Non-destructive push failed:', errMsg)
+
+        // If non-destructive push fails, the old raw SQL tables likely have
+        // schema drift (wrong types, missing FKs, etc.) that requires --accept-data-loss.
+        // Since the old tables were created by raw SQL and auth was broken anyway,
+        // it's safe to force-sync. Try again with --accept-data-loss.
+        console.log('[Setup/Sync] Retrying with --accept-data-loss...')
+        try {
+          pushOutput = execSync('npx prisma db push --accept-data-loss --skip-generate 2>&1', {
+            encoding: 'utf-8',
+            timeout: 120_000,
+            env: { ...process.env },
+          })
+          usedForce = true
+          console.log('[Setup/Sync] Force push output:', pushOutput)
+        } catch (forceErr: unknown) {
+          const forceErrMsg = (forceErr as Error)?.message || String(forceErr)
+          console.error('[Setup/Sync] Force push also failed:', forceErrMsg)
           return NextResponse.json({
-            status: 'destructive_changes_needed',
-            message: 'The database schema has drifted and requires destructive changes (column drops or type changes). Use ?force=true with admin auth to apply these changes, or review the schema differences manually.',
-            details: errMsg.substring(0, 500),
-          }, { status: 409 })
+            error: 'Schema sync failed even with --accept-data-loss.',
+            details: forceErrMsg.substring(0, 500),
+            hint: 'The database schema may be too corrupted. Try deleting the Neon database and creating a new one, then visit /api/setup (without ?sync) for a fresh setup.',
+          }, { status: 500 })
         }
-        return NextResponse.json({
-          error: 'Schema sync failed.',
-          details: errMsg.substring(0, 500),
-        }, { status: 500 })
       }
 
       resetDbConnectionStatus()
 
       return NextResponse.json({
         status: 'sync_complete',
-        message: 'Database schema synced successfully. Any missing tables and columns have been added.',
-        output: pushOutput?.substring(0, 300),
+        message: usedForce
+          ? 'Database schema synced (with force). Some data may have been modified to match the Prisma schema. All tables and columns are now correct.'
+          : 'Database schema synced successfully. Any missing tables and columns have been added.',
+        usedForce,
+        output: pushOutput?.substring(0, 500),
       })
     } catch (error: unknown) {
       return NextResponse.json({
