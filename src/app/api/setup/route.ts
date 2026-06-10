@@ -50,11 +50,67 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   // 🔒 Require admin authentication for destructive operations
   // Allow unauthenticated setup ONLY if no users exist yet (first-time setup)
-  // Use ?force=true to drop all tables and recreate (useful for fixing schema issues)
+  // Use ?force=true to drop all tables and recreate (requires admin auth)
   // Use ?repair=true to auto-detect and fix broken/partial schemas without auth
+  // Use ?sync=true to safely add missing tables/columns (non-destructive, no auth needed)
   const { searchParams } = new URL(request.url)
   const forceReset = searchParams.get('force') === 'true'
   const repairMode = searchParams.get('repair') === 'true'
+  const syncMode = searchParams.get('sync') === 'true'
+
+  // ── Sync mode: non-destructive schema sync ──
+  // This runs `prisma db push` WITHOUT --accept-data-loss, which only ADDS
+  // missing tables and columns. It will NEVER delete data. Safe to run anytime.
+  if (syncMode) {
+    try {
+      const dbConnected = await isDatabaseConnected()
+      if (!dbConnected) {
+        return NextResponse.json(
+          { error: 'Database is not configured.' },
+          { status: 503 }
+        )
+      }
+
+      console.log('[Setup/Sync] Running prisma db push (non-destructive sync)')
+      let pushOutput = ''
+      try {
+        pushOutput = execSync('npx prisma db push --skip-generate 2>&1', {
+          encoding: 'utf-8',
+          timeout: 120_000,
+          env: { ...process.env },
+        })
+        console.log('[Setup/Sync] Output:', pushOutput)
+      } catch (execErr: unknown) {
+        const errMsg = (execErr as Error)?.message || String(execErr)
+        console.error('[Setup/Sync] Failed:', errMsg)
+        // Check if it failed because of destructive changes needed
+        if (errMsg.includes('destructive') || errMsg.includes('data loss') || errMsg.includes('--accept-data-loss')) {
+          return NextResponse.json({
+            status: 'destructive_changes_needed',
+            message: 'The database schema has drifted and requires destructive changes (column drops or type changes). Use ?force=true with admin auth to apply these changes, or review the schema differences manually.',
+            details: errMsg.substring(0, 500),
+          }, { status: 409 })
+        }
+        return NextResponse.json({
+          error: 'Schema sync failed.',
+          details: errMsg.substring(0, 500),
+        }, { status: 500 })
+      }
+
+      resetDbConnectionStatus()
+
+      return NextResponse.json({
+        status: 'sync_complete',
+        message: 'Database schema synced successfully. Any missing tables and columns have been added.',
+        output: pushOutput?.substring(0, 300),
+      })
+    } catch (error: unknown) {
+      return NextResponse.json({
+        error: 'Schema sync failed.',
+        details: (error as Error)?.message?.substring(0, 500),
+      }, { status: 500 })
+    }
+  }
 
   // First-time setup: if tables don't exist yet, skip auth entirely
   // This handles the case where the database is connected but has no tables
