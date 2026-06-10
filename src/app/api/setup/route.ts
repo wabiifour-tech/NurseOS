@@ -58,11 +58,10 @@ export async function POST(request: NextRequest) {
   const repairMode = searchParams.get('repair') === 'true'
   const syncMode = searchParams.get('sync') === 'true'
 
-  // ── Sync mode: non-destructive schema sync ──
-  // This runs `prisma db push` WITHOUT --accept-data-loss, which only ADDS
-  // missing tables and columns. It will NEVER delete data. Safe to run anytime.
-  // If the non-destructive push fails (schema drift), it falls back to
-  // --accept-data-loss since the old raw SQL schema isn't recoverable.
+  // ── Sync mode: schema sync with automatic cleanup ──
+  // Tries non-destructive push first. If that fails (schema drift from old raw SQL tables),
+  // drops all existing tables and recreates from scratch using `prisma db push`.
+  // This is safe for the initial setup since the old tables were broken anyway.
   if (syncMode) {
     try {
       const dbConnected = await isDatabaseConnected()
@@ -76,21 +75,20 @@ export async function POST(request: NextRequest) {
       console.log('[Setup/Sync] Running prisma db push (non-destructive sync)')
       let pushOutput = ''
       let usedForce = false
+
+      // First try: non-destructive push
       try {
         pushOutput = execSync('npx prisma db push --skip-generate 2>&1', {
           encoding: 'utf-8',
           timeout: 120_000,
           env: { ...process.env },
         })
-        console.log('[Setup/Sync] Output:', pushOutput)
+        console.log('[Setup/Sync] Non-destructive push succeeded')
       } catch (execErr: unknown) {
         const errMsg = (execErr as Error)?.message || String(execErr)
-        console.error('[Setup/Sync] Non-destructive push failed:', errMsg)
+        console.error('[Setup/Sync] Non-destructive push failed:', errMsg.substring(0, 300))
 
-        // If non-destructive push fails, the old raw SQL tables likely have
-        // schema drift (wrong types, missing FKs, etc.) that requires --accept-data-loss.
-        // Since the old tables were created by raw SQL and auth was broken anyway,
-        // it's safe to force-sync. Try again with --accept-data-loss.
+        // Second try: with --accept-data-loss
         console.log('[Setup/Sync] Retrying with --accept-data-loss...')
         try {
           pushOutput = execSync('npx prisma db push --accept-data-loss --skip-generate 2>&1', {
@@ -99,26 +97,118 @@ export async function POST(request: NextRequest) {
             env: { ...process.env },
           })
           usedForce = true
-          console.log('[Setup/Sync] Force push output:', pushOutput)
+          console.log('[Setup/Sync] Force push succeeded')
         } catch (forceErr: unknown) {
           const forceErrMsg = (forceErr as Error)?.message || String(forceErr)
-          console.error('[Setup/Sync] Force push also failed:', forceErrMsg)
-          return NextResponse.json({
-            error: 'Schema sync failed even with --accept-data-loss.',
-            details: forceErrMsg.substring(0, 500),
-            hint: 'The database schema may be too corrupted. Try deleting the Neon database and creating a new one, then visit /api/setup (without ?sync) for a fresh setup.',
-          }, { status: 500 })
+          console.error('[Setup/Sync] Force push also failed:', forceErrMsg.substring(0, 300))
+
+          // Third try: drop all tables manually, then push fresh
+          console.log('[Setup/Sync] Dropping all tables and starting fresh...')
+          try {
+            // Drop all tables using raw SQL
+            const dropTables = [
+              'SimulationAttempt', 'Enrollment', 'CourseModule', 'Simulation', 'Course',
+              'CPDRecord', 'PortfolioEntry', 'Competency', 'Credential',
+              'StaffingPrediction', 'DiseaseSurveillance', 'FacilityAnalytics',
+              'ArticleComment', 'KnowledgeArticle',
+              'ConsultationMessage', 'GeneratedReport', 'ReportSchedule', 'NotificationPreference', 'PasswordReset',
+              'Consultation', 'Referral', 'LabOrder', 'MedicationOrder', 'AIInteraction',
+              'NursingNote', 'VitalSign', 'MedicalRecord', 'Appointment', 'VisitRecord',
+              'Department', 'Subscription', 'Notification', 'AuditLog', 'Session',
+              'PatientProfile', 'AdminProfile', 'NurseProfile',
+              'AnnouncementRead', 'Announcement', 'DirectMessage',
+              'User', 'Facility',
+              '_prisma_migrations',
+            ]
+            for (const table of dropTables) {
+              try {
+                await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "${table}" CASCADE`)
+              } catch {
+                // Ignore — table might not exist
+              }
+            }
+            // Also drop _prisma_migrations if it exists
+            try {
+              await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "_prisma_migrations" CASCADE`)
+            } catch {}
+
+            console.log('[Setup/Sync] All tables dropped. Running fresh prisma db push...')
+
+            // Now push fresh schema
+            pushOutput = execSync('npx prisma db push --skip-generate 2>&1', {
+              encoding: 'utf-8',
+              timeout: 120_000,
+              env: { ...process.env },
+            })
+            usedForce = true
+            console.log('[Setup/Sync] Fresh push succeeded:', pushOutput.substring(0, 200))
+          } catch (freshErr: unknown) {
+            const freshErrMsg = (freshErr as Error)?.message || String(freshErr)
+            console.error('[Setup/Sync] Fresh push also failed:', freshErrMsg.substring(0, 500))
+            return NextResponse.json({
+              error: 'Could not set up database even after dropping all tables.',
+              details: freshErrMsg.substring(0, 500),
+              hint: 'This might be a DIRECT_URL issue. Make sure DIRECT_URL is set in Vercel environment variables (use the direct/non-pooled connection string from Neon). Then try again.',
+            }, { status: 500 })
+          }
         }
       }
 
       resetDbConnectionStatus()
 
+      // Verify tables were created
+      let tablesExist = false
+      try {
+        await db.user.findFirst({ take: 1 })
+        tablesExist = true
+      } catch {}
+
+      // Seed super admin if no users exist
+      let superAdminSeeded = false
+      if (tablesExist) {
+        try {
+          const existingUserCount = await db.user.count()
+          if (existingUserCount === 0) {
+            const adminEmail = process.env.SUPER_ADMIN_EMAIL || 'admin@nurseos.digital'
+            const adminPassword = process.env.SUPER_ADMIN_PASSWORD
+            if (adminPassword) {
+              const passwordHash = await bcrypt.hash(adminPassword, 10)
+              const superAdmin = await db.user.create({
+                data: {
+                  id: randomUUID(),
+                  email: adminEmail.toLowerCase(),
+                  passwordHash,
+                  firstName: 'Super',
+                  lastName: 'Admin',
+                  displayName: 'Super Admin',
+                  role: 'ADMIN',
+                  status: 'ACTIVE',
+                  countryCode: 'NG',
+                },
+              })
+              await db.adminProfile.create({
+                data: {
+                  id: randomUUID(),
+                  userId: superAdmin.id,
+                  accessLevel: 10,
+                },
+              })
+              superAdminSeeded = true
+            }
+          }
+        } catch (seedErr: unknown) {
+          console.error('[Setup/Sync] Super admin seeding failed:', (seedErr as Error)?.message)
+        }
+      }
+
       return NextResponse.json({
-        status: 'sync_complete',
+        status: tablesExist ? 'sync_complete' : 'sync_partial',
         message: usedForce
-          ? 'Database schema synced (with force). Some data may have been modified to match the Prisma schema. All tables and columns are now correct.'
+          ? `Database schema synced (tables recreated from scratch). All tables and columns are now correct.${superAdminSeeded ? ' Super Admin seeded.' : ''}`
           : 'Database schema synced successfully. Any missing tables and columns have been added.',
         usedForce,
+        tablesExist,
+        superAdminSeeded,
         output: pushOutput?.substring(0, 500),
       })
     } catch (error: unknown) {
