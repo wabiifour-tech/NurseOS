@@ -54,6 +54,8 @@ model User {
   receivedDirectMessages DirectMessage[]     @relation("ReceivedDirectMessages")
   announcements          Announcement[]     @relation("AuthoredAnnouncements")
   announcementReads      AnnouncementRead[]
+  sentEmails             EmailLog[]          @relation("SentEmails")
+  receivedEmails         EmailLog[]          @relation("ReceivedEmails")
 
   @@index([email])
 }
@@ -1023,4 +1025,30 @@ model AnnouncementRead {
 
   @@unique([announcementId, userId])
   @@index([userId])
+}
+
+// ===== EMAIL LOGGING =====
+
+model EmailLog {
+  id          String   @id @default(cuid())
+  senderId    String   // User who sent the email (admin/super_admin)
+  recipientId String   // User who received the email
+  toEmail     String   // Recipient email address
+  fromEmail   String   // Sender email address
+  subject     String   // Email subject line
+  templateId  String?  // Template used (e.g. 'password-reset', 'user-approved')
+  status      String   @default("PENDING")  // PENDING, SENT, DELIVERED, FAILED, BOUNCED
+  providerId  String?  // Resend email ID for tracking
+  error       String?  // Error message if failed
+  metadata    String?  // JSON string for additional data (template vars, etc.)
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  sender    User @relation("SentEmails", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("ReceivedEmails", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createdAt])
+  @@index([recipientId, createdAt])
+  @@index([status])
+  @@index([templateId])
 }

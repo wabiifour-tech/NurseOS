@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { EmailDashboard } from '@/components/email-dashboard'
 import {
   Users,
   Building2,
@@ -63,6 +64,7 @@ import {
   Mail,
   Phone,
   BarChart3,
+  Send,
 } from 'lucide-react'
 
 /* ─── Types ─── */
@@ -180,7 +182,7 @@ export default function SuperAdminDashboard() {
   const [isCreatingAdmin, setIsCreatingAdmin] = React.useState(false)
 
   // Active tab
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'subscriptions' | 'facility-approvals' | 'facilities' | 'users'>('overview')
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'subscriptions' | 'facility-approvals' | 'facilities' | 'users' | 'email'>('overview')
 
   // Facilities & Users state
   const [facilities, setFacilities] = React.useState<any[]>([])
@@ -549,6 +551,7 @@ export default function SuperAdminDashboard() {
           { id: 'facility-approvals', label: 'Facility Approvals', icon: ShieldCheck, badge: facilityApprovals.length || undefined },
           { id: 'facilities', label: 'Facilities', icon: Building2 },
           { id: 'users', label: 'Users', icon: Users },
+          { id: 'email', label: 'Email', icon: Send },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1880,6 +1883,11 @@ export default function SuperAdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── EMAIL TAB ── */}
+      {activeTab === 'email' && (
+        <EmailDashboard user={user} token={token} />
+      )}
     </div>
   )
 }

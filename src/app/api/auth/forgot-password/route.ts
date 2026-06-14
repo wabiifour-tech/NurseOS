@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { checkRateLimit, getRateLimitIdentifier, AUTH_RATE_LIMIT } from '@/lib/rate-limit'
+import { sendSystemEmail, EMAIL_CONFIG } from '@/lib/email'
+import { PasswordResetEmail } from '@/emails/password-reset'
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,11 +62,30 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // TODO: Send reset token via email in production
-      // For now, return the token in response for development/testing
-      // IMPORTANT: In production, remove resetToken from the response and send via email
+      // ── Send password reset email ──
+      const resetUrl = `${EMAIL_CONFIG.appUrl}/auth/reset-password?token=${resetToken}`
+
+      try {
+        await sendSystemEmail({
+          to: user.email,
+          subject: 'Reset Your NurseOS Password',
+          templateId: 'password-reset',
+          react: PasswordResetEmail({
+            userName: `${user.firstName} ${user.lastName}`,
+            resetUrl,
+            resetToken,
+            expiryMinutes: 60,
+          }),
+          recipientId: user.id,
+        })
+        console.log(`[Auth] Password reset email sent to ${user.email}`)
+      } catch (emailError) {
+        // Log the error but don't fail the request — the token is still stored
+        console.error('[Auth] Failed to send password reset email:', emailError)
+      }
+
       return NextResponse.json({
-        message: 'If an account exists with this email, a reset token will be provided.',
+        message: 'If an account exists with this email, a password reset link has been sent.',
         // Development only: include token for testing
         ...(process.env.NODE_ENV !== 'production' ? { resetToken } : {}),
       })
@@ -73,7 +94,7 @@ export async function POST(request: NextRequest) {
     // Always return the same generic message regardless of whether user exists
     // This prevents email enumeration attacks
     return NextResponse.json({
-      message: 'If an account exists with this email, a reset token will be provided.',
+      message: 'If an account exists with this email, a password reset link has been sent.',
     })
   } catch (error) {
     console.error('Forgot password error:', error)

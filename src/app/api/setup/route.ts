@@ -845,6 +845,25 @@ function getCreateTableSQL(): string[] {
       CONSTRAINT "AnnouncementRead_announcementId_userId_key" UNIQUE ("announcementId", "userId")
     )`,
 
+    // ═══ EMAIL LOG (depends on User) ═══
+    `CREATE TABLE IF NOT EXISTS "EmailLog" (
+      "id" TEXT PRIMARY KEY,
+      "senderId" TEXT NOT NULL,
+      "recipientId" TEXT NOT NULL,
+      "toEmail" TEXT NOT NULL,
+      "fromEmail" TEXT NOT NULL,
+      "subject" TEXT NOT NULL,
+      "templateId" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'PENDING',
+      "providerId" TEXT,
+      "error" TEXT,
+      "metadata" TEXT,
+      "sentAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "EmailLog_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "EmailLog_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+
     // ═══ PRISMA MIGRATIONS TABLE (needed by Prisma) ═══
     `CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
       "id" TEXT PRIMARY KEY,
@@ -997,13 +1016,19 @@ function getCreateTableSQL(): string[] {
 
     // AnnouncementRead indexes
     `CREATE INDEX IF NOT EXISTS "AnnouncementRead_userId_idx" ON "AnnouncementRead"("userId")`,
+
+    // EmailLog indexes
+    `CREATE INDEX IF NOT EXISTS "EmailLog_senderId_createdAt_idx" ON "EmailLog"("senderId", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "EmailLog_recipientId_createdAt_idx" ON "EmailLog"("recipientId", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "EmailLog_status_idx" ON "EmailLog"("status")`,
+    `CREATE INDEX IF NOT EXISTS "EmailLog_templateId_idx" ON "EmailLog"("templateId")`,
   ]
 }
 
 // Tables to drop in reverse dependency order
 function getDropTablesSQL(): string[] {
   const tables = [
-    'AnnouncementRead', 'Announcement', 'DirectMessage',
+    'EmailLog', 'AnnouncementRead', 'Announcement', 'DirectMessage',
     'GeneratedReport', 'ReportSchedule', 'NotificationPreference',
     'Subscription', 'VisitRecord', 'Appointment',
     'SimulationAttempt', 'Enrollment', 'Simulation', 'CourseModule', 'Course',
