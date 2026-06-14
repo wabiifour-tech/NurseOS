@@ -12,13 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Building2, Briefcase, Loader2, ArrowRight, Clock } from "lucide-react"
+import { Building2, Briefcase, Loader2, ArrowRight, Clock, Plus } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { useAuthStore } from "@/lib/auth-store"
 
 const roles = [
   { value: "NURSE", label: "Nurse" },
+  { value: "ADMIN", label: "Facility Admin" },
   { value: "DOCTOR", label: "Doctor" },
   { value: "MATRON", label: "Matron" },
   { value: "STUDENT", label: "Nursing Student" },
@@ -34,6 +35,8 @@ interface FacilityOption {
 }
 
 type OnboardingStep = "role_facility" | "pending"
+
+type FacilityMode = "existing" | "new"
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -54,8 +57,18 @@ export default function OnboardingPage() {
 
   const [selectedRole, setSelectedRole] = useState("")
   const [selectedFacilityId, setSelectedFacilityId] = useState("")
+  const [facilityMode, setFacilityMode] = useState<FacilityMode>("existing")
   const [customFirstName, setCustomFirstName] = useState("")
   const [customLastName, setCustomLastName] = useState("")
+
+  // New facility fields
+  const [newFacilityName, setNewFacilityName] = useState("")
+  const [newFacilityType, setNewFacilityType] = useState("HOSPITAL")
+  const [newFacilityAddress, setNewFacilityAddress] = useState("")
+  const [newFacilityCity, setNewFacilityCity] = useState("")
+  const [newFacilityState, setNewFacilityState] = useState("")
+
+  const isAdmin = selectedRole === "ADMIN"
 
   useEffect(() => {
     // Read OAuth data from sessionStorage
@@ -93,30 +106,65 @@ export default function OnboardingPage() {
     fetchFacilities()
   }, [])
 
+  // When role changes, reset facility mode
+  useEffect(() => {
+    if (isAdmin) {
+      setFacilityMode("new")
+      setSelectedFacilityId("")
+    } else {
+      setFacilityMode("existing")
+    }
+  }, [isAdmin])
+
   async function handleSubmit() {
     if (!selectedRole) {
       toast.error("Please select your role")
       return
     }
-    if (!selectedFacilityId) {
+
+    // Validate facility
+    if (facilityMode === "existing" && !selectedFacilityId) {
       toast.error("Please select a facility")
       return
+    }
+    if (facilityMode === "new") {
+      if (!newFacilityName.trim()) {
+        toast.error("Please enter the facility name")
+        return
+      }
+      if (!newFacilityCity.trim() || !newFacilityState.trim()) {
+        toast.error("Please enter the facility city and state")
+        return
+      }
     }
 
     setIsLoading(true)
     try {
+      const payload: Record<string, string> = {
+        email: oauthData?.email || "",
+        firstName: customFirstName || oauthData?.firstName || "",
+        lastName: customLastName || oauthData?.lastName || "",
+        role: selectedRole,
+        avatarUrl: oauthData?.avatarUrl || "",
+        provider: oauthData?.provider || "google",
+      }
+
+      if (facilityMode === "existing") {
+        payload.facilityId = selectedFacilityId
+      } else {
+        // New facility — send facility details
+        payload.facilityMode = "new"
+        payload.newFacilityName = newFacilityName.trim()
+        payload.newFacilityType = newFacilityType
+        payload.newFacilityAddress = newFacilityAddress.trim()
+        payload.newFacilityCity = newFacilityCity.trim()
+        payload.newFacilityState = newFacilityState.trim()
+      }
+
       const res = await fetch("/api/auth/oauth/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: oauthData?.email,
-          firstName: customFirstName || oauthData?.firstName,
-          lastName: customLastName || oauthData?.lastName,
-          role: selectedRole,
-          facilityId: selectedFacilityId,
-          avatarUrl: oauthData?.avatarUrl,
-          provider: oauthData?.provider,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
@@ -132,7 +180,7 @@ export default function OnboardingPage() {
         // Clear OAuth data
         sessionStorage.removeItem("nurseos-oauth")
       } else if (data.status === "ACTIVE" && data.token) {
-        // Auto-login (admin auto-approval for their own facility or super admin setup)
+        // Auto-login (admin auto-approval for their own facility)
         login({
           id: data.user.id,
           email: data.user.email,
@@ -252,41 +300,149 @@ export default function OnboardingPage() {
               </Select>
             </div>
 
-            {/* Facility selection — REQUIRED */}
-            <div className="space-y-2">
-              <Label>Select Your Facility <span className="text-destructive">*</span></Label>
-              <Select value={selectedFacilityId} onValueChange={setSelectedFacilityId}>
-                <SelectTrigger className="w-full">
-                  <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your healthcare facility"} />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {facilities
-                    .sort((a, b) => a.state.localeCompare(b.state))
-                    .map((facility) => (
-                      <SelectItem key={facility.id} value={facility.id}>
-                        {facility.name} — {facility.city}, {facility.state}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Your access must be approved by the facility admin before you can sign in.
-              </p>
-            </div>
+            {/* Admin info banner */}
+            {isAdmin && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 text-sm">
+                <p className="font-medium text-emerald-800 dark:text-emerald-300">
+                  As a Facility Admin, you will manage your own facility and approve staff access.
+                </p>
+                <p className="text-emerald-700 dark:text-emerald-400 mt-1 text-xs">
+                  You can join an existing facility or create a new one.
+                </p>
+              </div>
+            )}
+
+            {/* Facility selection */}
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label>Facility Options</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={facilityMode === "new" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => { setFacilityMode("new"); setSelectedFacilityId("") }}
+                    className={facilityMode === "new" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Create New
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={facilityMode === "existing" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFacilityMode("existing")}
+                    className={facilityMode === "existing" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                  >
+                    <Building2 className="w-3 h-3 mr-1" />
+                    Join Existing
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Existing facility selector */}
+            {facilityMode === "existing" && (
+              <div className="space-y-2">
+                <Label>Select Your Facility <span className="text-destructive">*</span></Label>
+                <Select value={selectedFacilityId} onValueChange={setSelectedFacilityId}>
+                  <SelectTrigger className="w-full">
+                    <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your healthcare facility"} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {facilities
+                      .sort((a, b) => a.state.localeCompare(b.state))
+                      .map((facility) => (
+                        <SelectItem key={facility.id} value={facility.id}>
+                          {facility.name} — {facility.city}, {facility.state}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {!isAdmin && (
+                  <p className="text-xs text-muted-foreground">
+                    Your access must be approved by the facility admin before you can sign in.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* New facility form */}
+            {facilityMode === "new" && isAdmin && (
+              <div className="space-y-3 border border-border/50 rounded-lg p-4 bg-muted/30">
+                <p className="text-sm font-medium">New Facility Details</p>
+                <div className="space-y-2">
+                  <Label htmlFor="facilityName">Facility Name <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="facilityName"
+                    value={newFacilityName}
+                    onChange={(e) => setNewFacilityName(e.target.value)}
+                    placeholder="e.g. Lagos General Hospital"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="facilityType">Facility Type</Label>
+                  <Select value={newFacilityType} onValueChange={setNewFacilityType}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HOSPITAL">Hospital</SelectItem>
+                      <SelectItem value="CLINIC">Clinic</SelectItem>
+                      <SelectItem value="PRIMARY_CARE">Primary Care Center</SelectItem>
+                      <SelectItem value="SPECIALIST">Specialist Hospital</SelectItem>
+                      <SelectItem value="TEACHING">Teaching Hospital</SelectItem>
+                      <SelectItem value="MATERNITY">Maternity Home</SelectItem>
+                      <SelectItem value="REHABILITATION">Rehabilitation Center</SelectItem>
+                      <SelectItem value="COMMUNITY">Community Health Center</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="facilityAddress">Address</Label>
+                  <Input
+                    id="facilityAddress"
+                    value={newFacilityAddress}
+                    onChange={(e) => setNewFacilityAddress(e.target.value)}
+                    placeholder="Street address"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="facilityCity">City <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="facilityCity"
+                      value={newFacilityCity}
+                      onChange={(e) => setNewFacilityCity(e.target.value)}
+                      placeholder="e.g. Lagos"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="facilityState">State <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="facilityState"
+                      value={newFacilityState}
+                      onChange={(e) => setNewFacilityState(e.target.value)}
+                      placeholder="e.g. Lagos State"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Submit */}
             <Button
               onClick={handleSubmit}
               className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
-              disabled={isLoading || !selectedRole || !selectedFacilityId}
+              disabled={isLoading || !selectedRole || (facilityMode === "existing" && !selectedFacilityId) || (facilityMode === "new" && !newFacilityName.trim())}
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <ArrowRight className="w-4 h-4 mr-2" />
               )}
-              Submit for Approval
+              {isAdmin ? "Create Facility & Continue" : "Submit for Approval"}
             </Button>
           </div>
         </div>
