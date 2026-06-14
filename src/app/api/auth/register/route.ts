@@ -354,6 +354,13 @@ export async function POST(request: NextRequest) {
             type: 'USER_APPROVAL',
             title: `New ${normalizedRole.toLowerCase()} requesting access`,
             message: `${firstName} ${lastName} (${email}) has signed up and is requesting access to your facility. Please review and approve or reject their account.`,
+            data: JSON.stringify({
+              pendingUserId: user.id,
+              pendingUserName: `${firstName} ${lastName}`,
+              pendingUserEmail: email,
+              pendingUserRole: normalizedRole,
+              facilityId: facilityIdToAssign,
+            }),
           },
         })
       }

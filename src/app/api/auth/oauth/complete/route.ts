@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     }
 
-    // Validate role — now includes ADMIN
+    // Validate role
     const validRoles = ['NURSE', 'ADMIN', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER']
     const normalizedRole = role.toUpperCase()
     if (!validRoles.includes(normalizedRole)) {
@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
     const isAdmin = normalizedRole === 'ADMIN'
 
     // ── Facility resolution ──
-    let resolvedFacilityId = facilityId
+    let resolvedFacilityId = facilityId || null
+    let createdFacilityId: string | null = null
 
     if (isAdmin && facilityMode === 'new') {
       // Admin creating a new facility
@@ -85,18 +86,8 @@ export async function POST(request: NextRequest) {
         },
       })
       resolvedFacilityId = newFacility.id
+      createdFacilityId = newFacility.id
 
-      // Create a TRIALING subscription — will be activated when SUPER_ADMIN verifies facility
-      await db.subscription.create({
-        data: {
-          id: randomUUID(),
-          userId: '', // Will be updated after user creation
-          facilityId: newFacility.id,
-          plan: 'FREE',
-          status: 'TRIALING',
-          isActive: true,
-        },
-      })
     } else {
       // Joining existing facility
       if (!resolvedFacilityId) {
@@ -121,142 +112,150 @@ export async function POST(request: NextRequest) {
 
     // ── Determine status ──
     // SECURITY: ALL new users start as PENDING (no auto-activation)
-    // - Admins creating NEW facilities → PENDING (requires SUPER_ADMIN to verify facility + approve admin)
-    // - Admins joining EXISTING facilities → PENDING (requires existing facility admin approval)
-    // - All other roles → PENDING (requires facility admin approval)
     const userStatus = 'PENDING'
 
-    // Create user
-    const user = await db.user.create({
-      data: {
-        email: email.toLowerCase(),
-        // Generate a random password hash for OAuth users (they won't use it)
-        passwordHash: await bcrypt.hash(randomBytes(32).toString('base64'), 10),
-        firstName: String(firstName).trim().slice(0, 100),
-        lastName: String(lastName).trim().slice(0, 100),
-        displayName: `${String(firstName).trim()} ${String(lastName).trim()}`,
-        role: dbRole,
-        status: userStatus,
-        facilityId: resolvedFacilityId,
-        avatarUrl: avatarUrl || null,
-      },
-    })
-
-    // ── Create role-specific profiles ──
-
-    // NurseProfile for nursing roles
-    if (['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole)) {
-      await db.nurseProfile.create({
+    // ── Create user, profile, and subscription inside a transaction ──
+    const result = await db.$transaction(async (tx) => {
+      // Create user
+      const user = await tx.user.create({
         data: {
-          userId: user.id,
-          licenseNumber: normalizedRole === 'STUDENT'
-            ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}`
-            : `NR/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
-          licenseIssuingBody: 'Nursing Registration Board',
-          licenseExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
-          nursingCouncil: 'Nigeria',
-          skills: '[]',
-          languages: '["English"]',
-          currentFacilityId: resolvedFacilityId,
-        },
-      })
-    }
-
-    // AdminProfile for admin role
-    if (isAdmin) {
-      await db.adminProfile.create({
-        data: {
-          userId: user.id,
+          email: email.toLowerCase(),
+          passwordHash: await bcrypt.hash(randomBytes(32).toString('base64'), 10),
+          firstName: String(firstName).trim().slice(0, 100),
+          lastName: String(lastName).trim().slice(0, 100),
+          displayName: `${String(firstName).trim()} ${String(lastName).trim()}`,
+          role: dbRole,
+          status: userStatus,
           facilityId: resolvedFacilityId,
-          accessLevel: 5, // Standard facility admin (not super admin which is 10)
-          department: adminLicenseNumber ? `License: ${adminLicenseNumber}` : null,
+          avatarUrl: avatarUrl || null,
         },
       })
-    }
 
-    // Update subscription userId if admin created a new facility
-    if (isAdmin && facilityMode === 'new') {
-      await db.subscription.updateMany({
-        where: { facilityId: resolvedFacilityId, userId: '' },
-        data: { userId: user.id },
+      // Create role-specific profiles
+      if (['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole)) {
+        await tx.nurseProfile.create({
+          data: {
+            userId: user.id,
+            licenseNumber: normalizedRole === 'STUDENT'
+              ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}`
+              : `NR/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
+            licenseIssuingBody: 'Nursing Registration Board',
+            licenseExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
+            nursingCouncil: 'Nigeria',
+            skills: '[]',
+            languages: '["English"]',
+            currentFacilityId: resolvedFacilityId,
+          },
+        })
+      }
+
+      if (isAdmin) {
+        await tx.adminProfile.create({
+          data: {
+            userId: user.id,
+            facilityId: resolvedFacilityId,
+            accessLevel: 5,
+            department: adminLicenseNumber ? `License: ${adminLicenseNumber}` : null,
+          },
+        })
+      }
+
+      // Create subscription ONLY after user exists (fixes FK violation with userId: '')
+      if (isAdmin && createdFacilityId) {
+        await tx.subscription.create({
+          data: {
+            id: randomUUID(),
+            userId: user.id, // Use actual user.id — no more empty string FK violation
+            facilityId: createdFacilityId,
+            plan: 'FREE',
+            status: 'TRIALING',
+            isActive: true,
+          },
+        })
+      }
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: isAdmin && createdFacilityId ? 'FACILITY_APPLICATION_SUBMITTED_OAUTH' : (isAdmin ? 'ADMIN_REGISTERED_OAUTH' : 'USER_REGISTERED_OAUTH'),
+          resource: isAdmin && createdFacilityId ? 'Facility' : 'User',
+          resourceId: isAdmin && createdFacilityId ? createdFacilityId : user.id,
+          details: isAdmin && createdFacilityId
+            ? `New facility application via ${provider || 'social'}: ${newFacilityName} (Reg: ${newFacilityRegistrationNumber}) — admin ${firstName} ${lastName} (${email}). Requires SUPER_ADMIN verification.`
+            : isAdmin
+            ? `New facility admin registered via ${provider || 'social'} — pending approval (joining existing facility)`
+            : `New ${normalizedRole.toLowerCase()} registered via ${provider || 'social'} — pending approval`,
+        },
       })
-    }
 
-    // Create audit log
-    await db.auditLog.create({
-      data: {
-        userId: user.id,
-        action: isAdmin && facilityMode === 'new' ? 'FACILITY_APPLICATION_SUBMITTED_OAUTH' : (isAdmin ? 'ADMIN_REGISTERED_OAUTH' : 'USER_REGISTERED_OAUTH'),
-        resource: isAdmin && facilityMode === 'new' ? 'Facility' : 'User',
-        resourceId: isAdmin && facilityMode === 'new' ? resolvedFacilityId : user.id,
-        details: isAdmin && facilityMode === 'new'
-          ? `New facility application via ${provider || 'social'}: ${newFacilityName} (Reg: ${newFacilityRegistrationNumber}) — admin ${firstName} ${lastName} (${email}). Requires SUPER_ADMIN verification.`
-          : isAdmin
-          ? `New facility admin registered via ${provider || 'social'} — pending approval (joining existing facility)`
-          : `New ${normalizedRole.toLowerCase()} registered via ${provider || 'social'} — pending approval`,
-      },
+      return { user, facilityId: resolvedFacilityId }
     })
 
-    // ── Notifications ──
-    if (isAdmin && facilityMode === 'new') {
-      // Notify ALL SUPER_ADMIN users about the new facility application
-      const superAdmins = await db.adminProfile.findMany({
-        where: { accessLevel: { gte: 10 } },
-        include: { user: { select: { id: true } } },
-      })
+    // ── Notifications (outside transaction — non-critical, should not crash registration) ──
+    try {
+      if (isAdmin && createdFacilityId) {
+        // Notify ALL SUPER_ADMIN users about the new facility application
+        const superAdmins = await db.adminProfile.findMany({
+          where: { accessLevel: { gte: 10 } },
+          include: { user: { select: { id: true } } },
+        })
 
-      for (const sa of superAdmins) {
-        if (sa.user?.id) {
+        for (const sa of superAdmins) {
+          if (sa.user?.id) {
+            await db.notification.create({
+              data: {
+                userId: sa.user.id,
+                type: 'FACILITY_VERIFICATION',
+                title: 'New Facility Application Requires Verification',
+                message: `${firstName} ${lastName} (${email}) has applied to register "${newFacilityName}" in ${newFacilityCity}, ${newFacilityState}. Registration #: ${newFacilityRegistrationNumber}. Please verify and approve or reject this facility.`,
+                data: JSON.stringify({
+                  facilityId: createdFacilityId,
+                  facilityName: newFacilityName,
+                  adminUserId: result.user.id,
+                  adminEmail: email,
+                  registrationNumber: newFacilityRegistrationNumber,
+                }),
+              },
+            })
+          }
+        }
+      } else if (resolvedFacilityId) {
+        // Notify the facility admin about the pending user
+        const facilityAdmin = await db.adminProfile.findFirst({
+          where: { facilityId: resolvedFacilityId, accessLevel: { lt: 10 } },
+          include: { user: { select: { id: true } } },
+        })
+
+        if (facilityAdmin?.user?.id) {
           await db.notification.create({
             data: {
-              userId: sa.user.id,
-              type: 'FACILITY_VERIFICATION',
-              title: 'New Facility Application Requires Verification',
-              message: `${firstName} ${lastName} (${email}) has applied to register "${newFacilityName}" in ${newFacilityCity}, ${newFacilityState}. Registration #: ${newFacilityRegistrationNumber}. Please verify and approve or reject this facility.`,
+              userId: facilityAdmin.user.id,
+              type: 'USER_APPROVAL',
+              title: isAdmin
+                ? `New admin requesting access to your facility`
+                : `New ${normalizedRole.toLowerCase()} requesting access`,
+              message: isAdmin
+                ? `${firstName} ${lastName} (${email}) has signed up as a Facility Admin and is requesting access. Please review and approve.`
+                : `${firstName} ${lastName} (${email}) has signed up and is requesting access to your facility. Please review and approve or reject their account.`,
               data: JSON.stringify({
+                pendingUserId: result.user.id,
+                pendingUserName: `${firstName} ${lastName}`,
+                pendingUserEmail: email,
+                pendingUserRole: normalizedRole,
                 facilityId: resolvedFacilityId,
-                facilityName: newFacilityName,
-                adminUserId: user.id,
-                adminEmail: email,
-                registrationNumber: newFacilityRegistrationNumber,
               }),
             },
           })
         }
       }
-    } else if (userStatus === 'PENDING') {
-      // Notify the facility admin about the pending user
-      const facilityAdmin = await db.adminProfile.findFirst({
-        where: { facilityId: resolvedFacilityId, accessLevel: { lt: 10 } },
-        include: { user: { select: { id: true } } },
-      })
-
-      if (facilityAdmin?.user?.id) {
-        await db.notification.create({
-          data: {
-            userId: facilityAdmin.user.id,
-            type: 'USER_APPROVAL',
-            title: isAdmin
-              ? `New admin requesting access to your facility`
-              : `New ${normalizedRole.toLowerCase()} requesting access`,
-            message: isAdmin
-              ? `${firstName} ${lastName} (${email}) has signed up as a Facility Admin and is requesting access. Please review and approve.`
-              : `${firstName} ${lastName} (${email}) has signed up and is requesting access to your facility. Please review and approve or reject their account.`,
-            data: JSON.stringify({
-              pendingUserId: user.id,
-              pendingUserName: `${firstName} ${lastName}`,
-              pendingUserEmail: email,
-              pendingUserRole: normalizedRole,
-              facilityId: resolvedFacilityId,
-            }),
-          },
-        })
-      }
+    } catch (notifError) {
+      // Notification failure should NOT crash the registration
+      console.error('Notification error (non-critical):', notifError)
     }
 
     // ── Return response ──
-    // ALL new users are PENDING — no auto-login
-    const pendingMessage = isAdmin && facilityMode === 'new'
+    const pendingMessage = isAdmin && createdFacilityId
       ? 'Your facility application has been submitted! A NurseOS Super Admin will review and verify your facility and account. You will be notified once approved. This typically takes 1-2 business days.'
       : isAdmin
       ? 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.'
@@ -266,7 +265,7 @@ export async function POST(request: NextRequest) {
       status: 'PENDING',
       message: pendingMessage,
       requiresApproval: true,
-      ...(isAdmin && facilityMode === 'new' ? { facilityCreated: true, facilityName: newFacilityName } : {}),
+      ...(isAdmin && createdFacilityId ? { facilityCreated: true, facilityName: newFacilityName } : {}),
     })
   } catch (error: unknown) {
     console.error('OAuth complete error:', error)

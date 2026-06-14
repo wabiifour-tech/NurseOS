@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
 
     // SECURITY: Only show verified facilities in public listings
     // This prevents users from joining unverified/fraudulent facilities
+    // Accept both 'VERIFIED' (set by SUPER_ADMIN approval) and 'ACCREDITED' (from seed data)
     where.isVerified = true
-    where.accreditationStatus = 'VERIFIED'
+    where.accreditationStatus = { in: ['VERIFIED', 'ACCREDITED'] }
 
     if (search) {
       where.OR = [

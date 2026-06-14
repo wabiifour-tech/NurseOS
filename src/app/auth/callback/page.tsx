@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Loader2, Clock, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -63,6 +63,8 @@ export default function AuthCallbackPage() {
             return
           } else if (data.status === "PENDING") {
             // User exists but waiting for admin approval
+            // Sign out of next-auth to prevent redirect loop on next visit
+            signOut({ redirect: false })
             setPendingApproval(true)
             setProcessing(false)
             return
@@ -77,6 +79,12 @@ export default function AuthCallbackPage() {
               provider: "google",
             }))
             router.push("/onboarding")
+            return
+          } else {
+            // Unexpected status — sign out and show error
+            signOut({ redirect: false })
+            setError(data.message || data.error || "Unexpected authentication status. Please try again.")
+            setProcessing(false)
             return
           }
         }

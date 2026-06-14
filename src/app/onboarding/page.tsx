@@ -308,12 +308,12 @@ export default function OnboardingPage() {
 
             {/* Admin info banner */}
             {isAdmin && (
-              <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 text-sm">
-                <p className="font-medium text-emerald-800 dark:text-emerald-300">
-                  As a Facility Admin, you will manage your own facility and approve staff access.
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm">
+                <p className="font-medium text-amber-800 dark:text-amber-300">
+                  Facility Verification Required
                 </p>
-                <p className="text-emerald-700 dark:text-emerald-400 mt-1 text-xs">
-                  You can join an existing facility or create a new one.
+                <p className="text-amber-700 dark:text-amber-400 mt-1 text-xs">
+                  To protect against unauthorized access, all new facilities must be verified by a NurseOS Super Admin. You will need to provide your facility&apos;s registration or license number.
                 </p>
               </div>
             )}
@@ -396,12 +396,13 @@ export default function OnboardingPage() {
                     <SelectContent>
                       <SelectItem value="HOSPITAL">Hospital</SelectItem>
                       <SelectItem value="CLINIC">Clinic</SelectItem>
-                      <SelectItem value="PRIMARY_CARE">Primary Care Center</SelectItem>
-                      <SelectItem value="SPECIALIST">Specialist Hospital</SelectItem>
-                      <SelectItem value="TEACHING">Teaching Hospital</SelectItem>
-                      <SelectItem value="MATERNITY">Maternity Home</SelectItem>
-                      <SelectItem value="REHABILITATION">Rehabilitation Center</SelectItem>
-                      <SelectItem value="COMMUNITY">Community Health Center</SelectItem>
+                      <SelectItem value="PRIMARY_HEALTH_CENTER">Primary Health Center</SelectItem>
+                      <SelectItem value="SPECIALIST_CENTER">Specialist Center</SelectItem>
+                      <SelectItem value="MATERNITY_HOME">Maternity Home</SelectItem>
+                      <SelectItem value="REHABILITATION_CENTER">Rehabilitation Center</SelectItem>
+                      <SelectItem value="COMMUNITY_HEALTH_CENTER">Community Health Center</SelectItem>
+                      <SelectItem value="DIAGNOSTIC_CENTER">Diagnostic Center</SelectItem>
+                      <SelectItem value="PHARMACY">Pharmacy</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -433,6 +434,68 @@ export default function OnboardingPage() {
                       placeholder="e.g. Lagos State"
                     />
                   </div>
+                </div>
+
+                {/* ── Verification Section ── */}
+                <div className="border-t border-border/50 pt-3 mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Verification Required</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    To protect against unauthorized facility creation, we require verification. Your facility will be reviewed by a NurseOS Super Admin before activation.
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="regNumber">Facility Registration / License Number <span className="text-destructive">*</span></Label>
+                    <Input
+                      id="regNumber"
+                      value={newFacilityRegistrationNumber}
+                      onChange={(e) => setNewFacilityRegistrationNumber(e.target.value)}
+                      placeholder="e.g. CAC/1234567 or FMH/2024/0891"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Your CAC registration number, health facility license, or government-issued facility ID.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="facilityPhone">Facility Phone</Label>
+                      <Input
+                        id="facilityPhone"
+                        value={newFacilityPhone}
+                        onChange={(e) => setNewFacilityPhone(e.target.value)}
+                        placeholder="+234 801 234 5678"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="facilityEmail">Facility Email</Label>
+                      <Input
+                        id="facilityEmail"
+                        type="email"
+                        value={newFacilityEmail}
+                        onChange={(e) => setNewFacilityEmail(e.target.value)}
+                        placeholder="admin@hospital.ng"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2 mt-2">
+                    <Label htmlFor="adminLicense">Your Professional License Number</Label>
+                    <Input
+                      id="adminLicense"
+                      value={adminLicenseNumber}
+                      onChange={(e) => setAdminLicenseNumber(e.target.value)}
+                      placeholder="e.g. RN/12345 or Admin License #"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Optional but recommended. Helps us verify your identity as a facility administrator.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 mt-2">
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                    Your facility application will be reviewed by a NurseOS Super Admin before activation. This typically takes 1-2 business days.
+                  </p>
                 </div>
               </div>
             )}

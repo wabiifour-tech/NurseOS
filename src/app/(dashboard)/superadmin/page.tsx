@@ -195,6 +195,8 @@ export default function SuperAdminDashboard() {
   const [facilityApprovals, setFacilityApprovals] = React.useState<any[]>([])
   const [isLoadingApprovals, setIsLoadingApprovals] = React.useState(false)
   const [approvalActionLoading, setApprovalActionLoading] = React.useState<Record<string, boolean>>({})
+  const [verificationResults, setVerificationResults] = React.useState<Record<string, any>>({})
+  const [isVerifying, setIsVerifying] = React.useState<Record<string, boolean>>({})
 
   /* ─── Auth headers helper ─── */
   const getHeaders = () => ({
@@ -355,6 +357,29 @@ export default function SuperAdminDashboard() {
       toast.error(`Failed to ${action} facility`)
     } finally {
       setApprovalActionLoading((prev) => ({ ...prev, [facilityId + action]: false }))
+    }
+  }
+
+  /* ─── Verify registration number ─── */
+  const handleVerifyRegistration = async (facilityId: string, regNumber: string, facilityName: string, state: string, type: string) => {
+    setIsVerifying((prev) => ({ ...prev, [facilityId]: true }))
+    try {
+      const res = await fetch('/api/verification/verify-registration', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ registrationNumber: regNumber, facilityName, state, type }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setVerificationResults((prev) => ({ ...prev, [facilityId]: data }))
+      } else {
+        toast.error(data.error || 'Verification failed')
+      }
+    } catch (error) {
+      console.error('Verification error:', error)
+      toast.error('Failed to verify registration number')
+    } finally {
+      setIsVerifying((prev) => ({ ...prev, [facilityId]: false }))
     }
   }
 
@@ -1463,7 +1488,21 @@ export default function SuperAdminDashboard() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/30">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-4 pt-4 border-t border-border/30">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs border-blue-500/30 text-blue-600 hover:bg-blue-500/10"
+                            onClick={() => handleVerifyRegistration(facility.id, facility.registrationNumber, facility.name, facility.state, facility.type)}
+                            disabled={isVerifying[facility.id]}
+                          >
+                            {isVerifying[facility.id] ? (
+                              <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                            ) : (
+                              <ShieldCheck className="size-3.5 mr-1.5" />
+                            )}
+                            Verify Registration #
+                          </Button>
                           <Button
                             size="sm"
                             className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs"
@@ -1475,7 +1514,7 @@ export default function SuperAdminDashboard() {
                             ) : (
                               <ShieldCheck className="size-3.5 mr-1.5" />
                             )}
-                            Verify & Approve Facility
+                            Approve
                           </Button>
                           <Button
                             size="sm"
@@ -1489,12 +1528,61 @@ export default function SuperAdminDashboard() {
                             ) : (
                               <XCircle className="size-3.5 mr-1.5" />
                             )}
-                            Reject Application
+                            Reject
                           </Button>
-                          <p className="text-[10px] text-muted-foreground ml-auto">
-                            Approving will activate the facility and admin account
-                          </p>
                         </div>
+
+                        {/* Verification Results */}
+                        {verificationResults[facility.id] && (
+                          <div className={`mt-3 p-3 rounded-lg border ${
+                            verificationResults[facility.id].confidence === 'HIGH' ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800' :
+                            verificationResults[facility.id].confidence === 'MEDIUM' ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800' :
+                            verificationResults[facility.id].confidence === 'LOW' ? 'bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800' :
+                            'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <ShieldCheck className={`size-4 ${
+                                verificationResults[facility.id].confidence === 'HIGH' ? 'text-emerald-600' :
+                                verificationResults[facility.id].confidence === 'MEDIUM' ? 'text-amber-600' :
+                                verificationResults[facility.id].confidence === 'LOW' ? 'text-orange-600' :
+                                'text-red-600'
+                              }`} />
+                              <span className="text-sm font-semibold">
+                                Verification: {verificationResults[facility.id].confidence} CONFIDENCE
+                              </span>
+                              <Badge variant="outline" className="text-[10px]">
+                                {verificationResults[facility.id].format}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              {verificationResults[facility.id].description}
+                            </p>
+                            {verificationResults[facility.id].warnings?.length > 0 && (
+                              <div className="mb-2">
+                                {verificationResults[facility.id].warnings.map((w: string, i: number) => (
+                                  <p key={i} className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
+                                    <AlertTriangle className="size-3 mt-0.5 shrink-0" /> {w}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                            {verificationResults[facility.id].recommendations?.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Next Steps:</p>
+                                {verificationResults[facility.id].recommendations.map((r: string, i: number) => (
+                                  <p key={i} className="text-xs text-muted-foreground flex items-start gap-1">
+                                    <span className="text-emerald-500 shrink-0">→</span> {r}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                            {verificationResults[facility.id].databaseMatch && (
+                              <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                                <AlertTriangle className="size-3" /> Already registered in NurseOS database
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
