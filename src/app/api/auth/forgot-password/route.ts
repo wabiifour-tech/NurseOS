@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       })
 
       // ── Send password reset email ──
-      const resetUrl = `${EMAIL_CONFIG.appUrl}/auth/reset-password?token=${resetToken}`
+      const resetUrl = `${EMAIL_CONFIG.appUrl}/reset-password?token=${resetToken}`
 
       try {
         await sendSystemEmail({

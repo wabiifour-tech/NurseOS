@@ -397,6 +397,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* User Profile Mini */}
         <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-800/50 p-2.5 border border-slate-700/50">
           <Avatar className="size-8 border border-emerald-500/30">
+            <AvatarImage src={user?.avatarUrl} alt={`${firstName} ${lastName}`} />
             <AvatarFallback className="bg-emerald-500/20 text-emerald-300 text-xs font-semibold">
               {initials || "NU"}
             </AvatarFallback>

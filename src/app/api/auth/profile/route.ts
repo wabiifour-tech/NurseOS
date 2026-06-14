@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    const { firstName, lastName, phone, bio, facilityId, compactMode } = body
+    const { firstName, lastName, phone, bio, facilityId, compactMode, avatarUrl } = body
 
     // Use the authenticated user's ID from the session, not from the request body
     const userId = authUser.id
@@ -75,6 +75,7 @@ export async function PATCH(request: NextRequest) {
     if (firstName && lastName) updateData.displayName = `${firstName} ${lastName}`
     if (phone !== undefined) updateData.phone = phone
     if (typeof compactMode === 'boolean') updateData.compactMode = compactMode
+    if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl
 
     // Update the user
     const updatedUser = await db.user.update({

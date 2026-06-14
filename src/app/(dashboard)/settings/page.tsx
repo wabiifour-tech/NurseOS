@@ -705,8 +705,12 @@ export default function SettingsPage() {
                     try {
                       const res = await fetch('/api/auth/avatar', { method: 'POST', body: formData })
                       if (res.ok) {
-                        toast.success('Photo uploaded successfully! It may take a moment to update.')
-                        setTimeout(() => window.location.reload(), 1000)
+                        const data = await res.json()
+                        // Update local auth store with new avatarUrl for instant UI update
+                        if (data.user?.avatarUrl) {
+                          updateUser({ avatarUrl: data.user.avatarUrl })
+                        }
+                        toast.success('Photo uploaded successfully!')
                       } else {
                         const data = await res.json()
                         toast.error(data.error || 'Failed to upload photo')

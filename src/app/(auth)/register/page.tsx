@@ -341,7 +341,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Facility section — shown for all roles except when no role selected */}
-        {selectedRole && selectedRole !== "other" && (
+        {selectedRole && (
           <div className="space-y-3">
             {isAdminRole ? (
               /* ===== ADMIN: Show toggle between existing and new facility ===== */

@@ -180,6 +180,8 @@ export default function SuperAdminDashboard() {
   // Create Super Admin dialog
   const [createAdminDialogOpen, setCreateAdminDialogOpen] = React.useState(false)
   const [isCreatingAdmin, setIsCreatingAdmin] = React.useState(false)
+  const [newAdminEmail, setNewAdminEmail] = React.useState('')
+  const [newAdminPassword, setNewAdminPassword] = React.useState('')
 
   // Active tab
   const [activeTab, setActiveTab] = React.useState<'overview' | 'subscriptions' | 'facility-approvals' | 'facilities' | 'users' | 'email'>('overview')
@@ -453,6 +455,14 @@ export default function SuperAdminDashboard() {
 
   /* ─── Create Super Admin ─── */
   const handleCreateSuperAdmin = async () => {
+    if (!newAdminEmail || !newAdminPassword) {
+      toast.error('Please provide an email and password for the new Super Admin.')
+      return
+    }
+    if (newAdminPassword.length < 8) {
+      toast.error('Password must be at least 8 characters.')
+      return
+    }
     setIsCreatingAdmin(true)
     try {
       const headers: Record<string, string> = {
@@ -466,8 +476,8 @@ export default function SuperAdminDashboard() {
         body: JSON.stringify({
           firstName: 'Super',
           lastName: 'Admin',
-          email: 'superadmin@nurseos.com',
-          password: 'NurseOS@2024!Super',
+          email: newAdminEmail,
+          password: newAdminPassword,
           role: 'SUPER_ADMIN',
         }),
       })
@@ -481,6 +491,8 @@ export default function SuperAdminDashboard() {
 
       toast.success('Super Admin user created successfully!')
       setCreateAdminDialogOpen(false)
+      setNewAdminEmail('')
+      setNewAdminPassword('')
       fetchAppStats()
     } catch (error) {
       console.error('Error creating Super Admin:', error)
@@ -989,8 +1001,8 @@ export default function SuperAdminDashboard() {
               <div className="flex-1 space-y-2">
                 <p className="text-sm font-semibold text-foreground">Create Super Admin User</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Creates a default SUPER_ADMIN account if none exists. Use this for initial setup.
-                  The default credentials will be superadmin@nurseos.com.
+                  Creates a new SUPER_ADMIN account. You must provide an email and a strong password.
+                  The new admin will have full platform access.
                 </p>
                 <Button
                   size="sm"
@@ -1838,9 +1850,8 @@ export default function SuperAdminDashboard() {
                 <div className="text-xs text-amber-700 dark:text-amber-300">
                   <p className="font-semibold">Important Note</p>
                   <p className="mt-1">
-                    This creates a SUPER_ADMIN with default credentials. Please change the password
-                    immediately after first login. The default email is{' '}
-                    <span className="font-mono font-semibold">superadmin@nurseos.com</span>.
+                    This creates a SUPER_ADMIN with full platform access. Choose a strong password
+                    and share the credentials securely with the intended admin.
                   </p>
                 </div>
               </div>
@@ -1856,8 +1867,26 @@ export default function SuperAdminDashboard() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value="superadmin@nurseos.com" disabled className="h-9 bg-muted" />
+              <Label htmlFor="newAdminEmail">Email</Label>
+              <Input
+                id="newAdminEmail"
+                type="email"
+                placeholder="admin@hospital.com"
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newAdminPassword">Password</Label>
+              <Input
+                id="newAdminPassword"
+                type="password"
+                placeholder="Min 8 chars, 1 uppercase, 1 number"
+                value={newAdminPassword}
+                onChange={(e) => setNewAdminPassword(e.target.value)}
+                className="h-9"
+              />
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
