@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1280">
+  <title>About the Founder — NurseOS</title>
+  <link rel="stylesheet" href="global.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; padding: 0; }
+    .monogram-ring {
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      border: 3px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: linear-gradient(135deg, rgba(0,201,167,0.12) 0%, rgba(0,201,167,0.03) 100%);
+    }
+    .monogram-ring::before {
+      content: '';
+      position: absolute;
+      inset: -12px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,201,167,0.15);
+    }
+    .role-badge {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--primary-muted);
+      white-space: nowrap;
+    }
+    .role-separator {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide flex items-center" style="min-height:720px; height:720px;">
+
+    <!-- Left: Content -->
+    <div class="flex-1 pr-12 flex flex-col justify-center">
+      <!-- Accent Pill -->
+      <div class="accent-pill mb-6" style="width:fit-content;">About the Founder</div>
+
+      <!-- Headline -->
+      <h1 style="font-family:var(--font-heading); font-size:var(--fs-h1); font-weight:700; line-height:1.15; color:var(--primary); margin:0 0 24px 0;">
+        Wabi The Tech Nurse
+      </h1>
+
+      <!-- Role Badges -->
+      <div class="flex items-center gap-3 mb-8 flex-wrap">
+        <span class="role-badge">Nurse</span>
+        <span class="role-separator"></span>
+        <span class="role-badge">Innovator</span>
+        <span class="role-separator"></span>
+        <span class="role-badge">Founder</span>
+        <span class="role-separator"></span>
+        <span class="role-badge">Healthcare Technology Advocate</span>
+      </div>
+
+      <!-- Body Text -->
+      <p style="font-family:var(--font-body); font-size:var(--fs-body); line-height:1.7; color:var(--primary-muted); margin:0 0 32px 0; max-width:520px;">
+        A registered nurse who saw the gaps in healthcare technology from the inside — and built the solution. Wabi transitioned from bedside nursing to healthcare technology innovation, creating NurseOS to prove that nurses are not just users of technology, but creators and architects of the future of healthcare.
+      </p>
+
+      <!-- Quote -->
+      <div style="border-left:3px solid var(--accent); padding-left:20px; max-width:440px;">
+        <p style="font-family:var(--font-heading); font-size:22px; font-weight:500; font-style:italic; color:var(--primary); margin:0 0 8px 0; line-height:1.4;">
+          Nursing is Beyond the Bedside.
+        </p>
+        <p style="font-family:var(--font-body); font-size:var(--fs-small); color:var(--primary-dim); margin:0;">
+          — Wabi, Founder, NurseOS
+        </p>
+      </div>
+    </div>
+
+    <!-- Right: Monogram -->
+    <div class="flex-1 flex items-center justify-center relative">
+      <!-- Decorative glow -->
+      <div class="glow-bg" data-decor style="top:50%; left:50%; transform:translate(-50%,-50%); width:500px; height:500px;"></div>
+
+      <!-- Monogram Card -->
+      <div style="position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:24px;">
+        <div class="monogram-ring">
+          <span style="font-family:var(--font-heading); font-size:80px; font-weight:700; color:var(--accent); line-height:1;">WT</span>
+        </div>
+        <p style="font-family:var(--font-body); font-size:var(--fs-small); color:var(--primary-dim); text-align:center; letter-spacing:0.08em; text-transform:uppercase; margin:0;">
+          Founder &amp; Creator
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <aside data-notes class="hidden">
+    • Wabi's story IS the product's story — every feature traces back to real clinical experience
+    • Emphasize authenticity: built by a nurse who lived the problem, not by a tech company
+    • The role badges show the unique combination of clinical + tech expertise
+    • The quote is the brand's north star — anchor the narrative around it
+    • This authenticity is NurseOS's key differentiator and the brand itself
+  </aside>
+</body>
+</html>

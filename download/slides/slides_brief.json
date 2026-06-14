@@ -1,0 +1,83 @@
+{
+  "design": {
+    "title": "NurseOS — Nursing is Beyond the Bedside",
+    "style_name": "Navy Teal Medical Innovation",
+    "palette": {
+      "background": "#0A1628",
+      "primary": "#FFFFFF",
+      "accent": "#00C9A7"
+    },
+    "typography": {
+      "heading": "Playfair Display",
+      "body": "Inter",
+      "numeric": "Inter"
+    },
+    "reference": "Apple Keynote — minimalist, high whitespace, bold typography, single focal point per slide"
+  },
+  "global_css_path": "/home/z/my-project/download/slides/global.css",
+  "slides_dir": "/home/z/my-project/download/slides",
+  "language": "en",
+  "speaker_notes": "short",
+  "slides": [
+    {
+      "title": "Cover",
+      "layout": "cover",
+      "output_path": "/home/z/my-project/download/slides/slide_01.html",
+      "task_brief": "Cover slide. Background image: https://sfile.chatglm.cn/images-ppt/aa0f58be34bc.jpg (modern hospital corridor with blue lighting, use as full-bleed background with dark overlay). Center-aligned content. Small accent pill at top: 'Healthcare Innovation'. Main headline in Playfair Display: 'NurseOS'. Subtitle in Inter: 'The Operating System for Global Nursing Care'. Accent divider line below. Tagline in Inter italic: 'Nursing is Beyond the Bedside.' At bottom: 'Built by a Nurse. Designed for Healthcare. Driven by Innovation.' Three short phrases separated by accent dots. No logo placeholder — use text mark 'NurseOS' as the brand. Speaker notes: short hints — Introduce NurseOS, emphasize it was built by a nurse, set the tone for the deck."
+    },
+    {
+      "title": "About NurseOS",
+      "layout": "split_text+image",
+      "output_path": "/home/z/my-project/download/slides/slide_02.html",
+      "task_brief": "About NurseOS slide. Left side: content. Right side: image https://sfile.chatglm.cn/images-ppt/bab8351165d2.jpg (doctors with tablet, crop to right half with rounded corners and subtle border). Left content: Accent pill 'About NurseOS'. Headline: 'A New Operating System for Nursing Care'. Body text: 'NurseOS is a comprehensive healthcare technology platform built by a nurse who understood the gaps in clinical workflows. It integrates AI-powered clinical decision support, care coordination, nurse credentialing, analytics, and education into one unified system — designed specifically for the realities of nursing practice.' Three key points below with accent checkmark icons: 'AI-Powered Clinical Support', 'Unified Care Coordination', 'Nurse-First Design Philosophy'. Speaker notes: short — NurseOS is not just software, it's a paradigm shift. Built from lived nursing experience, not top-down tech mandates."
+    },
+    {
+      "title": "The Problem",
+      "layout": "stats",
+      "output_path": "/home/z/my-project/download/slides/slide_03.html",
+      "task_brief": "The Problem slide. Title at top: 'The Challenge We Face'. Subtitle: 'A global nursing crisis demands innovation.' Background: subtle glow element in top-right corner using accent color. Four large stat cards in a 2x2 grid. Each card has a large stat number in accent color, a label, and a one-line description. Card 1: '6M' — 'Global Nurse Shortage' — 'WHO estimates a deficit of nearly 6 million nurses worldwide'. Card 2: '78K' — 'US RN Shortage (2025)' — 'Federal projections show 78,610 fewer full-time registered nurses than needed'. Card 3: '91%' — 'Workforce at Capacity' — 'Only 91.94% of nursing demand will be met by 2026 supply'. Card 4: 'Global' — 'Health Emergency' — 'ICN calls the worldwide nursing shortage a global health emergency'. Each card uses the slide-card class with dark card background. Speaker notes: short — These are real WHO and ICN statistics. The crisis is systemic, not local. Technology must be part of the solution."
+    },
+    {
+      "title": "The Solution",
+      "layout": "split_text+image",
+      "output_path": "/home/z/my-project/download/slides/slide_04.html",
+      "task_brief": "The Solution slide. Left side: image https://sfile.chatglm.cn/images-ppt/c75217379ecf.jpg (abstract teal network connections, use as left half with rounded corners). Right side: content. Accent pill 'The Solution'. Headline: 'Technology Built by a Nurse, for Healthcare'. Body text: 'NurseOS addresses the nursing crisis at its core — not by replacing nurses, but by empowering them. Every feature is designed from the perspective of clinical workflow, patient safety, and the daily reality of nursing practice.' Three solution pillars with accent-colored icon circles: Pillar 1 icon 'smart_toy' — 'AI-Assisted Decisions' — 'Real-time clinical decision support and early warning systems'. Pillar 2 icon 'hub' — 'Connected Care' — 'Seamless referral networks and inter-facility coordination'. Pillar 3 icon 'school' — 'Continuous Growth' — 'CPD tracking, credentialing, and simulation-based education'. Speaker notes: short — The key differentiator: built BY a nurse, not FOR nurses by tech companies. This changes everything about how the product works."
+    },
+    {
+      "title": "Key Features",
+      "layout": "bento_grid",
+      "output_path": "/home/z/my-project/download/slides/slide_05.html",
+      "task_brief": "Key Features slide. Title at top: 'Platform Features'. Subtitle: 'Five integrated modules. One unified system.' Bento grid layout with 5 feature cards of varying sizes. Card 1 (large, spans 2 columns): icon 'psychology' — 'NurseAI' — 'AI-powered clinical decision support, nursing assessments, care plans, and intelligent suggestions with confidence scoring'. Card 2 (standard): icon 'share' — 'CareGrid' — 'Inter-facility referral networks, teleconsultation, and knowledge sharing across facilities'. Card 3 (standard): icon 'analytics' — 'NurseAnalytics' — 'Real-time facility analytics, disease surveillance, staffing predictions, and AI-driven insights'. Card 4 (standard): icon 'badge' — 'NurseID' — 'Digital credentialing, competency tracking, professional portfolio, and CPD management'. Card 5 (standard): icon 'cast_for_education' — 'NurseAcademy' — 'CPD-accredited courses, clinical simulations with AI feedback, and certification management'. Each card uses slide-card class with icon in accent color, title in Playfair Display, description in Inter. Speaker notes: short — Five modules working together. This is not fragmented point solutions — it's one platform built to work as a system."
+    },
+    {
+      "title": "Benefits",
+      "layout": "comparison",
+      "output_path": "/home/z/my-project/download/slides/slide_06.html",
+      "task_brief": "Benefits slide. Title: 'Impact That Matters'. Three-column layout with icon, headline, and body text per column. Column 1 icon 'local_hospital' — 'For Nurses' — 'Reduced burnout through AI-assisted workflows, continuous professional development, and digital credentialing that elevates careers beyond the bedside'. Column 2 icon 'favorite' — 'For Patients' — 'Safer care through early warning systems, coordinated referrals, and evidence-based clinical decision support that catches what humans might miss'. Column 3 icon 'business' — 'For Facilities' — 'Improved outcomes, optimized staffing through predictive analytics, reduced medication errors, and regulatory compliance through automated documentation'. Below the three columns, a single accent-bordered quote bar: 'Nursing is Beyond the Bedside.' — centered. Speaker notes: short — Benefits flow to all stakeholders. This is not just about efficiency — it's about transforming what nursing means."
+    },
+    {
+      "title": "Future Vision",
+      "layout": "key_message",
+      "output_path": "/home/z/my-project/download/slides/slide_07.html",
+      "task_brief": "Future Vision slide. Full-bleed background image: https://sfile.chatglm.cn/images-ppt/3e0e25ccf0a8.jpg (modern operating room, apply heavy dark overlay so text is readable). Large centered headline in Playfair Display: 'The Future of Nursing is Here'. Body text centered below: 'NurseOS is building the infrastructure for the next generation of nursing care — where technology amplifies human expertise, where every nurse has access to AI-powered decision support, and where the profession evolves beyond traditional boundaries.' Four vision points in a horizontal row with small accent circles: 'AI-First Healthcare' — 'Global Nurse Network' — 'Predictive Patient Care' — 'Nurse-Led Innovation'. At bottom: accent pill 'Coming Soon: Mobile App, API Ecosystem, and Regional Expansion'. Speaker notes: short — The vision is bigger than the current product. NurseOS is infrastructure. Position as long-term platform play."
+    },
+    {
+      "title": "About the Founder",
+      "layout": "split_text+image",
+      "output_path": "/home/z/my-project/download/slides/slide_08.html",
+      "task_brief": "About the Founder slide. Right side: abstract accent glow shape (no photo — use a stylized gradient card with the initials 'WT' in large Playfair Display text as a monogram, inside a circular accent-bordered frame). Left side: content. Accent pill 'About the Founder'. Headline: 'Wabi The Tech Nurse'. Four role badges in a row: 'Nurse' | 'Innovator' | 'Founder' | 'Healthcare Technology Advocate'. Body text: 'A registered nurse who saw the gaps in healthcare technology from the inside — and built the solution. Wabi transitioned from bedside nursing to healthcare technology innovation, creating NurseOS to prove that nurses are not just users of technology, but creators and architects of the future of healthcare.' Quote in Playfair Display italic with accent left border: 'Nursing is Beyond the Bedside.' Attribution: '— Wabi, Founder, NurseOS'. Speaker notes: short — Wabi's story IS the product's story. Every feature traces back to real clinical experience. This authenticity is the brand."
+    },
+    {
+      "title": "Impact & Traction",
+      "layout": "stats",
+      "output_path": "/home/z/my-project/download/slides/slide_09.html",
+      "task_brief": "Impact & Traction slide. Title: 'Building Momentum'. Subtitle: 'From vision to reality.' Three large stats in a row at top: '5' — 'Integrated Modules' — 'AI, Analytics, Care Coordination, Credentialing, Education'. '42+' — 'Database Models' — 'Comprehensive healthcare data architecture covering clinical, administrative, and educational workflows'. '1' — 'Mission' — 'Empower nurses to lead healthcare innovation'. Below stats, two columns. Left column heading 'What Makes Us Different': bullet points with accent checkmarks — 'Built by a nurse with clinical experience, not by a tech company guessing at workflows', 'AI integrated into clinical decision-making, not bolted on as an afterthought', 'Single platform replacing fragmented point solutions'. Right column heading 'Recognition': bullet points — 'Selected for Next Nurse Reality Docuseries', 'Growing community of healthcare innovators', 'Nigeria-first with global scalability built in'. Speaker notes: short — Real architecture, real product, real traction. Emphasize the docuseries selection as validation."
+    },
+    {
+      "title": "Contact & Closing",
+      "layout": "closing",
+      "output_path": "/home/z/my-project/download/slides/slide_10.html",
+      "task_brief": "Closing slide. Minimal, powerful. Dark background with subtle accent glow in center. Large centered Playfair Display headline: 'Nursing is Beyond the Bedside.' Below: 'Wabi The Tech Nurse' in Inter medium. Below that: 'Founder, NurseOS'. Divider line. Contact info centered: 'www.nurseos.digital' and '@wabi_thetechnurse' (Instagram). Small accent pill at bottom center: 'Let's Build the Future Together'. No footer, no page number. Clean, cinematic, memorable. Speaker notes: short — End with the message. Not a product pitch — a movement. Invite people to join."
+    }
+  ]
+}

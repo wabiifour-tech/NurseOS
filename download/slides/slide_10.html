@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1280">
+  <title>Contact & Closing — NurseOS</title>
+  <link rel="stylesheet" href="global.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; padding: 0; }
+    .center-glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,201,167,0.08) 0%, rgba(0,201,167,0.02) 40%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide flex items-center justify-center" style="min-height:720px; height:720px; position:relative;">
+
+    <!-- Subtle center glow -->
+    <div class="center-glow" data-decor></div>
+
+    <!-- Content -->
+    <div style="position:relative; z-index:1; text-align:center; display:flex; flex-direction:column; align-items:center;">
+
+      <!-- Main Headline -->
+      <h1 style="font-family:var(--font-heading); font-size:56px; font-weight:700; color:var(--primary); margin:0 0 32px 0; line-height:1.2; max-width:800px;">
+        Nursing is Beyond the Bedside.
+      </h1>
+
+      <!-- Name -->
+      <p style="font-family:var(--font-body); font-size:22px; font-weight:500; color:var(--primary-muted); margin:0 0 4px 0;">
+        Wabi The Tech Nurse
+      </p>
+
+      <!-- Title -->
+      <p style="font-family:var(--font-body); font-size:16px; font-weight:400; color:var(--primary-dim); margin:0 0 36px 0;">
+        Founder, NurseOS
+      </p>
+
+      <!-- Divider -->
+      <div class="divider-accent" style="margin:0 auto 36px auto;"></div>
+
+      <!-- Contact Info -->
+      <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:40px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="material-icons" style="color:var(--accent); font-size:20px;">language</span>
+          <span style="font-family:var(--font-body); font-size:17px; font-weight:500; color:var(--primary);">www.nurseos.digital</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="material-icons" style="color:var(--accent); font-size:20px;">alternate_email</span>
+          <span style="font-family:var(--font-body); font-size:17px; font-weight:500; color:var(--primary);">@wabi_thetechnurse</span>
+        </div>
+      </div>
+
+      <!-- Accent Pill -->
+      <div class="accent-pill" style="font-size:15px; padding:8px 24px;">
+        Let's Build the Future Together
+      </div>
+
+    </div>
+
+  </div>
+
+  <aside data-notes class="hidden">
+    • End with the message — this is a movement, not just a product pitch
+    • The tagline "Nursing is Beyond the Bedside" IS the brand — make it land
+    • Invite people to connect and join the journey
+    • Leave them with emotion, not just information
+    • The glow in center creates a cinematic, memorable closing moment
+  </aside>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1280">
+  <title>Impact & Traction — NurseOS</title>
+  <link rel="stylesheet" href="global.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; padding: 0; }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .stat-card:hover {
+      border-color: var(--border-accent);
+    }
+    .bullet-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .bullet-item:last-child {
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide" style="min-height:720px; height:720px; display:flex; flex-direction:column;">
+
+    <!-- Header -->
+    <div style="margin-bottom:8px; position:relative;">
+      <!-- Subtle glow -->
+      <div class="glow-bg" data-decor style="top:-120px; right:-80px; width:350px; height:350px;"></div>
+
+      <div class="accent-pill mb-4" style="width:fit-content;">Impact &amp; Traction</div>
+      <h1 style="font-family:var(--font-heading); font-size:var(--fs-h1); font-weight:700; color:var(--primary); margin:0 0 8px 0;">
+        Building Momentum
+      </h1>
+      <p style="font-family:var(--font-body); font-size:var(--fs-body); color:var(--primary-muted); margin:0;">
+        From vision to reality.
+      </p>
+    </div>
+
+    <!-- Three Stats Row -->
+    <div class="flex gap-6 mt-6 mb-8">
+      <!-- Stat 1 -->
+      <div class="stat-card">
+        <span class="stat-number" style="margin-bottom:8px;">5</span>
+        <span style="font-family:var(--font-body); font-size:18px; font-weight:600; color:var(--primary); margin-bottom:6px;">Integrated Modules</span>
+        <span style="font-family:var(--font-body); font-size:14px; color:var(--primary-dim); line-height:1.5;">AI, Analytics, Care Coordination, Credentialing, Education</span>
+      </div>
+      <!-- Stat 2 -->
+      <div class="stat-card">
+        <span class="stat-number" style="margin-bottom:8px;">42+</span>
+        <span style="font-family:var(--font-body); font-size:18px; font-weight:600; color:var(--primary); margin-bottom:6px;">Database Models</span>
+        <span style="font-family:var(--font-body); font-size:14px; color:var(--primary-dim); line-height:1.5;">Comprehensive healthcare data architecture covering clinical, administrative, and educational workflows</span>
+      </div>
+      <!-- Stat 3 -->
+      <div class="stat-card">
+        <span class="stat-number" style="margin-bottom:8px;">1</span>
+        <span style="font-family:var(--font-body); font-size:18px; font-weight:600; color:var(--primary); margin-bottom:6px;">Mission</span>
+        <span style="font-family:var(--font-body); font-size:14px; color:var(--primary-dim); line-height:1.5;">Empower nurses to lead healthcare innovation</span>
+      </div>
+    </div>
+
+    <!-- Two Columns -->
+    <div class="flex gap-8 flex-1">
+      <!-- Left Column: What Makes Us Different -->
+      <div class="flex-1 slide-card" style="display:flex; flex-direction:column;">
+        <h2 style="font-family:var(--font-heading); font-size:20px; font-weight:600; color:var(--primary); margin:0 0 18px 0;">
+          What Makes Us Different
+        </h2>
+        <div class="bullet-item">
+          <span class="material-icons" style="color:var(--accent); font-size:20px; margin-top:2px; flex-shrink:0;">check_circle</span>
+          <span style="font-family:var(--font-body); font-size:15px; color:var(--primary-muted); line-height:1.6;">Built by a nurse with clinical experience, not by a tech company guessing at workflows</span>
+        </div>
+        <div class="bullet-item">
+          <span class="material-icons" style="color:var(--accent); font-size:20px; margin-top:2px; flex-shrink:0;">check_circle</span>
+          <span style="font-family:var(--font-body); font-size:15px; color:var(--primary-muted); line-height:1.6;">AI integrated into clinical decision-making, not bolted on as an afterthought</span>
+        </div>
+        <div class="bullet-item">
+          <span class="material-icons" style="color:var(--accent); font-size:20px; margin-top:2px; flex-shrink:0;">check_circle</span>
+          <span style="font-family:var(--font-body); font-size:15px; color:var(--primary-muted); line-height:1.6;">Single platform replacing fragmented point solutions</span>
+        </div>
+      </div>
+
+      <!-- Right Column: Recognition -->
+      <div class="flex-1 slide-card" style="display:flex; flex-direction:column;">
+        <h2 style="font-family:var(--font-heading); font-size:20px; font-weight:600; color:var(--primary); margin:0 0 18px 0;">
+          Recognition
+        </h2>
+        <div class="bullet-item">
+          <span class="material-icons" style="color:var(--accent); font-size:20px; margin-top:2px; flex-shrink:0;">star</span>
+          <span style="font-family:var(--font-body); font-size:15px; color:var(--primary-muted); line-height:1.6;">Selected for Next Nurse Reality Docuseries</span>
+        </div>
+        <div class="bullet-item">
+          <span class="material-icons" style="color:var(--accent); font-size:20px; margin-top:2px; flex-shrink:0;">star</span>
+          <span style="font-family:var(--font-body); font-size:15px; color:var(--primary-muted); line-height:1.6;">Growing community of healthcare innovators</span>
+        </div>
+        <div class="bullet-item">
+          <span class="material-icons" style="color:var(--accent); font-size:20px; margin-top:2px; flex-shrink:0;">star</span>
+          <span style="font-family:var(--font-body); font-size:15px; color:var(--primary-muted); line-height:1.6;">Nigeria-first with global scalability built in</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <aside data-notes class="hidden">
+    • Real architecture, real product, real traction — not just a pitch deck
+    • The 42+ database models show this is a deeply built system, not a prototype
+    • Emphasize the docuseries selection as external validation
+    • Nigeria-first strategy proves the model works in resource-constrained environments
+    • Single platform vs. fragmented solutions is a key differentiator for buyers
+  </aside>
+</body>
+</html>
