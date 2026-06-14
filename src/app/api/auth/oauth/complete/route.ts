@@ -24,6 +24,9 @@ export async function POST(request: NextRequest) {
       // New facility fields
       facilityMode, newFacilityName, newFacilityType,
       newFacilityAddress, newFacilityCity, newFacilityState,
+      // Facility verification fields
+      newFacilityRegistrationNumber, newFacilityPhone, newFacilityEmail,
+      adminLicenseNumber, adminPhone,
     } = body
 
     if (!email || !firstName || !lastName || !role) {
@@ -48,6 +51,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Facility name, city, and state are required' }, { status: 400 })
       }
 
+      // SECURITY: Require registration number to prevent fraudulent facility creation
+      if (!newFacilityRegistrationNumber || !String(newFacilityRegistrationNumber).trim()) {
+        return NextResponse.json({
+          error: 'Facility registration/license number is required. This helps us verify legitimate healthcare facilities and prevent unauthorized access.'
+        }, { status: 400 })
+      }
+
+      // Check if registration number is already used
+      const existingReg = await db.facility.findUnique({
+        where: { registrationNumber: String(newFacilityRegistrationNumber).trim() },
+      })
+      if (existingReg) {
+        return NextResponse.json({
+          error: 'This facility registration number is already registered. If you believe this is an error, please contact support.'
+        }, { status: 409 })
+      }
+
       const newFacility = await db.facility.create({
         data: {
           id: randomUUID(),
@@ -57,18 +77,23 @@ export async function POST(request: NextRequest) {
           city: String(newFacilityCity).trim(),
           state: String(newFacilityState).trim(),
           country: 'Nigeria',
+          phone: newFacilityPhone ? String(newFacilityPhone).trim() : null,
+          email: newFacilityEmail ? String(newFacilityEmail).trim() : null,
+          registrationNumber: String(newFacilityRegistrationNumber).trim(),
+          isVerified: false,
+          accreditationStatus: 'PENDING',
         },
       })
       resolvedFacilityId = newFacility.id
 
-      // Create a FREE subscription for the new facility
+      // Create a TRIALING subscription — will be activated when SUPER_ADMIN verifies facility
       await db.subscription.create({
         data: {
           id: randomUUID(),
           userId: '', // Will be updated after user creation
           facilityId: newFacility.id,
           plan: 'FREE',
-          status: 'ACTIVE',
+          status: 'TRIALING',
           isActive: true,
         },
       })
@@ -95,13 +120,11 @@ export async function POST(request: NextRequest) {
                    normalizedRole === 'ADMIN' ? 'ADMIN' : 'PATIENT'
 
     // ── Determine status ──
-    // Admins creating their own facility are auto-approved (ACTIVE)
-    // Admins joining existing facility need existing admin approval (PENDING)
-    // All other roles need admin approval (PENDING)
-    let userStatus = 'PENDING'
-    if (isAdmin && facilityMode === 'new') {
-      userStatus = 'ACTIVE'
-    }
+    // SECURITY: ALL new users start as PENDING (no auto-activation)
+    // - Admins creating NEW facilities → PENDING (requires SUPER_ADMIN to verify facility + approve admin)
+    // - Admins joining EXISTING facilities → PENDING (requires existing facility admin approval)
+    // - All other roles → PENDING (requires facility admin approval)
+    const userStatus = 'PENDING'
 
     // Create user
     const user = await db.user.create({
@@ -146,6 +169,7 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           facilityId: resolvedFacilityId,
           accessLevel: 5, // Standard facility admin (not super admin which is 10)
+          department: adminLicenseNumber ? `License: ${adminLicenseNumber}` : null,
         },
       })
     }
@@ -162,20 +186,48 @@ export async function POST(request: NextRequest) {
     await db.auditLog.create({
       data: {
         userId: user.id,
-        action: isAdmin ? 'ADMIN_REGISTERED_OAUTH' : 'USER_REGISTERED_OAUTH',
-        resource: 'User',
-        resourceId: user.id,
-        details: isAdmin
-          ? `New facility admin registered via ${provider || 'social'} — auto-approved (created facility: ${newFacilityName})`
+        action: isAdmin && facilityMode === 'new' ? 'FACILITY_APPLICATION_SUBMITTED_OAUTH' : (isAdmin ? 'ADMIN_REGISTERED_OAUTH' : 'USER_REGISTERED_OAUTH'),
+        resource: isAdmin && facilityMode === 'new' ? 'Facility' : 'User',
+        resourceId: isAdmin && facilityMode === 'new' ? resolvedFacilityId : user.id,
+        details: isAdmin && facilityMode === 'new'
+          ? `New facility application via ${provider || 'social'}: ${newFacilityName} (Reg: ${newFacilityRegistrationNumber}) — admin ${firstName} ${lastName} (${email}). Requires SUPER_ADMIN verification.`
+          : isAdmin
+          ? `New facility admin registered via ${provider || 'social'} — pending approval (joining existing facility)`
           : `New ${normalizedRole.toLowerCase()} registered via ${provider || 'social'} — pending approval`,
       },
     })
 
     // ── Notifications ──
-    if (userStatus === 'PENDING') {
+    if (isAdmin && facilityMode === 'new') {
+      // Notify ALL SUPER_ADMIN users about the new facility application
+      const superAdmins = await db.adminProfile.findMany({
+        where: { accessLevel: { gte: 10 } },
+        include: { user: { select: { id: true } } },
+      })
+
+      for (const sa of superAdmins) {
+        if (sa.user?.id) {
+          await db.notification.create({
+            data: {
+              userId: sa.user.id,
+              type: 'FACILITY_VERIFICATION',
+              title: 'New Facility Application Requires Verification',
+              message: `${firstName} ${lastName} (${email}) has applied to register "${newFacilityName}" in ${newFacilityCity}, ${newFacilityState}. Registration #: ${newFacilityRegistrationNumber}. Please verify and approve or reject this facility.`,
+              data: JSON.stringify({
+                facilityId: resolvedFacilityId,
+                facilityName: newFacilityName,
+                adminUserId: user.id,
+                adminEmail: email,
+                registrationNumber: newFacilityRegistrationNumber,
+              }),
+            },
+          })
+        }
+      }
+    } else if (userStatus === 'PENDING') {
       // Notify the facility admin about the pending user
       const facilityAdmin = await db.adminProfile.findFirst({
-        where: { facilityId: resolvedFacilityId },
+        where: { facilityId: resolvedFacilityId, accessLevel: { lt: 10 } },
         include: { user: { select: { id: true } } },
       })
 
@@ -203,55 +255,18 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Return response ──
-    if (userStatus === 'ACTIVE') {
-      // Auto-login for admins who created their own facility
-      const { sign } = await import('jsonwebtoken')
-      const JWT_SECRET = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET || 'fallback-secret-change-me'
-      const token = sign(
-        { userId: user.id, email: user.email, role: user.role },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      )
-
-      // Create session record
-      await db.session.create({
-        data: {
-          id: randomUUID(),
-          userId: user.id,
-          token,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
-      })
-
-      // Get facility name
-      const facility = await db.facility.findUnique({
-        where: { id: resolvedFacilityId },
-        select: { name: true },
-      })
-
-      return NextResponse.json({
-        status: 'ACTIVE',
-        message: 'Welcome! Your facility admin account is ready.',
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          facilityId: resolvedFacilityId,
-          facilityName: facility?.name || '',
-          nurseProfileId: null,
-          avatarUrl: user.avatarUrl,
-        },
-      })
-    }
+    // ALL new users are PENDING — no auto-login
+    const pendingMessage = isAdmin && facilityMode === 'new'
+      ? 'Your facility application has been submitted! A NurseOS Super Admin will review and verify your facility and account. You will be notified once approved. This typically takes 1-2 business days.'
+      : isAdmin
+      ? 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.'
+      : 'Your account has been created. Please wait for the facility admin to approve your access.'
 
     return NextResponse.json({
       status: 'PENDING',
-      message: isAdmin
-        ? 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.'
-        : 'Your account has been created. Please wait for the facility admin to approve your access.',
+      message: pendingMessage,
+      requiresApproval: true,
+      ...(isAdmin && facilityMode === 'new' ? { facilityCreated: true, facilityName: newFacilityName } : {}),
     })
   } catch (error: unknown) {
     console.error('OAuth complete error:', error)

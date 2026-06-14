@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Building2, Briefcase, Loader2, ArrowRight, Clock, Plus } from "lucide-react"
+import { Building2, Briefcase, Loader2, ArrowRight, Clock, Plus, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { useAuthStore } from "@/lib/auth-store"
@@ -67,6 +67,11 @@ export default function OnboardingPage() {
   const [newFacilityAddress, setNewFacilityAddress] = useState("")
   const [newFacilityCity, setNewFacilityCity] = useState("")
   const [newFacilityState, setNewFacilityState] = useState("")
+  // Facility verification fields
+  const [newFacilityRegistrationNumber, setNewFacilityRegistrationNumber] = useState("")
+  const [newFacilityPhone, setNewFacilityPhone] = useState("")
+  const [newFacilityEmail, setNewFacilityEmail] = useState("")
+  const [adminLicenseNumber, setAdminLicenseNumber] = useState("")
 
   const isAdmin = selectedRole === "ADMIN"
 
@@ -136,6 +141,11 @@ export default function OnboardingPage() {
         toast.error("Please enter the facility city and state")
         return
       }
+      // SECURITY: Registration number is mandatory for facility verification
+      if (!newFacilityRegistrationNumber.trim()) {
+        toast.error("Facility registration/license number is required to verify your facility")
+        return
+      }
     }
 
     setIsLoading(true)
@@ -152,13 +162,17 @@ export default function OnboardingPage() {
       if (facilityMode === "existing") {
         payload.facilityId = selectedFacilityId
       } else {
-        // New facility — send facility details
+        // New facility — send facility details including verification fields
         payload.facilityMode = "new"
         payload.newFacilityName = newFacilityName.trim()
         payload.newFacilityType = newFacilityType
         payload.newFacilityAddress = newFacilityAddress.trim()
         payload.newFacilityCity = newFacilityCity.trim()
         payload.newFacilityState = newFacilityState.trim()
+        payload.newFacilityRegistrationNumber = newFacilityRegistrationNumber.trim()
+        payload.newFacilityPhone = newFacilityPhone.trim()
+        payload.newFacilityEmail = newFacilityEmail.trim()
+        payload.adminLicenseNumber = adminLicenseNumber.trim()
       }
 
       const res = await fetch("/api/auth/oauth/complete", {
@@ -179,22 +193,12 @@ export default function OnboardingPage() {
         setStep("pending")
         // Clear OAuth data
         sessionStorage.removeItem("nurseos-oauth")
-      } else if (data.status === "ACTIVE" && data.token) {
-        // Auto-login (admin auto-approval for their own facility)
-        login({
-          id: data.user.id,
-          email: data.user.email,
-          firstName: data.user.firstName,
-          lastName: data.user.lastName,
-          role: data.user.role,
-          facilityId: data.user.facilityId,
-          facilityName: data.user.facilityName,
-          nurseProfileId: data.user.nurseProfileId,
-          avatarUrl: data.user.avatarUrl,
-        }, data.token)
-
-        toast.success("Welcome to NurseOS!")
-        window.location.href = "/dashboard"
+        // Show contextual message
+        if (data.facilityCreated) {
+          toast.success("Facility application submitted! A Super Admin will verify your facility.")
+        } else {
+          toast.success("Account created! Waiting for admin approval.")
+        }
       }
     } catch (err) {
       console.error("Onboarding error:", err)
@@ -214,7 +218,9 @@ export default function OnboardingPage() {
           </div>
           <h2 className="text-2xl font-bold">Waiting for Admin Approval</h2>
           <p className="text-muted-foreground">
-            Your account has been created and linked to the facility. The facility admin needs to approve your access before you can sign in. You&apos;ll be notified once approved.
+            {isAdmin
+              ? "Your facility application has been submitted. A NurseOS Super Admin will review and verify your facility and account. You will be notified once approved. This typically takes 1-2 business days."
+              : "Your account has been created and linked to the facility. The facility admin needs to approve your access before you can sign in. You'll be notified once approved."}
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

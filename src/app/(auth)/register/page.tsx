@@ -19,6 +19,7 @@ import {
   MapPin,
   Phone,
   AlertCircle,
+  ShieldCheck,
 } from "lucide-react";
 import { signIn as nextAuthSignIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,8 @@ const newFacilitySchema = z.object({
   state: z.string().min(1, "State is required"),
   phone: z.string().optional().default(""),
   email: z.string().optional().default(""),
+  registrationNumber: z.string().min(1, "Facility registration/license number is required for verification"),
+  accreditingBody: z.string().optional().default(""),
 });
 
 const registerSchema = z
@@ -102,16 +105,16 @@ const registerSchema = z
   )
   .refine(
     (data) => {
-      // For admin creating new facility, newFacility fields are required
+      // For admin creating new facility, newFacility fields are required including registration number
       if (data.role === "admin" && data.facilityOption === "new") {
-        if (!data.newFacility?.name || !data.newFacility?.type || !data.newFacility?.state) {
+        if (!data.newFacility?.name || !data.newFacility?.type || !data.newFacility?.state || !data.newFacility?.registrationNumber) {
           return false;
         }
       }
       return true;
     },
     {
-      message: "Please fill in the required facility details",
+      message: "Please fill in the required facility details including registration number",
       path: ["newFacility"],
     }
   );
@@ -166,6 +169,8 @@ export default function RegisterPage() {
         state: "",
         phone: "",
         email: "",
+        registrationNumber: "",
+        accreditingBody: "",
       },
     },
   });
@@ -225,7 +230,7 @@ export default function RegisterPage() {
       };
 
       if (isAdminRole && facilityOption === "new" && data.newFacility) {
-        // Admin creating a new facility
+        // Admin creating a new facility — include verification fields
         payload.newFacility = {
           name: data.newFacility.name,
           type: data.newFacility.type,
@@ -234,6 +239,8 @@ export default function RegisterPage() {
           state: data.newFacility.state,
           phone: data.newFacility.phone || null,
           email: data.newFacility.email || null,
+          registrationNumber: data.newFacility.registrationNumber,
+          accreditingBody: data.newFacility.accreditingBody || null,
         };
       } else if (data.facilityId) {
         // Existing facility selected
@@ -261,21 +268,41 @@ export default function RegisterPage() {
         return
       }
 
-      // Auto-login after registration with facility context
-      login({
-        id: result.user?.id || crypto.randomUUID(),
-        email: result.user?.email || data.email,
-        firstName: result.user?.firstName || data.firstName,
-        lastName: result.user?.lastName || data.lastName,
-        role: result.originalRole || data.role,
-        facilityId: result.user?.facilityId || result.user?.nurseProfile?.currentFacilityId || result.user?.adminProfile?.facilityId || null,
-        facilityName: result.user?.facility?.name || result.user?.nurseProfile?.facility?.name || result.user?.adminProfile?.facility?.name || null,
-        nurseProfileId: result.user?.nurseProfile?.id || null,
-      }, result.token);
+      // Handle PENDING status — no auto-login
+      if (result.requiresApproval || result.status === 'PENDING') {
+        // Show appropriate message based on role
+        if (result.facilityCreated) {
+          toast.success('Facility application submitted!', {
+            description: 'A NurseOS Super Admin will review and verify your facility. You will be notified once approved. This typically takes 1-2 business days.',
+            duration: 8000,
+          })
+        } else {
+          toast.success('Account created!', {
+            description: 'Your account is pending approval from the facility admin. You will be notified once approved.',
+            duration: 8000,
+          })
+        }
+        // Redirect to login with a message
+        window.location.href = '/login?message=pending_approval'
+        return
+      }
 
-      toast.success("Account created! Welcome to NurseOS.");
+      // Only SUPER_ADMIN gets auto-login (created by another SUPER_ADMIN)
+      if (result.token) {
+        login({
+          id: result.user?.id || crypto.randomUUID(),
+          email: result.user?.email || data.email,
+          firstName: result.user?.firstName || data.firstName,
+          lastName: result.user?.lastName || data.lastName,
+          role: result.originalRole || data.role,
+          facilityId: result.user?.facilityId || null,
+          facilityName: result.user?.facilityName || null,
+          nurseProfileId: result.user?.nurseProfileId || null,
+        }, result.token);
 
-      window.location.href = "/dashboard";
+        toast.success("Account created! Welcome to NurseOS.");
+        window.location.href = "/dashboard";
+      }
     } catch (error) {
       console.error("Registration error:", error);
       toast.error("Unable to connect to the server. Please check your connection and try again.");
@@ -501,9 +528,51 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
-                      Your facility will start on the <span className="font-medium text-emerald-700">FREE plan</span>. You can upgrade later in settings.
-                    </p>
+                    {/* ── Facility Verification Section ── */}
+                    <div className="border-t border-emerald-200 pt-3 mt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <p className="text-xs font-semibold text-emerald-800">Verification Required</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mb-3">
+                        To prevent unauthorized facility creation, all new facilities must be verified by a NurseOS Super Admin. You will need to provide your facility registration number.
+                      </p>
+
+                      {/* Registration Number */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="regNumber" className="text-xs">Registration / License Number <span className="text-destructive">*</span></Label>
+                        <Input
+                          id="regNumber"
+                          placeholder="e.g. CAC/1234567 or FMH/2024/0891"
+                          {...register("newFacility.registrationNumber")}
+                        />
+                        {errors.newFacility?.registrationNumber && (
+                          <p className="text-xs text-destructive">{errors.newFacility.registrationNumber.message}</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground">
+                          Your CAC registration number, health facility license, or government-issued facility ID.
+                        </p>
+                      </div>
+
+                      {/* Accrediting Body */}
+                      <div className="space-y-1.5 mt-2">
+                        <Label htmlFor="accredBody" className="text-xs">Accrediting Body</Label>
+                        <Input
+                          id="accredBody"
+                          placeholder="e.g. Federal Ministry of Health"
+                          {...register("newFacility.accreditingBody")}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mt-3">
+                      <p className="text-[11px] text-amber-800 font-medium">
+                        Your facility application will be reviewed by a NurseOS Super Admin before activation.
+                      </p>
+                      <p className="text-[10px] text-amber-700 mt-0.5">
+                        This typically takes 1-2 business days. You will be notified via email once approved.
+                      </p>
+                    </div>
                   </div>
                 )}
               </>

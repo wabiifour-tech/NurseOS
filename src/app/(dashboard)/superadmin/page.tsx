@@ -61,6 +61,7 @@ import {
   Shield,
   MapPin,
   Mail,
+  Phone,
   BarChart3,
 } from 'lucide-react'
 
@@ -179,7 +180,7 @@ export default function SuperAdminDashboard() {
   const [isCreatingAdmin, setIsCreatingAdmin] = React.useState(false)
 
   // Active tab
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'subscriptions' | 'facilities' | 'users'>('overview')
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'subscriptions' | 'facility-approvals' | 'facilities' | 'users'>('overview')
 
   // Facilities & Users state
   const [facilities, setFacilities] = React.useState<any[]>([])
@@ -189,6 +190,11 @@ export default function SuperAdminDashboard() {
   const [isLoadingUsers, setIsLoadingUsers] = React.useState(false)
   const [userSearch, setUserSearch] = React.useState('')
   const [userRoleFilter, setUserRoleFilter] = React.useState('')
+
+  // Facility Approvals state
+  const [facilityApprovals, setFacilityApprovals] = React.useState<any[]>([])
+  const [isLoadingApprovals, setIsLoadingApprovals] = React.useState(false)
+  const [approvalActionLoading, setApprovalActionLoading] = React.useState<Record<string, boolean>>({})
 
   /* ─── Auth headers helper ─── */
   const getHeaders = () => ({
@@ -254,7 +260,8 @@ export default function SuperAdminDashboard() {
 
   React.useEffect(() => {
     fetchAppStats()
-  }, [fetchAppStats])
+    fetchFacilityApprovals() // Fetch count for tab badge
+  }, [fetchAppStats, fetchFacilityApprovals])
 
   /* ─── Fetch facilities ─── */
   const fetchFacilities = React.useCallback(async () => {
@@ -296,6 +303,60 @@ export default function SuperAdminDashboard() {
   React.useEffect(() => {
     if (activeTab === 'users') fetchUsers()
   }, [activeTab, fetchUsers])
+
+  /* ─── Fetch facility approvals ─── */
+  const fetchFacilityApprovals = React.useCallback(async () => {
+    setIsLoadingApprovals(true)
+    try {
+      const res = await fetch('/api/superadmin/facilities?status=pending', { headers: getHeaders() })
+      const data = await res.json()
+      if (res.ok) {
+        setFacilityApprovals(data.pendingFacilities || [])
+      }
+    } catch (error) {
+      console.error('Error fetching facility approvals:', error)
+      toast.error('Failed to load facility approvals')
+    } finally {
+      setIsLoadingApprovals(false)
+    }
+  }, [user?.id, token])
+
+  React.useEffect(() => {
+    if (activeTab === 'facility-approvals') fetchFacilityApprovals()
+  }, [activeTab, fetchFacilityApprovals])
+
+  /* ─── Handle facility approval/rejection ─── */
+  const handleFacilityAction = async (facilityId: string, action: 'approve' | 'reject', facilityName: string) => {
+    setApprovalActionLoading((prev) => ({ ...prev, [facilityId + action]: true }))
+    try {
+      const body: Record<string, unknown> = { facilityId, action }
+      if (action === 'reject') {
+        body.rejectionReason = 'Facility could not be verified. Please contact support with updated documentation.'
+      }
+
+      const res = await fetch('/api/superadmin/facilities', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || `Failed to ${action} facility`)
+        return
+      }
+
+      toast.success(data.message || `Facility ${action}d successfully`)
+      fetchFacilityApprovals()
+      fetchAppStats()
+    } catch (error) {
+      console.error(`Error ${action}ing facility:`, error)
+      toast.error(`Failed to ${action} facility`)
+    } finally {
+      setApprovalActionLoading((prev) => ({ ...prev, [facilityId + action]: false }))
+    }
+  }
 
   /* ─── Subscription actions ─── */
   const handleSubscriptionAction = async (
@@ -460,6 +521,7 @@ export default function SuperAdminDashboard() {
         {[
           { id: 'overview', label: 'Overview', icon: Activity },
           { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
+          { id: 'facility-approvals', label: 'Facility Approvals', icon: ShieldCheck, badge: facilityApprovals.length || undefined },
           { id: 'facilities', label: 'Facilities', icon: Building2 },
           { id: 'users', label: 'Users', icon: Users },
         ].map((tab) => (
@@ -474,6 +536,11 @@ export default function SuperAdminDashboard() {
           >
             <tab.icon className="size-3.5" />
             {tab.label}
+            {tab.badge && tab.badge > 0 && (
+              <span className="flex size-5 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                {tab.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1220,6 +1287,219 @@ export default function SuperAdminDashboard() {
                   })
                 })()}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── FACILITY APPROVALS TAB ── */}
+      {activeTab === 'facility-approvals' && (
+        <div className="space-y-6">
+          {/* Stats bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="border-amber-500/20 bg-gradient-to-br from-amber-50/80 to-yellow-50/80 dark:from-amber-950/30 dark:to-yellow-950/30">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Pending Review</p>
+                    <p className="text-2xl font-bold">{isLoadingApprovals ? <Loader2 className="size-5 animate-spin text-amber-500" /> : facilityApprovals.length}</p>
+                  </div>
+                  <div className="flex size-10 items-center justify-center rounded-lg bg-amber-500/10">
+                    <AlertTriangle className="size-5 text-amber-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/30 dark:to-teal-950/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="size-5 text-emerald-500" />
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Security Notice</p>
+                    <p className="text-sm text-foreground">All new facilities require verification before activation</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-500/20 bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <FileText className="size-5 text-blue-500" />
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Verification Check</p>
+                    <p className="text-sm text-foreground">Cross-reference registration numbers with health registries</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Pending facility applications */}
+          <Card className="border-amber-500/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-5 text-amber-500" />
+                  <CardTitle className="text-lg">Pending Facility Applications</CardTitle>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                  onClick={fetchFacilityApprovals}
+                >
+                  <RefreshCw className="size-3.5 mr-1" /> Refresh
+                </Button>
+              </div>
+              <CardDescription>
+                Review and verify new facility applications. Approve only after confirming the facility registration number and administrator identity.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingApprovals ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="size-6 animate-spin text-amber-500" />
+                  <span className="ml-3 text-muted-foreground">Loading pending applications...</span>
+                </div>
+              ) : facilityApprovals.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <CheckCircle2 className="size-10 text-emerald-500 mb-3" />
+                  <p className="text-sm font-medium text-foreground">All caught up!</p>
+                  <p className="text-xs text-muted-foreground mt-1">No facilities are pending verification right now.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {facilityApprovals.map((facility) => {
+                    const admin = facility.adminProfiles?.[0]
+                    const adminUser = admin?.user
+                    return (
+                      <div key={facility.id} className="border border-border/50 rounded-xl p-5 hover:border-amber-500/30 transition-colors">
+                        <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                          {/* Facility details */}
+                          <div className="flex-1 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex size-10 items-center justify-center rounded-lg bg-amber-500/10">
+                                <Building2 className="size-5 text-amber-600" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-foreground">{facility.name}</h3>
+                                <p className="text-xs text-muted-foreground">{facility.type} · Applied {formatDate(facility.createdAt)}</p>
+                              </div>
+                              <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-600">
+                                PENDING VERIFICATION
+                              </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                              <div className="flex items-center gap-2">
+                                <MapPin className="size-3.5 text-muted-foreground" />
+                                <span className="text-muted-foreground">Location:</span>
+                                <span className="font-medium">{facility.city}, {facility.state}, {facility.country}</span>
+                              </div>
+                              {facility.address && (
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="size-3.5 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Address:</span>
+                                  <span className="font-medium">{facility.address}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <FileText className="size-3.5 text-muted-foreground" />
+                                <span className="text-muted-foreground">Reg. Number:</span>
+                                <span className="font-mono font-semibold text-emerald-600">{facility.registrationNumber || 'NOT PROVIDED'}</span>
+                              </div>
+                              {facility.accreditingBody && (
+                                <div className="flex items-center gap-2">
+                                  <ShieldCheck className="size-3.5 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Accredited by:</span>
+                                  <span className="font-medium">{facility.accreditingBody}</span>
+                                </div>
+                              )}
+                              {facility.phone && (
+                                <div className="flex items-center gap-2">
+                                  <Phone className="size-3.5 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Phone:</span>
+                                  <span className="font-medium">{facility.phone}</span>
+                                </div>
+                              )}
+                              {facility.email && (
+                                <div className="flex items-center gap-2">
+                                  <Mail className="size-3.5 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Email:</span>
+                                  <span className="font-medium">{facility.email}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Admin info */}
+                          {adminUser && (
+                            <div className="border-t lg:border-t-0 lg:border-l border-border/50 pt-3 lg:pt-0 lg:pl-4 lg:min-w-[220px]">
+                              <p className="text-xs font-medium text-muted-foreground uppercase mb-2">Facility Admin</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="flex size-8 items-center justify-center rounded-full bg-emerald-500/10">
+                                  <Users className="size-4 text-emerald-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium">{adminUser.firstName} {adminUser.lastName}</p>
+                                  <p className="text-xs text-muted-foreground">{adminUser.email}</p>
+                                </div>
+                              </div>
+                              {adminUser.phone && (
+                                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                  <Phone className="size-3" /> {adminUser.phone}
+                                </p>
+                              )}
+                              {admin.department && (
+                                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                  <FileText className="size-3" /> {admin.department}
+                                </p>
+                              )}
+                              <Badge variant="outline" className="text-[10px] mt-2 border-amber-500/30 text-amber-600">
+                                Status: {adminUser.status}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/30">
+                          <Button
+                            size="sm"
+                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs"
+                            onClick={() => handleFacilityAction(facility.id, 'approve', facility.name)}
+                            disabled={approvalActionLoading[facility.id + 'approve']}
+                          >
+                            {approvalActionLoading[facility.id + 'approve'] ? (
+                              <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                            ) : (
+                              <ShieldCheck className="size-3.5 mr-1.5" />
+                            )}
+                            Verify & Approve Facility
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="text-xs"
+                            onClick={() => handleFacilityAction(facility.id, 'reject', facility.name)}
+                            disabled={approvalActionLoading[facility.id + 'reject']}
+                          >
+                            {approvalActionLoading[facility.id + 'reject'] ? (
+                              <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                            ) : (
+                              <XCircle className="size-3.5 mr-1.5" />
+                            )}
+                            Reject Application
+                          </Button>
+                          <p className="text-[10px] text-muted-foreground ml-auto">
+                            Approving will activate the facility and admin account
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

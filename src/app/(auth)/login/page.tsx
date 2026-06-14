@@ -29,6 +29,17 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const pendingMessage = searchParams.get("message");
+
+  // Show pending approval message if redirected from registration
+  useEffect(() => {
+    if (pendingMessage === "pending_approval") {
+      toast.info("Your account is pending approval", {
+        description: "Please wait for the facility admin or NurseOS Super Admin to approve your account. You will be notified via email once approved.",
+        duration: 8000,
+      });
+    }
+  }, [pendingMessage]);
 
   // If already authenticated (e.g., Zustand persisted state), redirect to dashboard
   useEffect(() => {

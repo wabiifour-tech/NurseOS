@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
  * GET /api/facilities/public
  * Public endpoint — no auth required.
  * Used by registration and onboarding pages to list facilities.
+ * SECURITY: Only returns VERIFIED facilities to prevent users from
+ * joining unverified/fraudulent facilities.
  * Returns only safe fields (id, name, type, city, state, isVerified).
  */
 export async function GET(request: NextRequest) {
@@ -15,6 +17,11 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '200'), 500)
 
     const where: Record<string, unknown> = {}
+
+    // SECURITY: Only show verified facilities in public listings
+    // This prevents users from joining unverified/fraudulent facilities
+    where.isVerified = true
+    where.accreditationStatus = 'VERIFIED'
 
     if (search) {
       where.OR = [
