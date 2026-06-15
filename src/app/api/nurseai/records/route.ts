@@ -30,13 +30,18 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view records
-    const facilityId = requireFacility(authUser)
-    if (facilityId instanceof Response) return facilityId
+    const facilityIdResult = requireFacility(authUser)
+    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+    const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
     const where: Record<string, unknown> = {}
 
     // 🔒 FACILITY ISOLATION: Only show records from the nurse's facility (mandatory)
-    where.facilityId = facilityId
+    // SUPER_ADMIN can see ALL data across all facilities
+    if (!isSuperAdmin && facilityId) {
+      where.facilityId = facilityId
+    }
 
     if (status && VALID_STATUSES.includes(status.toUpperCase())) {
       where.status = status.toUpperCase()
@@ -135,8 +140,10 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityId = requireFacility(authUser)
-  if (facilityId instanceof Response) return facilityId
+  const facilityIdResult = requireFacility(authUser)
+  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+  const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
@@ -165,8 +172,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 🔒 Verify patient belongs to the nurse's facility
-    if (patient.facilityId && patient.facilityId !== facilityId) {
+    // 🔒 Verify patient belongs to the nurse's facility (SUPER_ADMIN can create for any facility)
+    if (!isSuperAdmin && patient.facilityId && patient.facilityId !== facilityId) {
       return NextResponse.json(
         { error: 'You can only create records for patients in your facility.' },
         { status: 403 }
@@ -183,11 +190,18 @@ export async function POST(request: NextRequest) {
         ? status.toUpperCase()
         : 'ACTIVE'
 
-    // Use the nurse's facility instead of the broken findFirst()
+    // Use the nurse's facility, or the patient's facility for SUPER_ADMIN
+    const recordFacilityId: string | undefined = (facilityId ?? patient.facilityId) ?? undefined
+    if (!recordFacilityId) {
+      return NextResponse.json(
+        { error: 'Cannot determine facility for this record. Please assign a facility.' },
+        { status: 400 }
+      )
+    }
     const record = await db.medicalRecord.create({
       data: {
         patientId,
-        facilityId, // 🔒 Auto-assign to nurse's facility
+        facilityId: recordFacilityId, // 🔒 Auto-assign facility
         encounterType: encType,
         chiefComplaint,
         status: recStatus,

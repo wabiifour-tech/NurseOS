@@ -139,15 +139,42 @@ export function crossFacilityDeniedResponse() {
 
 /**
  * Require that the authenticated user has a facility assignment.
- * Returns the facilityId if assigned, or a 403 response if not.
+ * SUPER_ADMIN is exempt — they oversee ALL facilities and intentionally have no facilityId.
+ * Returns:
+ *   - facilityId string if assigned to a facility
+ *   - null if SUPER_ADMIN with no facility (allowed — can see ALL data across facilities)
+ *   - 403 Response if non-SUPER_ADMIN with no facility assignment
  *
  * Usage in API routes:
  *   const facilityId = requireFacility(authUser)
- *   if (facilityId instanceof Response) return facilityId
+ *   const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+ *   if (facilityId instanceof Response && !isSuperAdmin) return facilityId
+ *   // Then: if (!isSuperAdmin && facilityId) { where.patient = { facilityId } }
  */
-export function requireFacility(authUser: AuthUser): string | Response {
+export function requireFacility(authUser: AuthUser): string | null | Response {
+  // SUPER_ADMIN is allowed access without a facility assignment
+  if (authUser.role === 'SUPER_ADMIN' && !authUser.facilityId) {
+    return null
+  }
   if (!authUser.facilityId) {
     return noFacilityResponse()
   }
   return authUser.facilityId
+}
+
+/**
+ * Require that the authenticated user has a facility assignment OR is a SUPER_ADMIN.
+ * Returns:
+ *   - null if SUPER_ADMIN with no facility (no facility filter needed — can see ALL data)
+ *   - facilityId string if assigned to a facility
+ *   - 403 Response if neither
+ *
+ * Usage in API routes:
+ *   const facilityId = requireFacilityOrSuperAdmin(authUser)
+ *   if (facilityId instanceof Response) return facilityId
+ *   const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+ *   // Then: if (!isSuperAdmin && facilityId) { where.patient = { facilityId } }
+ */
+export function requireFacilityOrSuperAdmin(authUser: AuthUser): string | null | Response {
+  return requireFacility(authUser)
 }

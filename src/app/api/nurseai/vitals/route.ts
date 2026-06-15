@@ -15,13 +15,18 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view vitals
-    const facilityId = requireFacility(authUser)
-    if (facilityId instanceof Response) return facilityId
+    const facilityIdResult = requireFacility(authUser)
+    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+    const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
     const where: Record<string, unknown> = {}
 
     // 🔒 FACILITY ISOLATION: Only show vitals for patients in the nurse's facility (mandatory)
-    where.patient = { facilityId }
+    // SUPER_ADMIN can see ALL data across all facilities
+    if (!isSuperAdmin && facilityId) {
+      where.patient = { facilityId }
+    }
 
     if (patientId) {
       where.patientId = patientId
@@ -87,8 +92,10 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityId = requireFacility(authUser)
-  if (facilityId instanceof Response) return facilityId
+  const facilityIdResult = requireFacility(authUser)
+  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+  const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
@@ -117,8 +124,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 🔒 Verify patient belongs to the nurse's facility
-    if (patient.facilityId && patient.facilityId !== facilityId) {
+    // 🔒 Verify patient belongs to the nurse's facility (SUPER_ADMIN can record for any facility)
+    if (!isSuperAdmin && patient.facilityId && patient.facilityId !== facilityId) {
       return NextResponse.json(
         { error: 'You can only record vitals for patients in your facility.' },
         { status: 403 }

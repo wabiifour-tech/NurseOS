@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, requireFacility } from '@/lib/auth'
 
 // GET /api/nurseai/notes - List nursing notes scoped to nurse's facility
 export async function GET(request: NextRequest) {
@@ -17,13 +17,18 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view notes
-    const facilityId = requireFacility(authUser)
-    if (facilityId instanceof Response) return facilityId
+    const facilityIdResult = requireFacility(authUser)
+    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+    const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
     const where: Record<string, unknown> = {}
 
     // 🔒 FACILITY ISOLATION: Only show notes for records in the nurse's facility (mandatory)
-    where.medicalRecord = { facilityId }
+    // SUPER_ADMIN can see ALL data across all facilities
+    if (!isSuperAdmin && facilityId) {
+      where.medicalRecord = { facilityId }
+    }
 
     if (recordId) {
       where.recordId = recordId
@@ -33,7 +38,12 @@ export async function GET(request: NextRequest) {
     }
     if (patientId) {
       // Add patientId filter within the facility-scoped medical record
-      where.medicalRecord = { facilityId, patientId }
+      if (isSuperAdmin && !facilityId) {
+        // SUPER_ADMIN without facility: just filter by patientId
+        where.medicalRecord = { patientId }
+      } else {
+        where.medicalRecord = { facilityId: facilityId!, patientId }
+      }
     }
 
     const [notes, total] = await Promise.all([
@@ -96,8 +106,10 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityId = requireFacility(authUser)
-  if (facilityId instanceof Response) return facilityId
+  const facilityIdResult = requireFacility(authUser)
+  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+  const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
@@ -114,7 +126,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    if (!authUser.nurseProfileId) {
+    if (!authUser.nurseProfileId && !isSuperAdmin) {
       return NextResponse.json(
         { error: 'Only nurses can create notes' },
         { status: 403 }
@@ -153,18 +165,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 🔒 Verify record belongs to the nurse's facility
-    if (medicalRecord.facilityId !== facilityId) {
+    // 🔒 Verify record belongs to the nurse's facility (SUPER_ADMIN can create for any facility)
+    if (!isSuperAdmin && medicalRecord.facilityId !== facilityId) {
       return NextResponse.json(
         { error: 'You can only create notes for records in your facility.' },
         { status: 403 }
       )
     }
 
+    // Resolve nurseId — SUPER_ADMIN may not have a NurseProfile, try to find one
+    let resolvedNurseId = authUser.nurseProfileId
+    if (!resolvedNurseId && isSuperAdmin) {
+      resolvedNurseId = await getNurseProfileId(authUser.id)
+    }
+    if (!resolvedNurseId) {
+      return NextResponse.json(
+        { error: 'A nurse profile is required to create notes. Please contact an administrator.' },
+        { status: 400 }
+      )
+    }
+
     const note = await db.nursingNote.create({
       data: {
         recordId: body.recordId,
-        nurseId: authUser.nurseProfileId,
+        nurseId: resolvedNurseId,
         noteType: body.noteType,
         content: body.content.trim(),
         aiGenerated: body.aiGenerated || false,

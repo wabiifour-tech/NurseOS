@@ -41,6 +41,7 @@ import {
   Clock,
   AlertCircle,
   Video,
+  Crown,
 } from "lucide-react"
 import Image from "next/image"
 import { useAuthStore } from "@/lib/auth-store"
@@ -315,6 +316,7 @@ function DashboardHeader() {
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
   const facilityName = user?.facilityName
   const hasFacility = !!user?.facilityId
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin)
 
   const handleSignOut = async () => {
     await logout()
@@ -350,6 +352,14 @@ function DashboardHeader() {
           >
             <Building2 className="size-3 shrink-0" />
             <span className="truncate">{facilityName || 'Facility'}</span>
+          </Badge>
+        ) : isSuperAdmin ? (
+          <Badge
+            variant="outline"
+            className="gap-1.5 text-[11px] px-2.5 py-0.5 font-medium border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
+          >
+            <Crown className="size-3 shrink-0" />
+            <span>NurseOS Founder</span>
           </Badge>
         ) : (
           <Link href="/settings">

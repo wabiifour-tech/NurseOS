@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
+import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
 
 // System prompts for different note types
 const SYSTEM_PROMPTS: Record<string, string> = {
@@ -50,8 +50,10 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment to use AI charting
-  const facilityId = requireFacility(authUser)
-  if (facilityId instanceof Response) return facilityId
+  const facilityIdResult = requireFacility(authUser)
+  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+  const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
@@ -168,9 +170,12 @@ export async function POST(request: NextRequest) {
       : wasParsedFromRaw ? 0.5 : 0.7
 
     // Save the AI interaction to the database if recordId is provided
-    if (authUser.nurseProfileId && recordId) {
+    // SUPER_ADMIN without nurseProfileId: skip AI interaction logging
+    const effectiveNurseId = authUser.nurseProfileId || (isSuperAdmin ? await getNurseProfileId(authUser.id) : null)
+    if (effectiveNurseId && recordId) {
       try {
         // 🔒 FACILITY ISOLATION: Verify the medical record belongs to the nurse's facility
+        // SUPER_ADMIN can access records from any facility
         const medicalRecord = await db.medicalRecord.findUnique({
           where: { id: recordId },
           select: { facilityId: true },
@@ -181,14 +186,14 @@ export async function POST(request: NextRequest) {
             { status: 404 }
           )
         }
-        if (medicalRecord.facilityId !== facilityId) {
+        if (!isSuperAdmin && medicalRecord.facilityId !== facilityId) {
           return crossFacilityDeniedResponse()
         }
 
         await db.aIInteraction.create({
           data: {
             recordId,
-            nurseId: authUser.nurseProfileId,
+            nurseId: effectiveNurseId,
             interactionType: `SMART_CHART_${normalizedNoteType}`,
             userInput: text.trim(),
             aiOutput: JSON.stringify(structuredNote),

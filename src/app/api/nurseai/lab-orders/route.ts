@@ -7,8 +7,10 @@ export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
-  const facilityId = requireFacility(authUser)
-  if (facilityId instanceof Response) return facilityId
+  const facilityIdResult = requireFacility(authUser)
+  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+  const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     const { searchParams } = new URL(request.url)
@@ -18,14 +20,15 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {}
     if (status) where.status = status.toUpperCase()
 
-    // Get patients in this facility
-    const patientIds = await db.patientProfile.findMany({
-      where: { facilityId },
-      select: { id: true },
-    })
-    const pIds = patientIds.map(p => p.id)
-
-    where.patientId = { in: pIds }
+    // Get patients in this facility — SUPER_ADMIN can see ALL
+    if (!isSuperAdmin && facilityId) {
+      const patientIds = await db.patientProfile.findMany({
+        where: { facilityId: facilityId },
+        select: { id: true },
+      })
+      const pIds = patientIds.map(p => p.id)
+      where.patientId = { in: pIds }
+    }
 
     const labOrders = await db.labOrder.findMany({
       where,
@@ -81,12 +84,15 @@ export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
-  const facilityId = requireFacility(authUser)
-  if (facilityId instanceof Response) return facilityId
+  const facilityIdResult = requireFacility(authUser)
+  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+  const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     const nurseId = await getNurseProfileId(authUser.id)
-    if (!nurseId) {
+    // SUPER_ADMIN may not have a nurse profile — skip the requirement
+    if (!nurseId && !isSuperAdmin) {
       return NextResponse.json({ error: 'No nurse profile found' }, { status: 404 })
     }
 
@@ -113,20 +119,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
 
-    if (patient.facilityId && patient.facilityId !== facilityId) {
+    // Verify patient belongs to this facility (SUPER_ADMIN can create for any facility)
+    if (!isSuperAdmin && patient.facilityId && patient.facilityId !== facilityId) {
       return crossFacilityDeniedResponse()
     }
 
     // Find or create a medical record for this patient
     let recordId = body.recordId
     if (!recordId) {
+      const recordFacilityId: string | undefined = (facilityId ?? patient.facilityId) ?? undefined
+      if (!recordFacilityId) {
+        return NextResponse.json(
+          { error: 'Cannot determine facility for this lab order. Please assign a facility.' },
+          { status: 400 }
+        )
+      }
       const record = await db.medicalRecord.create({
         data: {
           patientId: body.patientId,
-          facilityId,
+          facilityId: recordFacilityId,
           encounterType: 'LAB_ORDER',
           chiefComplaint: `Lab order: ${body.testName}`,
-          attendingNurseId: nurseId,
+          attendingNurseId: nurseId || null,
         },
       })
       recordId = record.id

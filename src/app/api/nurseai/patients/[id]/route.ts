@@ -12,8 +12,10 @@ export async function GET(
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 FACILITY ISOLATION: Require a facility assignment to view patient data
-  const facilityId = requireFacility(authUser)
-  if (facilityId instanceof Response) return facilityId
+  const facilityIdResult = requireFacility(authUser)
+  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
+  const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     const { id } = await params
@@ -61,17 +63,17 @@ export async function GET(
     }
 
     // 🔒 FACILITY ISOLATION: Verify the patient belongs to the nurse's facility
-    // If patient has no facilityId, allow access (legacy data); otherwise must match
-    if (patient.facilityId && patient.facilityId !== facilityId) {
+    // SUPER_ADMIN can access patients from any facility
+    if (!isSuperAdmin && patient.facilityId && patient.facilityId !== facilityId) {
       return crossFacilityDeniedResponse()
     }
 
-    // Fetch nursing notes through medical records (scoped to facility)
+    // Fetch nursing notes through medical records (scoped to facility, or all for SUPER_ADMIN)
     const nursingNotes = await db.nursingNote.findMany({
       where: {
         medicalRecord: {
           patientId: id,
-          facilityId, // 🔒 Only get notes from this facility's records
+          ...((!isSuperAdmin && facilityId) ? { facilityId } : {}),
         },
       },
       include: {
