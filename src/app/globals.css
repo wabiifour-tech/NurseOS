@@ -118,10 +118,13 @@
   }
   html, body {
     @apply bg-background text-foreground;
-    overflow: hidden;
-    height: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  /* Only lock body scroll when inside the app shell (dashboard) */
+  body:has(.app-shell) {
+    overflow: hidden;
+    height: 100%;
   }
   /* Native app feel: prevent user-select on UI elements */
   button, [role="button"], nav, header, footer, aside,
