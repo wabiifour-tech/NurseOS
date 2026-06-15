@@ -34,12 +34,13 @@ import {
   Loader2,
   AlertCircle,
   MessagesSquare,
+  PhoneCall,
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { VideoCallDialog } from "@/components/consultations/VideoCallDialog"
 import { ChatDialog } from "@/components/consultations/ChatDialog"
 import { PhoneDialog } from "@/components/consultations/PhoneDialog"
+import { useCallProvider } from "@/components/call-provider"
 
 // ---------- Types ----------
 
@@ -495,11 +496,14 @@ function EmptyState({ message }: { message: string }) {
 function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { consultation: ApiConsultation; isIncoming: boolean; currentUserId: string; token: string | null }) {
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [declining, setDeclining] = React.useState(false)
+  const [initiatingCall, setInitiatingCall] = React.useState(false)
 
-  // Dialog states for H8/H9/H10
-  const [videoOpen, setVideoOpen] = React.useState(false)
+  // Dialog states
   const [chatOpen, setChatOpen] = React.useState(false)
   const [phoneOpen, setPhoneOpen] = React.useState(false)
+
+  // Call provider for initiating video/voice calls
+  const { initiateCall, isCallActive } = useCallProvider()
 
   const displayType = toDisplayType(consultation.consultationType)
   const displayStatus = toDisplayStatus(consultation.status)
@@ -512,12 +516,35 @@ function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { 
 
   const handleActiveAction = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (consultation.consultationType === "VIDEO") {
-      setVideoOpen(true)
+    if (consultation.consultationType === "VIDEO" || consultation.consultationType === "PHONE") {
+      handleStartCall(consultation.consultationType === "VIDEO" ? "VIDEO" : "PHONE")
     } else if (consultation.consultationType === "CHAT") {
       setChatOpen(true)
     } else {
       setPhoneOpen(true)
+    }
+  }
+
+  const handleStartCall = async (callType: 'VIDEO' | 'PHONE') => {
+    setInitiatingCall(true)
+    try {
+      await initiateCall(
+        isRequester ? consultation.consultingNurseId : consultation.requestingNurseId,
+        callType,
+        {
+          id: otherNurse.id,
+          firstName: otherNurse.user?.firstName ?? '',
+          lastName: otherNurse.user?.lastName ?? '',
+          avatarUrl: null,
+          specialization: null,
+        },
+        consultation.subject,
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start call'
+      toast.error(message)
+    } finally {
+      setInitiatingCall(false)
     }
   }
 
@@ -547,9 +574,9 @@ function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { 
   }
 
   const activeButtonConfig: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-    VIDEO: { label: "Open Consultation", icon: Video },
+    VIDEO: { label: "Start Video Call", icon: Video },
     CHAT: { label: "Open Chat", icon: MessagesSquare },
-    PHONE: { label: "Start Call", icon: Phone },
+    PHONE: { label: "Start Voice Call", icon: Phone },
   }
 
   // Get consultant phone for phone dialog
@@ -616,10 +643,36 @@ function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { 
                   variant="outline"
                   className="flex-1 text-xs h-8 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
                   onClick={handleActiveAction}
+                  disabled={initiatingCall || isCallActive}
                 >
-                  <ActionIcon className="size-3.5" />
-                  {btnConfig.label}
+                  {initiatingCall ? <Loader2 className="size-3.5 animate-spin" /> : <ActionIcon className="size-3.5" />}
+                  {initiatingCall ? 'Connecting...' : btnConfig.label}
                 </Button>
+                {/* Quick call buttons for any active consultation */}
+                {consultation.consultationType !== "VIDEO" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                    onClick={(e) => { e.stopPropagation(); handleStartCall('VIDEO') }}
+                    disabled={initiatingCall || isCallActive}
+                    title="Start Video Call"
+                  >
+                    <Video className="size-3.5" />
+                  </Button>
+                )}
+                {consultation.consultationType !== "PHONE" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
+                    onClick={(e) => { e.stopPropagation(); handleStartCall('PHONE') }}
+                    disabled={initiatingCall || isCallActive}
+                    title="Start Voice Call"
+                  >
+                    <PhoneCall className="size-3.5" />
+                  </Button>
+                )}
               </div>
             )
           })()}
@@ -740,16 +793,44 @@ function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { 
               const btnConfig = activeButtonConfig[consultation.consultationType] ?? activeButtonConfig.CHAT
               const ActionIcon = btnConfig.icon
               return (
-                <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                  onClick={() => {
-                    handleActiveAction({ stopPropagation: () => {} } as React.MouseEvent)
-                    setDetailOpen(false)
-                  }}
-                >
-                  <ActionIcon className="size-4" />
-                  {btnConfig.label}
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                    onClick={() => {
+                      handleActiveAction({ stopPropagation: () => {} } as React.MouseEvent)
+                      setDetailOpen(false)
+                    }}
+                    disabled={initiatingCall || isCallActive}
+                  >
+                    {initiatingCall ? <Loader2 className="size-4 animate-spin" /> : <ActionIcon className="size-4" />}
+                    {initiatingCall ? 'Connecting...' : btnConfig.label}
+                  </Button>
+                  {/* Quick call buttons */}
+                  <div className="flex gap-2">
+                    {consultation.consultationType !== "VIDEO" && (
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+                        onClick={() => { handleStartCall('VIDEO'); setDetailOpen(false) }}
+                        disabled={initiatingCall || isCallActive}
+                      >
+                        <Video className="size-4" />
+                        Video Call
+                      </Button>
+                    )}
+                    {consultation.consultationType !== "PHONE" && (
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-1.5 border-purple-200 text-purple-700 hover:bg-purple-50"
+                        onClick={() => { handleStartCall('PHONE'); setDetailOpen(false) }}
+                        disabled={initiatingCall || isCallActive}
+                      >
+                        <PhoneCall className="size-4" />
+                        Voice Call
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )
             })()}
 
@@ -797,18 +878,7 @@ function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { 
         </DialogContent>
       </Dialog>
 
-      {/* H8: Video Call Dialog */}
-      <VideoCallDialog
-        open={videoOpen}
-        onOpenChange={setVideoOpen}
-        consultationId={consultation.id}
-        consultationType={consultation.consultationType}
-        isRequester={isRequester}
-        otherPartyName={otherName}
-        token={token}
-      />
-
-      {/* H9: Chat Dialog */}
+      {/* Chat Dialog */}
       <ChatDialog
         open={chatOpen}
         onOpenChange={setChatOpen}

@@ -25,8 +25,11 @@ import {
   ArrowLeft,
   Building2,
   User,
+  Video,
+  PhoneCall,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useCallProvider } from '@/components/call-provider'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -99,6 +102,8 @@ function getInitials(firstName: string, lastName: string): string {
 export default function MessagesPage() {
   const { token, user } = useAuthStore()
   const { fetchUnreadCount } = useNotifications(30000)
+  const { initiateCall, isCallActive } = useCallProvider()
+  const [initiatingCall, setInitiatingCall] = React.useState<'VIDEO' | 'PHONE' | null>(null)
 
   const [conversations, setConversations] = React.useState<Conversation[]>([])
   const [selectedThread, setSelectedThread] = React.useState<string | null>(null)
@@ -485,6 +490,78 @@ export default function MessagesPage() {
                     </span>
                   )}
                 </p>
+              </div>
+              {/* Call buttons */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  disabled={isCallActive || initiatingCall !== null}
+                  onClick={async () => {
+                    setInitiatingCall('VIDEO')
+                    try {
+                      // Find nurse profile ID from directory
+                      const res = await fetch(`/api/caregrid/directory?search=${encodeURIComponent(selectedUser.firstName + ' ' + selectedUser.lastName)}&limit=5`, { headers })
+                      if (res.ok) {
+                        const data = await res.json()
+                        const nurse = data.nurses?.find((n: { userId: string }) => n.userId === selectedUser.id)
+                        if (nurse) {
+                          await initiateCall(nurse.id, 'VIDEO', {
+                            id: nurse.id,
+                            firstName: selectedUser.firstName,
+                            lastName: selectedUser.lastName,
+                            avatarUrl: selectedUser.avatarUrl,
+                            specialization: nurse.specialty,
+                          })
+                        } else {
+                          toast.error('Could not find nurse profile for this user')
+                        }
+                      }
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Failed to start video call')
+                    } finally {
+                      setInitiatingCall(null)
+                    }
+                  }}
+                  title="Start Video Call"
+                >
+                  {initiatingCall === 'VIDEO' ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                  disabled={isCallActive || initiatingCall !== null}
+                  onClick={async () => {
+                    setInitiatingCall('PHONE')
+                    try {
+                      const res = await fetch(`/api/caregrid/directory?search=${encodeURIComponent(selectedUser.firstName + ' ' + selectedUser.lastName)}&limit=5`, { headers })
+                      if (res.ok) {
+                        const data = await res.json()
+                        const nurse = data.nurses?.find((n: { userId: string }) => n.userId === selectedUser.id)
+                        if (nurse) {
+                          await initiateCall(nurse.id, 'PHONE', {
+                            id: nurse.id,
+                            firstName: selectedUser.firstName,
+                            lastName: selectedUser.lastName,
+                            avatarUrl: selectedUser.avatarUrl,
+                            specialization: nurse.specialty,
+                          })
+                        } else {
+                          toast.error('Could not find nurse profile for this user')
+                        }
+                      }
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Failed to start voice call')
+                    } finally {
+                      setInitiatingCall(null)
+                    }
+                  }}
+                  title="Start Voice Call"
+                >
+                  {initiatingCall === 'PHONE' ? <Loader2 className="size-4 animate-spin" /> : <PhoneCall className="size-4" />}
+                </Button>
               </div>
             </div>
 

@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import {
   Thermometer, Heart, Activity, Droplets, Wind, Shield, AlertTriangle,
-  Plus, TrendingUp, TrendingDown, Minus, Loader2
+  Plus, TrendingUp, TrendingDown, Minus, Loader2, Search
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -169,6 +169,7 @@ export default function VitalsPage() {
   const { user } = useAuthStore()
   const [selectedPatient, setSelectedPatient] = React.useState('all')
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState('')
 
   // Data states
   const [patients, setPatients] = React.useState<Patient[]>([])
@@ -328,6 +329,16 @@ export default function VitalsPage() {
 
   const selectedPatientData = patients.find(p => p.id === selectedPatient)
 
+  // Filter vitals by search query
+  const filteredLatestVitals = React.useMemo(() => {
+    if (!searchQuery) return latestVitalsPerPatient
+    const q = searchQuery.toLowerCase()
+    return latestVitalsPerPatient.filter(({ patient }) =>
+      getPatientName(patient).toLowerCase().includes(q) ||
+      patient.patientId?.toLowerCase().includes(q)
+    )
+  }, [latestVitalsPerPatient, searchQuery])
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Page Header */}
@@ -431,6 +442,17 @@ export default function VitalsPage() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input
+          placeholder="Search patients by name or ID..."
+          className="pl-9"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       {/* Loading State */}
       {vitalsLoading ? (
         <div className="flex items-center justify-center py-16">
@@ -462,7 +484,7 @@ export default function VitalsPage() {
             <>
               {/* Patient Vital Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {latestVitalsPerPatient.map(({ patient, vitals: latestVital, allVitals }) => {
+                {filteredLatestVitals.map(({ patient, vitals: latestVital, allVitals }) => {
                   const news2 = calculateNEWS2(latestVital)
                   return (
                     <Card key={patient.id} className="border-0 shadow-sm">
@@ -677,15 +699,15 @@ export default function VitalsPage() {
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="p-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 text-center">
-                      <p className="text-2xl font-bold text-emerald-700">{latestVitalsPerPatient.filter(p => calculateNEWS2(p.vitals) <= 1).length}</p>
+                      <p className="text-2xl font-bold text-emerald-700">{filteredLatestVitals.filter(p => calculateNEWS2(p.vitals) <= 1).length}</p>
                       <p className="text-xs text-emerald-600 font-medium">Low Risk (0-1)</p>
                     </div>
                     <div className="p-3 rounded-lg border-2 border-amber-200 bg-amber-50 text-center">
-                      <p className="text-2xl font-bold text-amber-700">{latestVitalsPerPatient.filter(p => { const s = calculateNEWS2(p.vitals); return s >= 2 && s <= 4; }).length}</p>
+                      <p className="text-2xl font-bold text-amber-700">{filteredLatestVitals.filter(p => { const s = calculateNEWS2(p.vitals); return s >= 2 && s <= 4; }).length}</p>
                       <p className="text-xs text-amber-600 font-medium">Low-Medium Risk (2-4)</p>
                     </div>
                     <div className="p-3 rounded-lg border-2 border-red-200 bg-red-50 text-center">
-                      <p className="text-2xl font-bold text-red-700">{latestVitalsPerPatient.filter(p => calculateNEWS2(p.vitals) >= 5).length}</p>
+                      <p className="text-2xl font-bold text-red-700">{filteredLatestVitals.filter(p => calculateNEWS2(p.vitals) >= 5).length}</p>
                       <p className="text-xs text-red-600 font-medium">Medium-High Risk (5+)</p>
                     </div>
                   </div>

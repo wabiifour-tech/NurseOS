@@ -864,6 +864,19 @@ function getCreateTableSQL(): string[] {
       CONSTRAINT "EmailLog_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
 
+    // ═══ RECORDING (depends on User) ═══
+    `CREATE TABLE IF NOT EXISTS "Recording" (
+      "id" TEXT PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "title" TEXT,
+      "description" TEXT,
+      "duration" INTEGER,
+      "fileSize" INTEGER,
+      "format" TEXT NOT NULL DEFAULT 'webm',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Recording_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+
     // ═══ PRISMA MIGRATIONS TABLE (needed by Prisma) ═══
     `CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
       "id" TEXT PRIMARY KEY,
@@ -1022,6 +1035,9 @@ function getCreateTableSQL(): string[] {
     `CREATE INDEX IF NOT EXISTS "EmailLog_recipientId_createdAt_idx" ON "EmailLog"("recipientId", "createdAt")`,
     `CREATE INDEX IF NOT EXISTS "EmailLog_status_idx" ON "EmailLog"("status")`,
     `CREATE INDEX IF NOT EXISTS "EmailLog_templateId_idx" ON "EmailLog"("templateId")`,
+
+    // Recording indexes
+    `CREATE INDEX IF NOT EXISTS "Recording_userId_createdAt_idx" ON "Recording"("userId", "createdAt")`,
   ]
 }
 

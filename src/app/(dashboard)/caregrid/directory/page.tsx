@@ -20,7 +20,10 @@ import {
   Loader2,
   AlertCircle,
   Building2,
+  PhoneCall,
 } from "lucide-react"
+import { toast } from "sonner"
+import { useCallProvider } from "@/components/call-provider"
 
 // ---------- Types ----------
 
@@ -315,6 +318,30 @@ function NurseCard({ nurse }: { nurse: NurseDirectoryItem }) {
   const languages = safeParseJSON(nurse.languages)
   const consultationTypes = safeParseJSON(nurse.consultationTypes)
   const isAvailable = nurse.availableForConsultation === true
+  const [initiatingCall, setInitiatingCall] = React.useState<'VIDEO' | 'PHONE' | null>(null)
+  const { initiateCall, isCallActive } = useCallProvider()
+
+  const handleStartCall = async (callType: 'VIDEO' | 'PHONE') => {
+    setInitiatingCall(callType)
+    try {
+      await initiateCall(
+        nurse.id,
+        callType,
+        {
+          id: nurse.id,
+          firstName: nurse.user.firstName,
+          lastName: nurse.user.lastName,
+          avatarUrl: nurse.user.avatarUrl,
+          specialization: nurse.specialty,
+        },
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start call'
+      toast.error(message)
+    } finally {
+      setInitiatingCall(null)
+    }
+  }
 
   return (
     <Card className="hover:shadow-md transition-shadow border-slate-200">
@@ -437,24 +464,50 @@ function NurseCard({ nurse }: { nurse: NurseDirectoryItem }) {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 pt-2 border-t">
-          <Button size="sm" variant="outline" className="flex-1 text-xs h-8 gap-1" onClick={() => {
-            window.location.href = `/nurseid/profile?nurseId=${nurse.id}`
-          }}>
-            <Clock className="size-3" />
-            View Profile
-          </Button>
-          {isAvailable && (
-            <Button
-              size="sm"
-              className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-              onClick={() => {
-                window.location.href = `/caregrid/consultations?requestNurseId=${nurse.id}`
-              }}
-            >
-              <Video className="size-3" />
-              Request Consultation
+        <div className="space-y-2 pt-2 border-t">
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="flex-1 text-xs h-8 gap-1" onClick={() => {
+              window.location.href = `/nurseid/profile?nurseId=${nurse.id}`
+            }}>
+              <Clock className="size-3" />
+              View Profile
             </Button>
+            {isAvailable && (
+              <Button
+                size="sm"
+                className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                onClick={() => {
+                  window.location.href = `/caregrid/consultations?requestNurseId=${nurse.id}`
+                }}
+              >
+                <MessageCircle className="size-3" />
+                Consult
+              </Button>
+            )}
+          </div>
+          {isAvailable && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs h-8 gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                onClick={() => handleStartCall('VIDEO')}
+                disabled={isCallActive || initiatingCall !== null}
+              >
+                {initiatingCall === 'VIDEO' ? <Loader2 className="size-3 animate-spin" /> : <Video className="size-3" />}
+                {initiatingCall === 'VIDEO' ? 'Connecting...' : 'Video Call'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs h-8 gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
+                onClick={() => handleStartCall('PHONE')}
+                disabled={isCallActive || initiatingCall !== null}
+              >
+                {initiatingCall === 'PHONE' ? <Loader2 className="size-3 animate-spin" /> : <PhoneCall className="size-3" />}
+                {initiatingCall === 'PHONE' ? 'Connecting...' : 'Voice Call'}
+              </Button>
+            </div>
           )}
         </div>
       </CardContent>

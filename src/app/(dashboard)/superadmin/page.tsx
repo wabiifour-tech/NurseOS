@@ -563,7 +563,7 @@ export default function SuperAdminDashboard() {
           { id: 'facility-approvals', label: 'Facility Approvals', icon: ShieldCheck, badge: facilityApprovals.length || undefined },
           { id: 'facilities', label: 'Facilities', icon: Building2 },
           { id: 'users', label: 'Users', icon: Users },
-          { id: 'email', label: 'Email', icon: Send },
+          { id: 'email', label: 'Email', icon: Mail },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1037,6 +1037,28 @@ export default function SuperAdminDashboard() {
                 >
                   <MessageCircle className="size-3.5 mr-1.5" />
                   Chat on WhatsApp (07052356638)
+                </Button>
+              </div>
+            </div>
+
+            {/* Send Email */}
+            <div className="flex items-start gap-4 p-4 rounded-xl border border-rose-500/20 bg-gradient-to-br from-rose-50/50 to-pink-50/50 dark:from-rose-950/20 dark:to-pink-950/20">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 shadow-md">
+                <Mail className="size-5 text-white" />
+              </div>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-semibold text-foreground">Send Email</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Compose and send emails to individual users or broadcast to all nurses, admins, or
+                  the entire platform. Track delivery status in the Email tab.
+                </p>
+                <Button
+                  size="sm"
+                  className="bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white text-xs"
+                  onClick={() => setActiveTab('email')}
+                >
+                  <Mail className="size-3.5 mr-1.5" />
+                  Go to Email Dashboard
                 </Button>
               </div>
             </div>

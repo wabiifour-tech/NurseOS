@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/auth-store"
+import HealthcareNews from "@/components/healthcare-news"
 
 const quickActions = [
   {
@@ -176,6 +177,9 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Healthcare News */}
+      <HealthcareNews />
 
       {/* Module Overview */}
       <div>

@@ -52,6 +52,7 @@ import {
   TrendingUp,
   Eye,
   X,
+  Search,
 } from 'lucide-react'
 import { PLAN_LIMITS, PLAN_COLORS, type PlanType } from '@/lib/plan-limits'
 import Link from 'next/link'
@@ -149,6 +150,7 @@ export default function FacilityAdminDashboard() {
   const [data, setData] = React.useState<FacilityData | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [workerSearch, setWorkerSearch] = React.useState('')
+  const [pendingUserSearch, setPendingUserSearch] = React.useState('')
 
   // Remove worker dialog
   const [removeDialogOpen, setRemoveDialogOpen] = React.useState(false)
@@ -296,6 +298,16 @@ export default function FacilityAdminDashboard() {
       `${w.firstName} ${w.lastName}`.toLowerCase().includes(q) ||
       w.email.toLowerCase().includes(q) ||
       w.role.toLowerCase().includes(q)
+    )
+  })
+
+  const filteredPendingUsers = pendingUsers.filter((pu: any) => {
+    if (!pendingUserSearch) return true
+    const q = pendingUserSearch.toLowerCase()
+    return (
+      `${pu.firstName} ${pu.lastName}`.toLowerCase().includes(q) ||
+      pu.email?.toLowerCase().includes(q) ||
+      pu.role?.toLowerCase().includes(q)
     )
   })
 
@@ -645,16 +657,27 @@ export default function FacilityAdminDashboard() {
             </Badge>
           </div>
           <CardDescription>Users waiting for access to your facility</CardDescription>
+          <div className="pt-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search pending users by name, email, or role..."
+                value={pendingUserSearch}
+                onChange={(e) => setPendingUserSearch(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {pendingUsers.length === 0 ? (
+          {filteredPendingUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Check className="size-8 text-muted-foreground/50 mb-2" />
               <p className="text-sm text-muted-foreground">No pending approvals</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {pendingUsers.map((pu: any) => (
+              {filteredPendingUsers.map((pu: any) => (
                 <div key={pu.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-amber-50/50 dark:bg-amber-500/5 border border-amber-200/50 dark:border-amber-500/10 gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex size-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 text-sm font-semibold">

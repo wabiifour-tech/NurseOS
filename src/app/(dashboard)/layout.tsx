@@ -49,6 +49,8 @@ import { useNotifications } from "@/hooks/use-notifications"
 import Link from "next/link"
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
 import { PWAInstallBanner } from "@/components/pwa-install-banner"
+import { CallProvider } from "@/components/call-provider"
+import { ScreenRecorder } from "@/components/screen-recorder"
 
 // Icon map for notification types
 const notificationTypeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -374,6 +376,9 @@ function DashboardHeader() {
         )}
         <OnlineStatus />
 
+        {/* Screen Recorder */}
+        <ScreenRecorder showTrigger={true} />
+
         {/* Notifications — Real notification bell with polling */}
         <NotificationBell />
 
@@ -638,7 +643,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <>
+    <CallProvider>
       <SidebarProvider defaultOpen={!defaultCollapsed}>
         <AppSidebar />
         <SidebarInset>
@@ -649,6 +654,6 @@ export default function DashboardLayout({
         </SidebarInset>
       </SidebarProvider>
       <PWAInstallBanner />
-    </>
+    </CallProvider>
   )
 }

@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Calendar } from '@/components/ui/calendar'
 import {
   CalendarDays, List, Plus, Clock, CheckCircle, Loader2,
-  UserX, CalendarCheck, Stethoscope, MapPin, AlertCircle, CalendarX2
+  UserX, CalendarCheck, Stethoscope, MapPin, AlertCircle, CalendarX2, Search
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -141,6 +141,7 @@ export default function AppointmentsPage() {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined)
   const [typeFilter, setTypeFilter] = React.useState('all')
+  const [searchQuery, setSearchQuery] = React.useState('')
 
   // Data state
   const [appointments, setAppointments] = React.useState<Appointment[]>([])
@@ -259,17 +260,30 @@ export default function AppointmentsPage() {
   React.useEffect(() => {
     setTodayStr(new Date().toISOString().split('T')[0])
   }, [])
-  const todayAppointments = appointments.filter(a => getDateStr(a.appointmentDate) === todayStr)
-  const upcomingAppointments = appointments.filter(a => getDateStr(a.appointmentDate) > todayStr)
+
+  const filteredAppointments = React.useMemo(() => {
+    let result = typeFilter === 'all'
+      ? appointments
+      : appointments.filter(a => a.type === typeFilter)
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(a =>
+        getPatientName(a).toLowerCase().includes(q) ||
+        (a.reason ?? '').toLowerCase().includes(q) ||
+        getDateStr(a.appointmentDate).includes(q) ||
+        (a.facility?.name ?? '').toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [appointments, typeFilter, searchQuery])
+
+  const todayAppointments = filteredAppointments.filter(a => getDateStr(a.appointmentDate) === todayStr)
+  const upcomingAppointments = filteredAppointments.filter(a => getDateStr(a.appointmentDate) > todayStr)
 
   const todaysTotal = todayAppointments.length
   const completed = todayAppointments.filter(a => a.status === 'COMPLETED').length
   const inProgress = todayAppointments.filter(a => a.status === 'IN_PROGRESS').length
   const noShows = todayAppointments.filter(a => a.status === 'NO_SHOW').length
-
-  const filteredAppointments = typeFilter === 'all'
-    ? appointments
-    : appointments.filter(a => a.type === typeFilter)
 
   const stats = [
     { label: "Today's Appointments", value: todaysTotal, icon: CalendarDays, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -447,6 +461,17 @@ export default function AppointmentsPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by patient, reason, or date..."
+          className="pl-9"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
 
       {/* Loading State */}
