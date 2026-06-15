@@ -128,7 +128,7 @@ export default function RootLayout({
         <link rel="mask-icon" href="/logo.svg" color="#0D9488" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground overflow-hidden h-screen`}
       >
         <ThemeProvider>
           <AuthProvider>

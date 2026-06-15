@@ -131,7 +131,7 @@ function PublicFooter() {
 
 export function PublicLayoutShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-y-auto">
       <PublicHeader />
       <main className="flex-1">{children}</main>
       <PublicFooter />

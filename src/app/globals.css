@@ -116,24 +116,139 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    overflow: hidden;
+    height: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Native app feel: prevent user-select on UI elements */
+  button, [role="button"], nav, header, footer, aside,
+  .sidebar, [data-sidebar], [data-sidebar-content],
+  .badge, [role="badge"], .dropdown-menu,
+  .card:not(input):not(textarea):not([contenteditable="true"]) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* Only text areas and inputs should have text cursor */
+  input, textarea, [contenteditable="true"] {
+    cursor: text;
+  }
+  /* Native app: default cursor everywhere, pointer only on interactive */
+  a, button, [role="button"], [role="tab"], [role="menuitem"],
+  [role="option"], [role="switch"], [role="checkbox"],
+  summary, [type="button"], [type="submit"], [type="reset"],
+  .cursor-pointer, select {
+    cursor: pointer;
+  }
+  /* Remove default focus outlines — replace with subtle app-like focus */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px oklch(0.508 0.154 160 / 40%);
+    border-radius: inherit;
+  }
+  /* Native app: smooth all transitions */
+  *, *::before, *::after {
+    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+  /* Exclude transition on layout-affecting properties */
+  input, textarea, [contenteditable="true"] {
+    transition-property: background-color, border-color, box-shadow;
   }
 }
 
-/* Custom scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
+/* ─── Native App Scrollbar (thin, overlay-style like VS Code/Figma) ─── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.5 0.02 155 / 30%) transparent;
+  scrollbar-gutter: stable;
+}
+*::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: oklch(0.5 0.02 155 / 30%);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.4 0.04 155 / 50%);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Sidebar custom dark scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: oklch(0.5 0.02 155);
+  background: oklch(0.35 0.02 155 / 40%);
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.4 0.04 155);
+  background: oklch(0.45 0.04 155 / 60%);
+}
+
+/* ─── Native App Drag Region (makes the header feel like a window title bar) ─── */
+.app-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.app-drag-region button,
+.app-drag-region a,
+.app-drag-region input,
+.app-drag-region [role="button"],
+.app-drag-region [role="menuitem"],
+.app-drag-region [data-radix-collection-item] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* ─── Native App Shell ─── */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+}
+.app-shell-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.app-shell-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+/* ─── App-like page transitions ─── */
+@keyframes app-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.app-page-animate {
+  animation: app-page-in 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 /* Compact Mode — applied via .compact-mode on <body> */

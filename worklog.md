@@ -65,3 +65,38 @@ Stage Summary:
 - 6 critical/high issues fixed
 - New files: src/app/api/auth/avatar/route.ts, src/app/(auth)/reset-password/page.tsx
 - Modified files: settings page, register page, superadmin page, app-sidebar, auth/profile route, forgot-password route
+
+---
+Task ID: native-app-ui
+Agent: main
+Task: Transform NurseOS from website feel to native desktop app feel
+
+Work Log:
+- Updated globals.css with native app styling:
+  - Global thin overlay-style scrollbars (like VS Code/Figma) 
+  - User-select: none on UI elements (buttons, nav, badges, cards)
+  - Appropriate cursor behavior (text cursor only on inputs, pointer only on interactive)
+  - Subtle focus-visible ring instead of browser defaults
+  - Smooth transitions on color/shadow/opacity properties
+  - html/body overflow: hidden to prevent page-level scrolling
+- Created app shell CSS classes:
+  - .app-shell: fixed viewport container (100vh/dvh, overflow hidden)
+  - .app-shell-content: flex column for header + scrollable content
+  - .app-shell-body: scrollable content area with overscroll-behavior
+  - .app-drag-region: window title bar drag support
+  - .app-page-animate: subtle page entry animation
+- Updated dashboard layout:
+  - Replaced SidebarInset with custom app-shell structure
+  - Header now feels like app title bar (h-12, backdrop-blur, drag region)
+  - Compact badges and controls (h-5 badges, size-7 buttons, smaller icons)
+  - Search has ⌘K keyboard hint (command palette style)
+  - Content area uses .app-shell-body with page animation
+- Updated root layout: body has overflow-hidden h-screen
+- Auth and public layouts: added overflow-y-auto to maintain scroll on non-app pages
+- Verified: all pages compile (200 status), body overflow is "hidden", auth layout has overflow-y-auto
+
+Stage Summary:
+- NurseOS dashboard now feels like a native desktop app, not a website
+- Key visual differences: no page scrolling, thin overlay scrollbars, compact title bar, no text selection on UI, smooth transitions
+- Auth/public pages still scroll normally
+- All changes are CSS/layout-only, no logic changes

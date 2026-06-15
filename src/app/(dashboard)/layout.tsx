@@ -3,7 +3,6 @@
 import * as React from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import {
-  SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
@@ -124,20 +123,20 @@ function OnlineStatus() {
   return (
     <Badge
       variant="outline"
-      className={`gap-1.5 text-[11px] px-2.5 py-0.5 font-medium ${
+      className={`gap-1 text-[10px] px-1.5 py-0 font-medium h-5 ${
         isOnline
-          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
-          : "border-red-500/30 bg-red-500/10 text-red-600"
+          ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+          : "border-red-500/20 bg-red-500/5 text-red-600"
       }`}
     >
       {isOnline ? (
         <>
-          <Wifi className="size-3" />
+          <Wifi className="size-2.5" />
           Online
         </>
       ) : (
         <>
-          <WifiOff className="size-3" />
+          <WifiOff className="size-2.5" />
           Offline
         </>
       )}
@@ -189,10 +188,10 @@ function NotificationBell() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative size-8">
-          <Bell className="size-4 text-muted-foreground" />
+        <Button variant="ghost" size="icon" className="relative size-7 hover:bg-muted/80">
+          <Bell className="size-3.5 text-muted-foreground" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none min-w-[16px] px-0.5">
+            <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white leading-none min-w-[14px] px-0.5">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
@@ -328,48 +327,53 @@ function DashboardHeader() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-      <SidebarTrigger className="-ml-1 size-8" />
-      <Separator orientation="vertical" className="mr-2 h-5" />
+    <header className="app-drag-region flex h-12 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 backdrop-blur-xl px-3">
+      <div className="app-drag-region-no-drag">
+        <SidebarTrigger className="-ml-1 size-7 hover:bg-muted/80" />
+      </div>
+      <Separator orientation="vertical" className="mr-2 h-4" />
 
-      {/* Search */}
-      <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+      {/* Search — app command palette style */}
+      <div className="relative flex-1 max-w-sm app-drag-region-no-drag">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/60" />
         <Input
           type="search"
-          placeholder="Search patients, records, facilities..."
+          placeholder="Search..."
           data-search-input
           role="searchbox"
-          className="pl-9 h-8 w-full bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-emerald-500/30 text-sm"
+          className="pl-8 h-7 w-full bg-muted/40 border-0 focus-visible:bg-muted/60 focus-visible:ring-1 focus-visible:ring-emerald-500/20 text-xs rounded-md"
         />
+        <kbd className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none inline-flex h-4 select-none items-center gap-0.5 rounded border bg-muted px-1 font-mono text-[9px] font-medium text-muted-foreground/60">
+          ⌘K
+        </kbd>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        {/* Facility Badge */}
+      <div className="ml-auto flex items-center gap-1.5 app-drag-region-no-drag">
+        {/* Facility Badge — compact app style */}
         {hasFacility ? (
           <Badge
             variant="outline"
-            className="gap-1.5 text-[11px] px-2.5 py-0.5 font-medium border-teal-500/30 bg-teal-500/10 text-teal-600 max-w-[200px] truncate"
+            className="gap-1 text-[10px] px-2 py-0 font-medium border-teal-500/20 bg-teal-500/5 text-teal-600 max-w-[160px] truncate h-5"
             title={facilityName || 'Unknown Facility'}
           >
-            <Building2 className="size-3 shrink-0" />
+            <Building2 className="size-2.5 shrink-0" />
             <span className="truncate">{facilityName || 'Facility'}</span>
           </Badge>
         ) : isSuperAdmin ? (
           <Badge
             variant="outline"
-            className="gap-1.5 text-[11px] px-2.5 py-0.5 font-medium border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
+            className="gap-1 text-[10px] px-2 py-0 font-medium border-emerald-500/20 bg-emerald-500/5 text-emerald-600 h-5"
           >
-            <Crown className="size-3 shrink-0" />
-            <span>NurseOS Founder</span>
+            <Crown className="size-2.5 shrink-0" />
+            <span>Founder</span>
           </Badge>
         ) : (
           <Link href="/settings">
             <Badge
               variant="outline"
-              className="gap-1.5 text-[11px] px-2.5 py-0.5 font-medium border-amber-500/30 bg-amber-500/10 text-amber-600 cursor-pointer hover:bg-amber-500/20 transition-colors"
+              className="gap-1 text-[10px] px-2 py-0 font-medium border-amber-500/20 bg-amber-500/5 text-amber-600 cursor-pointer hover:bg-amber-500/10 transition-colors h-5"
             >
-              <AlertTriangle className="size-3 shrink-0" />
+              <AlertTriangle className="size-2.5 shrink-0" />
               <span>No Facility</span>
             </Badge>
           </Link>
@@ -379,20 +383,19 @@ function DashboardHeader() {
         {/* Screen Recorder */}
         <ScreenRecorder showTrigger={true} />
 
-        {/* Notifications — Real notification bell with polling */}
+        {/* Notifications */}
         <NotificationBell />
 
-        {/* User Menu */}
+        {/* User Menu — compact app style */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 px-2 h-8">
-              <Avatar className="size-7 border border-emerald-500/30">
-                <AvatarFallback className="bg-emerald-500/20 text-emerald-700 text-[10px] font-semibold">
+            <Button variant="ghost" className="flex items-center gap-1.5 px-1.5 h-7 hover:bg-muted/80 rounded-md">
+              <Avatar className="size-6 border border-emerald-500/20">
+                <AvatarFallback className="bg-emerald-500/15 text-emerald-700 text-[9px] font-semibold">
                   {initials || "NU"}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden sm:inline text-sm font-medium">{firstName}</span>
-              <ChevronDown className="size-3 text-muted-foreground" />
+              <ChevronDown className="size-2.5 text-muted-foreground/60" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -644,16 +647,18 @@ export default function DashboardLayout({
 
   return (
     <CallProvider>
-      <SidebarProvider defaultOpen={!defaultCollapsed}>
-        <AppSidebar />
-        <SidebarInset>
-          <DashboardHeader />
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-      <PWAInstallBanner />
+      <div className="app-shell">
+        <SidebarProvider defaultOpen={!defaultCollapsed}>
+          <AppSidebar />
+          <div className="app-shell-content">
+            <DashboardHeader />
+            <main className="app-shell-body app-page-animate">
+              {children}
+            </main>
+          </div>
+        </SidebarProvider>
+        <PWAInstallBanner />
+      </div>
     </CallProvider>
   )
 }
