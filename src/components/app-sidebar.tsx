@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import {
   LayoutDashboard,
   Brain,
@@ -39,6 +39,9 @@ import {
   ChevronDown,
   Crown,
   Beaker,
+  Mail,
+  Newspaper,
+  MessageCircle,
 } from "lucide-react"
 import Image from "next/image"
 
@@ -208,6 +211,7 @@ function NavSectionGroup({ section, pathname }: { section: NavSection; pathname:
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { user, logout } = useAuthStore()
   const firstName = user?.firstName || "Nurse"
   const lastName = user?.lastName || ""
@@ -291,6 +295,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={false}
+              tooltip="Healthcare News"
+              className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+            >
+              <Link href="/dashboard#news">
+                <Newspaper className="size-4" />
+                <span>News</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
 
         <SidebarSeparator className="bg-slate-700/50" />
@@ -312,7 +329,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === adminDashboardPath}
+                    isActive={pathname === adminDashboardPath && !(userRole === 'SUPER_ADMIN' && searchParams.get('tab') === 'email')}
                     tooltip={adminDashboardLabel}
                     className={
                       pathname === adminDashboardPath
@@ -326,6 +343,40 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {userRole === 'SUPER_ADMIN' && (
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === '/superadmin' && searchParams.get('tab') === 'email'}
+                        tooltip="Email Center"
+                        className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                      >
+                        <Link href="/superadmin?tab=email">
+                          <Mail className="size-4" />
+                          <span>Email Center</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === '/messages'}
+                        tooltip="Messages"
+                        className={
+                          pathname === '/messages'
+                            ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 font-medium"
+                            : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                        }
+                      >
+                        <Link href="/messages">
+                          <MessageCircle className="size-4" />
+                          <span>Messages</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

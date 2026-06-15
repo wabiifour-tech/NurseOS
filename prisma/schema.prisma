@@ -6,9 +6,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+
+// NOTE: For Neon PostgreSQL on Vercel:
+//   DATABASE_URL = "postgresql://user:pass@ep-xxx.region.aws.neon.tech/dbname?sslmode=require" (pooled connection)
+//   DIRECT_URL   = same as DATABASE_URL or the direct connection string
+// If DIRECT_URL is not set, Prisma falls back to DATABASE_URL for direct connections.
 
 // ===== CORE USER & AUTH =====
 
