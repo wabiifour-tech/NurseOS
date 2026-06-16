@@ -39,11 +39,11 @@ export async function PATCH(
 
     const updateData: Record<string, unknown> = {}
     if (body.title !== undefined) updateData.title = body.title.trim()
-    if (body.content !== undefined) updateData.content = body.content.trim()
+    if (body.content !== undefined) updateData.message = body.content.trim()
     if (body.priority !== undefined && validPriorities.includes(body.priority)) updateData.priority = body.priority
     if (body.category !== undefined && validCategories.includes(body.category)) updateData.category = body.category
     if (body.isPinned !== undefined) updateData.isPinned = body.isPinned
-    if (body.isActive !== undefined) updateData.isActive = body.isActive
+    if (body.isGlobal !== undefined) updateData.isGlobal = body.isGlobal
     if (body.expiresAt !== undefined) updateData.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
 
     const updated = await db.announcement.update({
@@ -86,13 +86,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not authorized to delete this announcement' }, { status: 403 })
     }
 
-    // Soft-delete by setting isActive = false
-    await db.announcement.update({
+    // Hard-delete the announcement
+    await db.announcement.delete({
       where: { id },
-      data: { isActive: false },
     })
 
-    return NextResponse.json({ message: 'Announcement deactivated' })
+    return NextResponse.json({ message: 'Announcement deleted' })
   } catch (error) {
     console.error('Error deleting announcement:', error)
     return NextResponse.json({ error: 'Failed to delete announcement' }, { status: 500 })

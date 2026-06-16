@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     // Create a support notification for admins
     // Find admin users to notify
     const adminUsers = await db.user.findMany({
-      where: { role: 'ADMIN', status: 'ACTIVE' },
+      where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIVE' },
       take: 5,
     })
 

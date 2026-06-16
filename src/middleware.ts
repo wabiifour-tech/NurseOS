@@ -134,9 +134,11 @@ const isSearchBot = (request: NextRequest): boolean => {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Check for auth token in cookies
+  // Check for auth token in cookies or Authorization header
   const authToken = request.cookies.get('nurseos-token')?.value
-  const isAuthenticated = !!authToken
+  const authHeader = request.headers.get('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+  const isAuthenticated = !!(authToken || bearerToken)
 
   // Check for the clear-auth query param
   const clearAuth = request.nextUrl.searchParams.get('clearAuth')

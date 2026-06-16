@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
   if (!authUser) return unauthorizedResponse()
 
   // 🔒 Only admins can create facilities
-  if (authUser.role !== 'ADMIN') {
+  if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
     return NextResponse.json(
       { error: 'Only facility administrators can create new facilities.' },
       { status: 403 }

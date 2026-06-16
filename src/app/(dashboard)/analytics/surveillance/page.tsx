@@ -129,9 +129,9 @@ export default function SurveillancePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          disease: reportForm.disease,
+          diseaseName: reportForm.disease,
           region: reportForm.region,
-          cases: parseInt(reportForm.cases),
+          caseCount: parseInt(reportForm.cases),
           alertLevel: 'Watch',
           notes: reportForm.notes,
         }),

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   // 🔒 Require admin authentication for destructive operations
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
-  if (authUser.role !== 'ADMIN') {
+  if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 

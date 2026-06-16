@@ -17,7 +17,7 @@ export async function POST(
       where: { id: announcementId },
     })
 
-    if (!announcement || !announcement.isActive) {
+    if (!announcement) {
       return NextResponse.json({ error: 'Announcement not found' }, { status: 404 })
     }
 

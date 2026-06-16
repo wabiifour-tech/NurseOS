@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const targetFacilityId = facilityId || authUser.facilityId
     if (!targetFacilityId) {
-      return NextResponse.json({ error: 'Facility ID is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Facility ID is required. Please provide a facilityId or ensure you are assigned to a facility.' }, { status: 400 })
     }
 
     const record = await db.diseaseSurveillance.create({

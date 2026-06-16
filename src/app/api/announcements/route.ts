@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     const where: Record<string, unknown> = {
-      isActive: true,
+      isGlobal: true,
       OR: whereConditions.length > 0 ? whereConditions : [{ facilityId: null }],
     }
 
@@ -85,12 +85,12 @@ export async function GET(request: NextRequest) {
     const transformed = announcements.map((a) => ({
       id: a.id,
       title: a.title,
-      content: a.content,
+      content: a.message,
       priority: a.priority,
       category: a.category,
       isPinned: a.isPinned,
       expiresAt: a.expiresAt,
-      isActive: a.isActive,
+      isGlobal: a.isGlobal,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       author: a.author,
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    const { title, content, priority, category, facilityId, isPinned, expiresAt } = body
+    const { title, content, priority, category, facilityId, isPinned, expiresAt, isGlobal } = body
 
     if (!title?.trim() || !content?.trim()) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 })
@@ -153,10 +153,11 @@ export async function POST(request: NextRequest) {
         authorId: authUser.id,
         facilityId: targetFacilityId,
         title: title.trim(),
-        content: content.trim(),
+        message: content.trim(),
         priority: validPriorities.includes(priority) ? priority : 'NORMAL',
         category: validCategories.includes(category) ? category : 'GENERAL',
         isPinned: isPinned === true,
+        isGlobal: !targetFacilityId || isGlobal === true,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
       include: {
