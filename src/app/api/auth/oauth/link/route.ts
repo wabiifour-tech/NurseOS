@@ -20,7 +20,16 @@ export async function POST(request: NextRequest) {
     // Check if user with this email already exists
     const existingUser = await db.user.findUnique({
       where: { email: email.toLowerCase() },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+        academicRole: true,
+        studentLevel: true,
+        avatarUrl: true,
         nurseProfile: { select: { id: true, currentFacilityId: true } },
         adminProfile: { select: { id: true, facilityId: true, accessLevel: true } },
       },
@@ -78,6 +87,8 @@ export async function POST(request: NextRequest) {
             firstName: existingUser.firstName,
             lastName: existingUser.lastName,
             role,
+            academicRole: existingUser.academicRole || null,
+            studentLevel: existingUser.studentLevel ?? null,
             facilityId,
             facilityName,
             nurseProfileId: existingUser.nurseProfile?.id || null,

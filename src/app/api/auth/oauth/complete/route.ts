@@ -20,27 +20,61 @@ export async function POST(request: NextRequest) {
 
     const {
       email, firstName, lastName, role, facilityId,
-      avatarUrl, provider,
+      avatarUrl, provider, phone,
       // New facility fields
       facilityMode, newFacilityName, newFacilityType,
       newFacilityAddress, newFacilityCity, newFacilityState,
-      // Facility verification fields
-      newFacilityRegistrationNumber, newFacilityPhone, newFacilityEmail,
-      adminLicenseNumber, adminPhone,
+      newFacilityPhone, newFacilityEmail,
+      newFacilityRegistrationNumber,
+      // Academic module
+      studentLevel, adminType,
     } = body
 
     if (!email || !firstName || !lastName || !role) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     }
 
-    // Validate role
-    const validRoles = ['NURSE', 'ADMIN', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER']
-    const normalizedRole = role.toUpperCase()
-    if (!validRoles.includes(normalizedRole)) {
+    // ─── Role handling ───
+    // Accept INSTITUTION_ADMIN as a separate role that maps to ADMIN on the backend.
+    // Accept LECTURER + STUDENT — both map to NURSE in DB enum, but academicRole preserves the original.
+    const normalizedRole = String(role).toUpperCase()
+    const isInstitutionAdmin = normalizedRole === 'INSTITUTION_ADMIN'
+    const isLecturer = normalizedRole === 'LECTURER'
+    const isStudent = normalizedRole === 'STUDENT'
+
+    // Map INSTITUTION_ADMIN → ADMIN for DB; keep adminType to disambiguate
+    const effectiveRole = isInstitutionAdmin ? 'ADMIN' : normalizedRole
+
+    const validRoles = ['NURSE', 'ADMIN', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER']
+    if (!validRoles.includes(effectiveRole)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    const isAdmin = normalizedRole === 'ADMIN'
+    // Validate student level if STUDENT role
+    if (isStudent) {
+      const validLevels = [100, 200, 300, 400, 500]
+      if (!studentLevel || !validLevels.includes(Number(studentLevel))) {
+        return NextResponse.json(
+          { error: 'Student level is required and must be one of: 100, 200, 300, 400, 500' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const isAdmin = effectiveRole === 'ADMIN'
+
+    // ─── STRONG duplicate-email check (case-insensitive) ───
+    // The DB unique constraint is case-sensitive on PostgreSQL by default — we normalize to lowercase
+    // both at storage and at lookup time. This catches duplicates that would otherwise slip through
+    // due to case differences (e.g., John@Example.com vs john@example.com).
+    const normalizedEmail = String(email).toLowerCase().trim()
+    const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } })
+    if (existingUser) {
+      return NextResponse.json({
+        error: 'An account with this email already exists. Please sign in instead.',
+        errorType: 'EMAIL_ALREADY_EXISTS',
+      }, { status: 409 })
+    }
 
     // ── Facility resolution ──
     let resolvedFacilityId = facilityId || null
@@ -48,41 +82,73 @@ export async function POST(request: NextRequest) {
 
     if (isAdmin && facilityMode === 'new') {
       // Admin creating a new facility
-      if (!newFacilityName || !newFacilityCity || !newFacilityState) {
-        return NextResponse.json({ error: 'Facility name, city, and state are required' }, { status: 400 })
+      if (!newFacilityName || !newFacilityState) {
+        return NextResponse.json({ error: 'Facility name and state are required' }, { status: 400 })
       }
 
-      // SECURITY: Require registration number to prevent fraudulent facility creation
-      if (!newFacilityRegistrationNumber || !String(newFacilityRegistrationNumber).trim()) {
+      // Validate facility type — institution admins can only create UNIVERSITY / SCHOOL_OF_NURSING
+      const validTypes = ['HOSPITAL', 'CLINIC', 'PRIMARY_HEALTH_CENTER', 'SPECIALIST_CENTER', 'MATERNITY_HOME', 'REHABILITATION_CENTER', 'DIAGNOSTIC_CENTER', 'PHARMACY', 'COMMUNITY_HEALTH_CENTER', 'GENERAL', 'UNIVERSITY', 'SCHOOL_OF_NURSING']
+      const facilityType = String(newFacilityType || 'HOSPITAL')
+      if (!validTypes.includes(facilityType)) {
+        return NextResponse.json({ error: `Invalid facility type. Must be one of: ${validTypes.join(', ')}` }, { status: 400 })
+      }
+      if (adminType === 'INSTITUTION' && !['UNIVERSITY', 'SCHOOL_OF_NURSING'].includes(facilityType)) {
+        return NextResponse.json(
+          { error: 'Institution admins can only register universities or schools of nursing.' },
+          { status: 400 }
+        )
+      }
+
+      // ─── Verification rules ───
+      //   - Regular Facility Admin (adminType !== 'INSTITUTION') → registrationNumber IS REQUIRED
+      //     (verified by Super Admin before facility goes live)
+      //   - Institution Admin (adminType === 'INSTITUTION') → registrationNumber NOT required
+      //     (1-week free trial starts immediately; Super Admin can still verify later)
+      //   - Lecturer + Student → never reach this branch (they always join existing institutions)
+      const providedRegNumber = newFacilityRegistrationNumber && String(newFacilityRegistrationNumber).trim()
+        ? String(newFacilityRegistrationNumber).trim()
+        : null
+
+      if (adminType !== 'INSTITUTION' && !providedRegNumber) {
         return NextResponse.json({
-          error: 'Facility registration/license number is required. This helps us verify legitimate healthcare facilities and prevent unauthorized access.'
+          error: 'Facility registration/license number is required. This helps us verify legitimate healthcare facilities and prevent unauthorized access.',
         }, { status: 400 })
       }
 
-      // Check if registration number is already used
-      const existingReg = await db.facility.findUnique({
-        where: { registrationNumber: String(newFacilityRegistrationNumber).trim() },
-      })
-      if (existingReg) {
-        return NextResponse.json({
-          error: 'This facility registration number is already registered. If you believe this is an error, please contact support.'
-        }, { status: 409 })
+      // If provided, check for duplicate registration number
+      if (providedRegNumber) {
+        const existingReg = await db.facility.findUnique({
+          where: { registrationNumber: providedRegNumber },
+        })
+        if (existingReg) {
+          return NextResponse.json({
+            error: 'This facility registration number is already registered. If you believe this is an error, please contact support.',
+          }, { status: 409 })
+        }
       }
+
+      // Auto-grant 1-week free trial for academic institutions (UNIVERSITY / SCHOOL_OF_NURSING)
+      const isAcademicInstitution = ['UNIVERSITY', 'SCHOOL_OF_NURSING'].includes(facilityType)
+      const trialEndsAt = isAcademicInstitution
+        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)  // 7 days from now
+        : null
 
       const newFacility = await db.facility.create({
         data: {
           id: randomUUID(),
           name: String(newFacilityName).trim(),
-          type: String(newFacilityType || 'HOSPITAL').trim(),
+          type: facilityType,
           address: String(newFacilityAddress || 'To be confirmed').trim(),
-          city: String(newFacilityCity).trim(),
+          city: String(newFacilityCity || '').trim(),
           state: String(newFacilityState).trim(),
           country: 'Nigeria',
           phone: newFacilityPhone ? String(newFacilityPhone).trim() : null,
           email: newFacilityEmail ? String(newFacilityEmail).trim() : null,
-          registrationNumber: String(newFacilityRegistrationNumber).trim(),
+          // Store registration number if provided (required for regular Facility Admin, optional for Institution Admin)
+          registrationNumber: providedRegNumber,
           isVerified: false,
           accreditationStatus: 'PENDING',
+          freeTrialEndsAt: trialEndsAt,
         },
       })
       resolvedFacilityId = newFacility.id
@@ -93,33 +159,43 @@ export async function POST(request: NextRequest) {
       if (!resolvedFacilityId) {
         return NextResponse.json({ error: 'Please select a facility' }, { status: 400 })
       }
-      const facility = await db.facility.findUnique({ where: { id: resolvedFacilityId } })
+      const facility = await db.facility.findUnique({
+        where: { id: resolvedFacilityId },
+        select: { id: true, type: true },
+      })
       if (!facility) {
         return NextResponse.json({ error: 'Facility not found' }, { status: 400 })
       }
-    }
-
-    // Check if user already exists
-    const existingUser = await db.user.findUnique({ where: { email: email.toLowerCase() } })
-    if (existingUser) {
-      return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
+      // Institution admins can only join UNIVERSITY / SCHOOL_OF_NURSING facilities
+      if (adminType === 'INSTITUTION' && !['UNIVERSITY', 'SCHOOL_OF_NURSING'].includes(facility.type)) {
+        return NextResponse.json(
+          { error: 'Institution admins can only join universities or schools of nursing.' },
+          { status: 400 }
+        )
+      }
     }
 
     // ── Map role to DB role ──
-    const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole) ? 'NURSE' :
-                   normalizedRole === 'DOCTOR' ? 'DOCTOR' :
-                   normalizedRole === 'ADMIN' ? 'ADMIN' : 'PATIENT'
+    // LECTURER + STUDENT + NURSE + MATRON + OTHER all map to NURSE in the DB role enum
+    const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER'].includes(effectiveRole) ? 'NURSE' :
+                   effectiveRole === 'DOCTOR' ? 'DOCTOR' :
+                   effectiveRole === 'ADMIN' ? 'ADMIN' : 'PATIENT'
+
+    // ── Academic role storage ──
+    const academicRoleToStore = ['LECTURER', 'STUDENT'].includes(effectiveRole) ? effectiveRole : null
+    const studentLevelToStore = isStudent ? Number(studentLevel) : null
 
     // ── Determine status ──
-    // SECURITY: ALL new users start as PENDING (no auto-activation)
-    const userStatus = 'PENDING'
+    // SECURITY: ALL new users start as PENDING (no auto-activation), EXCEPT:
+    //   - STUDENT → ACTIVE (auto-enrolled — they pick level + institution, no approval needed)
+    const userStatus = isStudent ? 'ACTIVE' : 'PENDING'
 
     // ── Create user, profile, and subscription inside a transaction ──
     const result = await db.$transaction(async (tx) => {
       // Create user
       const user = await tx.user.create({
         data: {
-          email: email.toLowerCase(),
+          email: normalizedEmail,
           passwordHash: await bcrypt.hash(randomBytes(32).toString('base64'), 10),
           firstName: String(firstName).trim().slice(0, 100),
           lastName: String(lastName).trim().slice(0, 100),
@@ -128,16 +204,21 @@ export async function POST(request: NextRequest) {
           status: userStatus,
           facilityId: resolvedFacilityId,
           avatarUrl: avatarUrl || null,
+          phone: phone ? String(phone).trim() : null,
+          academicRole: academicRoleToStore,
+          studentLevel: studentLevelToStore,
         },
       })
 
       // Create role-specific profiles
-      if (['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole)) {
+      if (['NURSE', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER'].includes(effectiveRole)) {
         await tx.nurseProfile.create({
           data: {
             userId: user.id,
-            licenseNumber: normalizedRole === 'STUDENT'
+            licenseNumber: isStudent
               ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}`
+              : isLecturer
+              ? `LEC/${new Date().getFullYear()}/${generateLicenseSuffix()}`
               : `NR/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
             licenseIssuingBody: 'Nursing Registration Board',
             licenseExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
@@ -155,17 +236,16 @@ export async function POST(request: NextRequest) {
             userId: user.id,
             facilityId: resolvedFacilityId,
             accessLevel: 5,
-            department: adminLicenseNumber ? `License: ${adminLicenseNumber}` : null,
           },
         })
       }
 
-      // Create subscription ONLY after user exists (fixes FK violation with userId: '')
+      // Create subscription for new facility (admin only)
       if (isAdmin && createdFacilityId) {
         await tx.subscription.create({
           data: {
             id: randomUUID(),
-            userId: user.id, // Use actual user.id — no more empty string FK violation
+            userId: user.id,
             facilityId: createdFacilityId,
             plan: 'FREE',
             status: 'TRIALING',
@@ -178,14 +258,14 @@ export async function POST(request: NextRequest) {
       await tx.auditLog.create({
         data: {
           userId: user.id,
-          action: isAdmin && createdFacilityId ? 'FACILITY_APPLICATION_SUBMITTED_OAUTH' : (isAdmin ? 'ADMIN_REGISTERED_OAUTH' : 'USER_REGISTERED_OAUTH'),
+          action: isAdmin && createdFacilityId
+            ? (adminType === 'INSTITUTION' ? 'INSTITUTION_APPLICATION_SUBMITTED_OAUTH' : 'FACILITY_APPLICATION_SUBMITTED_OAUTH')
+            : 'USER_REGISTERED_OAUTH',
           resource: isAdmin && createdFacilityId ? 'Facility' : 'User',
           resourceId: isAdmin && createdFacilityId ? createdFacilityId : user.id,
           details: isAdmin && createdFacilityId
-            ? `New facility application via ${provider || 'social'}: ${newFacilityName} (Reg: ${newFacilityRegistrationNumber}) — admin ${firstName} ${lastName} (${email}). Requires SUPER_ADMIN verification.`
-            : isAdmin
-            ? `New facility admin registered via ${provider || 'social'} — pending approval (joining existing facility)`
-            : `New ${normalizedRole.toLowerCase()} registered via ${provider || 'social'} — pending approval`,
+            ? `New ${adminType === 'INSTITUTION' ? 'institution' : 'facility'} via ${provider || 'social'}: ${newFacilityName} — admin ${firstName} ${lastName} (${email}).`
+            : `New ${effectiveRole.toLowerCase()} registered via ${provider || 'social'} — ${userStatus === 'ACTIVE' ? 'auto-enrolled' : 'pending approval'}`,
         },
       })
 
@@ -207,58 +287,148 @@ export async function POST(request: NextRequest) {
               data: {
                 userId: sa.user.id,
                 type: 'FACILITY_VERIFICATION',
-                title: 'New Facility Application Requires Verification',
-                message: `${firstName} ${lastName} (${email}) has applied to register "${newFacilityName}" in ${newFacilityCity}, ${newFacilityState}. Registration #: ${newFacilityRegistrationNumber}. Please verify and approve or reject this facility.`,
+                title: `New ${adminType === 'INSTITUTION' ? 'Institution' : 'Facility'} Application`,
+                message: `${firstName} ${lastName} (${email}) has applied to register "${newFacilityName}" in ${newFacilityCity || newFacilityState}.`,
                 data: JSON.stringify({
                   facilityId: createdFacilityId,
                   facilityName: newFacilityName,
                   adminUserId: result.user.id,
                   adminEmail: email,
-                  registrationNumber: newFacilityRegistrationNumber,
                 }),
               },
             })
           }
         }
       } else if (resolvedFacilityId) {
-        // Notify the facility admin about the pending user
-        const facilityAdmin = await db.adminProfile.findFirst({
-          where: { facilityId: resolvedFacilityId, accessLevel: { lt: 10 } },
-          include: { user: { select: { id: true } } },
-        })
-
-        if (facilityAdmin?.user?.id) {
-          await db.notification.create({
-            data: {
-              userId: facilityAdmin.user.id,
-              type: 'USER_APPROVAL',
-              title: isAdmin
-                ? `New admin requesting access to your facility`
-                : `New ${normalizedRole.toLowerCase()} requesting access`,
-              message: isAdmin
-                ? `${firstName} ${lastName} (${email}) has signed up as a Facility Admin and is requesting access. Please review and approve.`
-                : `${firstName} ${lastName} (${email}) has signed up and is requesting access to your facility. Please review and approve or reject their account.`,
-              data: JSON.stringify({
-                pendingUserId: result.user.id,
-                pendingUserName: `${firstName} ${lastName}`,
-                pendingUserEmail: email,
-                pendingUserRole: normalizedRole,
-                facilityId: resolvedFacilityId,
-              }),
-            },
+        if (isLecturer) {
+          // Notify institution admin about new lecturer signup (pending approval)
+          const institutionAdmin = await db.adminProfile.findFirst({
+            where: { facilityId: resolvedFacilityId, accessLevel: { lt: 10 } },
+            include: { user: { select: { id: true } } },
           })
+          if (institutionAdmin?.user?.id) {
+            await db.notification.create({
+              data: {
+                userId: institutionAdmin.user.id,
+                type: 'USER_APPROVAL',
+                title: 'New lecturer requesting access',
+                message: `${firstName} ${lastName} (${email}) has signed up as a lecturer and is requesting access to your institution. Please review and approve.`,
+                data: JSON.stringify({
+                  pendingUserId: result.user.id,
+                  pendingUserEmail: email,
+                  pendingUserRole: 'LECTURER',
+                  facilityId: resolvedFacilityId,
+                }),
+              },
+            })
+          }
+        } else if (isStudent) {
+          // Notify institution admin about new student enrollment (FYI only — students auto-enroll)
+          const institutionAdmin = await db.adminProfile.findFirst({
+            where: { facilityId: resolvedFacilityId, accessLevel: { lt: 10 } },
+            include: { user: { select: { id: true } } },
+          })
+          if (institutionAdmin?.user?.id) {
+            await db.notification.create({
+              data: {
+                userId: institutionAdmin.user.id,
+                type: 'USER_APPROVAL',
+                title: 'New student enrolled',
+                message: `${firstName} ${lastName} (${email}) has enrolled as a ${studentLevel}-level student at your institution. No action required — students are auto-approved.`,
+                data: JSON.stringify({
+                  newStudentUserId: result.user.id,
+                  newStudentEmail: email,
+                  studentLevel: Number(studentLevel),
+                  facilityId: resolvedFacilityId,
+                }),
+              },
+            })
+          }
+        } else {
+          // Notify facility admin about pending user
+          const facilityAdmin = await db.adminProfile.findFirst({
+            where: { facilityId: resolvedFacilityId, accessLevel: { lt: 10 } },
+            include: { user: { select: { id: true } } },
+          })
+          if (facilityAdmin?.user?.id) {
+            await db.notification.create({
+              data: {
+                userId: facilityAdmin.user.id,
+                type: 'USER_APPROVAL',
+                title: `New ${effectiveRole.toLowerCase()} requesting access`,
+                message: `${firstName} ${lastName} (${email}) has signed up and is requesting access to your facility. Please review and approve.`,
+                data: JSON.stringify({
+                  pendingUserId: result.user.id,
+                  pendingUserEmail: email,
+                  pendingUserRole: effectiveRole,
+                  facilityId: resolvedFacilityId,
+                }),
+              },
+            })
+          }
         }
       }
     } catch (notifError) {
-      // Notification failure should NOT crash the registration
       console.error('Notification error (non-critical):', notifError)
+    }
+
+    // ── If student (auto-enrolled, ACTIVE) — create session and return token for auto-login ──
+    if (isStudent) {
+      const token = randomBytes(32).toString('hex')
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 7)
+
+      await db.session.create({
+        data: {
+          userId: result.user.id,
+          token,
+          expiresAt,
+        },
+      })
+
+      // Fetch facility name
+      let facilityName: string | null = null
+      if (resolvedFacilityId) {
+        const f = await db.facility.findUnique({ where: { id: resolvedFacilityId }, select: { name: true } })
+        facilityName = f?.name || null
+      }
+
+      const response = NextResponse.json({
+        status: 'ACTIVE',
+        token,
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          firstName: result.user.firstName,
+          lastName: result.user.lastName,
+          role: 'STUDENT',
+          academicRole: 'STUDENT',
+          studentLevel: studentLevelToStore,
+          facilityId: resolvedFacilityId,
+          facilityName,
+        },
+      })
+
+      response.cookies.set('nurseos-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 604800,
+      })
+
+      return response
     }
 
     // ── Return response ──
     const pendingMessage = isAdmin && createdFacilityId
-      ? 'Your facility application has been submitted! A NurseOS Super Admin will review and verify your facility and account. You will be notified once approved. This typically takes 1-2 business days.'
+      ? (adminType === 'INSTITUTION'
+        ? 'Your institution has been registered! A NurseOS Super Admin will review and verify it. You will be notified once approved.'
+        : 'Your facility has been registered! A NurseOS Super Admin will review and verify it. You will be notified once approved.')
       : isAdmin
       ? 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.'
+      : isLecturer
+      ? 'Your lecturer account has been created and is pending approval from your institution admin. You will be notified once approved.'
       : 'Your account has been created. Please wait for the facility admin to approve your access.'
 
     return NextResponse.json({
@@ -270,7 +440,13 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('OAuth complete error:', error)
     const errMsg = (error as Error)?.message || ''
-    // Check if it's a database connection/table error
+    // Prisma unique constraint violation (P2002) — typically email collision
+    if (errMsg.includes('P2002') || errMsg.includes('Unique constraint')) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists. Please sign in instead.', errorType: 'EMAIL_ALREADY_EXISTS' },
+        { status: 409 }
+      )
+    }
     if (errMsg.includes('connect') || errMsg.includes('ECONNREFUSED') || errMsg.includes('P1001') || errMsg.includes('server is not reachable') || errMsg.includes('does not exist')) {
       return NextResponse.json(
         { error: 'Database tables are not set up yet. Please visit /api/setup to create the database schema, then try again.', errorType: 'DB_NOT_CONFIGURED' },

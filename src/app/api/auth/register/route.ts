@@ -175,13 +175,8 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Require registration number for new facilities (anti-fraud measure)
-      if (!newFacility.registrationNumber || !String(newFacility.registrationNumber).trim()) {
-        return NextResponse.json(
-          { error: 'Facility registration/license number is required. This helps us verify legitimate healthcare facilities and prevent unauthorized access.' },
-          { status: 400 }
-        )
-      }
+      // Registration number is now OPTIONAL — no verification gate.
+      // If provided, we'll store it; otherwise we leave it null.
 
       // Validate facility type
       const validTypes = ['HOSPITAL', 'CLINIC', 'PRIMARY_HEALTH_CENTER', 'SPECIALIST_CENTER', 'MATERNITY_HOME', 'REHABILITATION_CENTER', 'DIAGNOSTIC_CENTER', 'PHARMACY', 'COMMUNITY_HEALTH_CENTER', 'GENERAL', 'UNIVERSITY', 'SCHOOL_OF_NURSING']
@@ -201,15 +196,32 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if registration number is already used
-      const existingReg = await db.facility.findUnique({
-        where: { registrationNumber: String(newFacility.registrationNumber).trim() },
-      })
-      if (existingReg) {
+      // ─── Verification rules ───
+      //   - Regular Facility Admin (adminType !== 'INSTITUTION') → registrationNumber IS REQUIRED
+      //     (verified by Super Admin before facility goes live)
+      //   - Institution Admin (adminType === 'INSTITUTION') → registrationNumber NOT required
+      //     (1-week free trial starts immediately; Super Admin can still verify later)
+      const providedRegNumber = newFacility.registrationNumber && String(newFacility.registrationNumber).trim()
+        ? String(newFacility.registrationNumber).trim()
+        : null
+
+      if (adminType !== 'INSTITUTION' && !providedRegNumber) {
         return NextResponse.json(
-          { error: 'This facility registration number is already registered. If you believe this is an error, please contact support.' },
-          { status: 409 }
+          { error: 'Facility registration/license number is required. This helps us verify legitimate healthcare facilities and prevent unauthorized access.' },
+          { status: 400 }
         )
+      }
+
+      if (providedRegNumber) {
+        const existingReg = await db.facility.findUnique({
+          where: { registrationNumber: providedRegNumber },
+        })
+        if (existingReg) {
+          return NextResponse.json(
+            { error: 'This facility registration number is already registered. If you believe this is an error, please contact support.' },
+            { status: 409 }
+          )
+        }
       }
 
       // Create the new facility — starts as UNVERIFIED and PENDING accreditation
@@ -229,7 +241,8 @@ export async function POST(request: NextRequest) {
           country: 'Nigeria',
           phone: newFacility.phone || null,
           email: newFacility.email || null,
-          registrationNumber: String(newFacility.registrationNumber).trim(),
+          // Store registration number if provided (required for regular Facility Admin, optional for Institution Admin)
+          registrationNumber: providedRegNumber,
           accreditingBody: newFacility.accreditingBody || null,
           isVerified: false,
           accreditationStatus: 'PENDING',
@@ -240,14 +253,21 @@ export async function POST(request: NextRequest) {
       newFacilityCreated = true
     }
 
-    // Check if user already exists
+    // Check if user already exists — STRONG duplicate check (case-insensitive)
+    // The DB unique constraint is case-sensitive on PostgreSQL by default, so we normalize
+    // to lowercase both at storage and lookup time. This prevents duplicates that would
+    // otherwise slip through due to case differences (e.g., John@Example.com vs john@example.com).
+    const normalizedEmail = String(email).toLowerCase().trim()
     const existingUser = await db.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: normalizedEmail },
     })
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'A user with this email already exists' },
+        {
+          error: 'An account with this email already exists. Please sign in instead.',
+          errorType: 'EMAIL_ALREADY_EXISTS',
+        },
         { status: 409 }
       )
     }
@@ -282,7 +302,7 @@ export async function POST(request: NextRequest) {
 
     const user = await db.user.create({
       data: {
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         passwordHash,
         firstName,
         lastName,
@@ -529,8 +549,14 @@ export async function POST(request: NextRequest) {
     )
   } catch (error: any) {
     console.error('Registration error:', error)
-    // Check if it's a database connection error
     const errorMsg = error?.message || ''
+    // Prisma unique constraint violation (P2002) — typically email collision from a race condition
+    if (errorMsg.includes('P2002') || errorMsg.includes('Unique constraint')) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists. Please sign in instead.', errorType: 'EMAIL_ALREADY_EXISTS' },
+        { status: 409 }
+      )
+    }
     if (errorMsg.includes('connect') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('P1001') || errorMsg.includes('server is not reachable') || errorMsg.includes('does not exist')) {
       return NextResponse.json(
         { error: 'Database tables are not set up yet. Please visit /api/setup to create the database schema, then try again.', errorType: 'DB_NOT_CONFIGURED' },

@@ -45,10 +45,22 @@ export default function AuthCallbackPage() {
         if (res.ok) {
           if (data.status === "ACTIVE" && data.token) {
             // User exists and is active — log them in
-            // Store the session token in our custom auth system
+            // Store the session token in our custom auth system (matching auth-store shape)
             localStorage.setItem("nurseos-auth", JSON.stringify({
               state: {
-                user: data.user,
+                user: {
+                  id: data.user.id,
+                  email: data.user.email,
+                  firstName: data.user.firstName,
+                  lastName: data.user.lastName,
+                  role: data.user.role,
+                  academicRole: data.user.academicRole || null,
+                  studentLevel: data.user.studentLevel ?? null,
+                  avatarUrl: data.user.avatarUrl || null,
+                  facilityId: data.user.facilityId || null,
+                  facilityName: data.user.facilityName || null,
+                  nurseProfileId: data.user.nurseProfileId || null,
+                },
                 token: data.token,
                 isAuthenticated: true,
                 isSuperAdmin: data.user.role === "SUPER_ADMIN",

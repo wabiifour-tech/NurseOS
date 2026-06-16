@@ -12,16 +12,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Building2, Briefcase, Loader2, ArrowRight, Clock, Plus, ShieldCheck } from "lucide-react"
+import { Building2, Briefcase, Loader2, ArrowRight, Clock, Plus, GraduationCap, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { useAuthStore } from "@/lib/auth-store"
 
+const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue",
+  "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu",
+  "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi",
+  "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun",
+  "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
+]
+
+const FACILITY_TYPES = [
+  { value: "HOSPITAL", label: "Hospital" },
+  { value: "PRIMARY_HEALTH_CENTER", label: "Primary Health Center" },
+  { value: "CLINIC", label: "Clinic" },
+  { value: "SPECIALIST_CENTER", label: "Specialist Center" },
+  { value: "MATERNITY_HOME", label: "Maternity Home" },
+  { value: "DIAGNOSTIC_CENTER", label: "Diagnostic Center" },
+  { value: "REHABILITATION_CENTER", label: "Rehabilitation Center" },
+  { value: "COMMUNITY_HEALTH_CENTER", label: "Community Health Center" },
+  { value: "PHARMACY", label: "Pharmacy" },
+  { value: "UNIVERSITY", label: "University (Department of Nursing Sciences)" },
+  { value: "SCHOOL_OF_NURSING", label: "School of Nursing" },
+]
+
+const STUDENT_LEVELS = [
+  { value: "100", label: "100 Level (First Year)" },
+  { value: "200", label: "200 Level (Second Year)" },
+  { value: "300", label: "300 Level (Third Year)" },
+  { value: "400", label: "400 Level (Fourth Year)" },
+  { value: "500", label: "500 Level (Final Year)" },
+]
+
+// Role options — sent to backend. institution_admin maps to ADMIN on backend (adminType=INSTITUTION).
 const roles = [
   { value: "NURSE", label: "Nurse" },
-  { value: "ADMIN", label: "Facility Admin" },
   { value: "DOCTOR", label: "Doctor" },
+  { value: "ADMIN", label: "Facility Admin (Hospital / Clinic / PHC)" },
+  { value: "INSTITUTION_ADMIN", label: "Institution Admin (University / School of Nursing)" },
   { value: "MATRON", label: "Matron" },
+  { value: "LECTURER", label: "Lecturer (University / School of Nursing)" },
   { value: "STUDENT", label: "Nursing Student" },
   { value: "OTHER", label: "Other Healthcare Worker" },
 ]
@@ -29,7 +62,7 @@ const roles = [
 interface FacilityOption {
   id: string
   name: string
-  type: string
+  type?: string
   city: string
   state: string
 }
@@ -57,9 +90,11 @@ export default function OnboardingPage() {
 
   const [selectedRole, setSelectedRole] = useState("")
   const [selectedFacilityId, setSelectedFacilityId] = useState("")
+  const [selectedStudentLevel, setSelectedStudentLevel] = useState("")
   const [facilityMode, setFacilityMode] = useState<FacilityMode>("existing")
   const [customFirstName, setCustomFirstName] = useState("")
   const [customLastName, setCustomLastName] = useState("")
+  const [customPhone, setCustomPhone] = useState("")
 
   // New facility fields
   const [newFacilityName, setNewFacilityName] = useState("")
@@ -67,13 +102,17 @@ export default function OnboardingPage() {
   const [newFacilityAddress, setNewFacilityAddress] = useState("")
   const [newFacilityCity, setNewFacilityCity] = useState("")
   const [newFacilityState, setNewFacilityState] = useState("")
-  // Facility verification fields
-  const [newFacilityRegistrationNumber, setNewFacilityRegistrationNumber] = useState("")
   const [newFacilityPhone, setNewFacilityPhone] = useState("")
   const [newFacilityEmail, setNewFacilityEmail] = useState("")
-  const [adminLicenseNumber, setAdminLicenseNumber] = useState("")
+  // Registration number — REQUIRED only for regular Facility Admin (not Institution Admin)
+  const [newFacilityRegistrationNumber, setNewFacilityRegistrationNumber] = useState("")
 
-  const isAdmin = selectedRole === "ADMIN"
+  const isAdminRole = selectedRole === "ADMIN"
+  const isInstitutionAdminRole = selectedRole === "INSTITUTION_ADMIN"
+  const isAdmin = isAdminRole || isInstitutionAdminRole
+  const isStudent = selectedRole === "STUDENT"
+  const isLecturer = selectedRole === "LECTURER"
+  const isAcademicRole = isStudent || isLecturer
 
   useEffect(() => {
     // Read OAuth data from sessionStorage
@@ -116,20 +155,30 @@ export default function OnboardingPage() {
     if (isAdmin) {
       setFacilityMode("new")
       setSelectedFacilityId("")
+      // Pre-select UNIVERSITY type for institution admins
+      if (isInstitutionAdminRole) {
+        setNewFacilityType("UNIVERSITY")
+      } else {
+        setNewFacilityType("HOSPITAL")
+      }
     } else {
       setFacilityMode("existing")
     }
-  }, [isAdmin])
+  }, [isAdmin, isAdminRole, isInstitutionAdminRole])
 
   async function handleSubmit() {
     if (!selectedRole) {
       toast.error("Please select your role")
       return
     }
+    if (!customFirstName.trim() || !customLastName.trim()) {
+      toast.error("Please enter your first and last name")
+      return
+    }
 
     // Validate facility
     if (facilityMode === "existing" && !selectedFacilityId) {
-      toast.error("Please select a facility")
+      toast.error(isAcademicRole ? "Please select your institution" : "Please select a facility")
       return
     }
     if (facilityMode === "new") {
@@ -137,15 +186,22 @@ export default function OnboardingPage() {
         toast.error("Please enter the facility name")
         return
       }
-      if (!newFacilityCity.trim() || !newFacilityState.trim()) {
-        toast.error("Please enter the facility city and state")
+      if (!newFacilityState.trim()) {
+        toast.error("Please select the state")
         return
       }
-      // SECURITY: Registration number is mandatory for facility verification
-      if (!newFacilityRegistrationNumber.trim()) {
-        toast.error("Facility registration/license number is required to verify your facility")
+      // Regular Facility Admin (hospital/clinic/PHC) MUST provide registration number for verification.
+      // Institution Admin (university/school of nursing) does NOT need to — verified by Super Admin directly.
+      if (isAdminRole && !newFacilityRegistrationNumber.trim()) {
+        toast.error("Facility registration/license number is required for verification")
         return
       }
+    }
+
+    // Students must select their level
+    if (isStudent && !selectedStudentLevel) {
+      toast.error("Please select your current level (100 — 500)")
+      return
     }
 
     setIsLoading(true)
@@ -154,25 +210,37 @@ export default function OnboardingPage() {
         email: oauthData?.email || "",
         firstName: customFirstName || oauthData?.firstName || "",
         lastName: customLastName || oauthData?.lastName || "",
+        phone: customPhone.trim(),
         role: selectedRole,
         avatarUrl: oauthData?.avatarUrl || "",
         provider: oauthData?.provider || "google",
       }
 
+      // Pass adminType so backend knows which facility types are allowed
+      if (isAdminRole) payload.adminType = "FACILITY"
+      if (isInstitutionAdminRole) payload.adminType = "INSTITUTION"
+
+      // Pass student level for students
+      if (isStudent && selectedStudentLevel) {
+        payload.studentLevel = selectedStudentLevel
+      }
+
       if (facilityMode === "existing") {
         payload.facilityId = selectedFacilityId
       } else {
-        // New facility — send facility details including verification fields
+        // New facility
         payload.facilityMode = "new"
         payload.newFacilityName = newFacilityName.trim()
         payload.newFacilityType = newFacilityType
         payload.newFacilityAddress = newFacilityAddress.trim()
         payload.newFacilityCity = newFacilityCity.trim()
         payload.newFacilityState = newFacilityState.trim()
-        payload.newFacilityRegistrationNumber = newFacilityRegistrationNumber.trim()
         payload.newFacilityPhone = newFacilityPhone.trim()
         payload.newFacilityEmail = newFacilityEmail.trim()
-        payload.adminLicenseNumber = adminLicenseNumber.trim()
+        // Registration number — sent only if provided (required for regular Facility Admin, optional for Institution Admin)
+        if (newFacilityRegistrationNumber.trim()) {
+          payload.newFacilityRegistrationNumber = newFacilityRegistrationNumber.trim()
+        }
       }
 
       const res = await fetch("/api/auth/oauth/complete", {
@@ -193,12 +261,30 @@ export default function OnboardingPage() {
         setStep("pending")
         // Clear OAuth data
         sessionStorage.removeItem("nurseos-oauth")
-        // Show contextual message
         if (data.facilityCreated) {
-          toast.success("Facility application submitted! A Super Admin will verify your facility.")
+          toast.success("Account created! You can sign in once approved.")
         } else {
           toast.success("Account created! Waiting for admin approval.")
         }
+      } else if (data.status === "ACTIVE" && data.token) {
+        // Student auto-enrolled (ACTIVE) — log them in
+        login({
+          id: data.user?.id || crypto.randomUUID(),
+          email: data.user?.email || oauthData?.email || "",
+          firstName: data.user?.firstName || customFirstName,
+          lastName: data.user?.lastName || customLastName,
+          role: data.user?.role || selectedRole,
+          academicRole: data.user?.academicRole || (isStudent ? "STUDENT" : isLecturer ? "LECTURER" : null),
+          studentLevel: data.user?.studentLevel ?? (isStudent ? Number(selectedStudentLevel) : null),
+          facilityId: data.user?.facilityId || null,
+          facilityName: data.user?.facilityName || null,
+          nurseProfileId: data.user?.nurseProfileId || null,
+        }, data.token)
+        sessionStorage.removeItem("nurseos-oauth")
+        toast.success("Welcome to NurseOS!")
+        setTimeout(() => {
+          window.location.href = "/dashboard"
+        }, 500)
       }
     } catch (err) {
       console.error("Onboarding error:", err)
@@ -218,9 +304,7 @@ export default function OnboardingPage() {
           </div>
           <h2 className="text-2xl font-bold">Waiting for Admin Approval</h2>
           <p className="text-muted-foreground">
-            {isAdmin
-              ? "Your facility application has been submitted. A NurseOS Super Admin will review and verify your facility and account. You will be notified once approved. This typically takes 1-2 business days."
-              : "Your account has been created and linked to the facility. The facility admin needs to approve your access before you can sign in. You'll be notified once approved."}
+            Your account has been created. The facility admin needs to approve your access before you can sign in. You&apos;ll be notified once approved.
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -242,6 +326,18 @@ export default function OnboardingPage() {
     )
   }
 
+  // Filter facility list for institution admins (only UNIVERSITY / SCHOOL_OF_NURSING)
+  const filteredFacilities = facilities.filter((f) =>
+    isInstitutionAdminRole
+      ? f.type === "UNIVERSITY" || f.type === "SCHOOL_OF_NURSING"
+      : true
+  )
+
+  // Filter facility types for the new-facility selector
+  const filteredFacilityTypes = isInstitutionAdminRole
+    ? FACILITY_TYPES.filter((ft) => ft.value === "UNIVERSITY" || ft.value === "SCHOOL_OF_NURSING")
+    : FACILITY_TYPES
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/20 dark:via-teal-950/20 dark:to-cyan-950/20">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -249,9 +345,9 @@ export default function OnboardingPage() {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-teal-500/5 blur-3xl" />
       </div>
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-md max-h-[95vh] overflow-y-auto">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2.5 mb-8">
+        <div className="flex items-center justify-center gap-2.5 mb-6">
           <Image src="/nurseos-logo.png" alt="NurseOS" width={40} height={40} className="w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20" priority />
           <span className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">NurseOS</span>
         </div>
@@ -288,6 +384,17 @@ export default function OnboardingPage() {
               </div>
             </div>
 
+            {/* Phone (optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone (optional)</Label>
+              <Input
+                id="phone"
+                value={customPhone}
+                onChange={(e) => setCustomPhone(e.target.value)}
+                placeholder="+234 801 234 5678"
+              />
+            </div>
+
             {/* Role selection */}
             <div className="space-y-2">
               <Label>Role <span className="text-destructive">*</span></Label>
@@ -306,22 +413,76 @@ export default function OnboardingPage() {
               </Select>
             </div>
 
-            {/* Admin info banner */}
-            {isAdmin && (
-              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm">
-                <p className="font-medium text-amber-800 dark:text-amber-300">
-                  Facility Verification Required
-                </p>
-                <p className="text-amber-700 dark:text-amber-400 mt-1 text-xs">
-                  To protect against unauthorized access, all new facilities must be verified by a NurseOS Super Admin. You will need to provide your facility&apos;s registration or license number.
+            {/* Student level selector — only for students */}
+            {isStudent && (
+              <div className="space-y-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50/40">
+                <Label className="text-sm font-medium flex items-center gap-1.5">
+                  <GraduationCap className="size-3.5" />
+                  Current Level <span className="text-destructive">*</span>
+                </Label>
+                <Select value={selectedStudentLevel} onValueChange={setSelectedStudentLevel}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select your current level (100 — 500)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STUDENT_LEVELS.map((lvl) => (
+                      <SelectItem key={lvl.value} value={lvl.value}>
+                        {lvl.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  You&apos;ll only see materials uploaded for your level by your lecturers.
                 </p>
               </div>
             )}
 
-            {/* Facility selection */}
+            {/* Facility / Institution selection */}
+            {selectedRole && !isAdmin && (
+              <div className="space-y-2">
+                <Label>
+                  {isAcademicRole
+                    ? <>Select your institution <span className="text-destructive">*</span></>
+                    : <>Select your facility <span className="text-destructive">*</span></>}
+                </Label>
+                <Select value={selectedFacilityId} onValueChange={setSelectedFacilityId}>
+                  <SelectTrigger className="w-full">
+                    <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue
+                      placeholder={
+                        loadingFacilities
+                          ? "Loading..."
+                          : isAcademicRole
+                          ? "Select your university or school of nursing"
+                          : "Select your healthcare facility"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {filteredFacilities
+                      .sort((a, b) => a.state.localeCompare(b.state))
+                      .map((facility) => (
+                        <SelectItem key={facility.id} value={facility.id}>
+                          {facility.name} — {facility.city}, {facility.state}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {isStudent
+                    ? "You'll be auto-enrolled as a student at this institution."
+                    : isLecturer
+                    ? "Your lecturer account requires approval from the institution admin."
+                    : "Your access must be approved by the facility admin before you can sign in."}
+                </p>
+              </div>
+            )}
+
+            {/* Admin: facility options */}
             {isAdmin && (
               <div className="space-y-2">
-                <Label>Facility Options</Label>
+                <Label>{isInstitutionAdminRole ? "Institution Options" : "Facility Options"}</Label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -347,17 +508,27 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {/* Existing facility selector */}
-            {facilityMode === "existing" && (
+            {/* Admin: existing facility selector */}
+            {isAdmin && facilityMode === "existing" && (
               <div className="space-y-2">
-                <Label>Select Your Facility <span className="text-destructive">*</span></Label>
+                <Label>
+                  {isInstitutionAdminRole ? "Select Your Institution" : "Select Your Facility"} <span className="text-destructive">*</span>
+                </Label>
                 <Select value={selectedFacilityId} onValueChange={setSelectedFacilityId}>
                   <SelectTrigger className="w-full">
                     <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
-                    <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your healthcare facility"} />
+                    <SelectValue
+                      placeholder={
+                        loadingFacilities
+                          ? "Loading..."
+                          : isInstitutionAdminRole
+                          ? "Select your university or school of nursing"
+                          : "Select your healthcare facility"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
-                    {facilities
+                    {filteredFacilities
                       .sort((a, b) => a.state.localeCompare(b.state))
                       .map((facility) => (
                         <SelectItem key={facility.id} value={facility.id}>
@@ -366,45 +537,62 @@ export default function OnboardingPage() {
                       ))}
                   </SelectContent>
                 </Select>
-                {!isAdmin && (
-                  <p className="text-xs text-muted-foreground">
-                    Your access must be approved by the facility admin before you can sign in.
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  Your admin account will be linked to this {isInstitutionAdminRole ? "institution" : "facility"}.
+                </p>
               </div>
             )}
 
-            {/* New facility form */}
-            {facilityMode === "new" && isAdmin && (
+            {/* Admin: new facility form */}
+            {isAdmin && facilityMode === "new" && (
               <div className="space-y-3 border border-border/50 rounded-lg p-4 bg-muted/30">
-                <p className="text-sm font-medium">New Facility Details</p>
+                <p className="text-sm font-medium">
+                  {isInstitutionAdminRole ? "New Institution Details" : "New Facility Details"}
+                </p>
                 <div className="space-y-2">
-                  <Label htmlFor="facilityName">Facility Name <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="facilityName">
+                    {isInstitutionAdminRole ? "Institution Name" : "Facility Name"} <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="facilityName"
                     value={newFacilityName}
                     onChange={(e) => setNewFacilityName(e.target.value)}
-                    placeholder="e.g. Lagos General Hospital"
+                    placeholder={isInstitutionAdminRole ? "e.g. Redeemer's University, Dept. of Nursing" : "e.g. Lagos General Hospital"}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="facilityType">Facility Type</Label>
-                  <Select value={newFacilityType} onValueChange={setNewFacilityType}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="HOSPITAL">Hospital</SelectItem>
-                      <SelectItem value="CLINIC">Clinic</SelectItem>
-                      <SelectItem value="PRIMARY_HEALTH_CENTER">Primary Health Center</SelectItem>
-                      <SelectItem value="SPECIALIST_CENTER">Specialist Center</SelectItem>
-                      <SelectItem value="MATERNITY_HOME">Maternity Home</SelectItem>
-                      <SelectItem value="REHABILITATION_CENTER">Rehabilitation Center</SelectItem>
-                      <SelectItem value="COMMUNITY_HEALTH_CENTER">Community Health Center</SelectItem>
-                      <SelectItem value="DIAGNOSTIC_CENTER">Diagnostic Center</SelectItem>
-                      <SelectItem value="PHARMACY">Pharmacy</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="facilityType">
+                      {isInstitutionAdminRole ? "Institution Type" : "Facility Type"}
+                    </Label>
+                    <Select value={newFacilityType} onValueChange={setNewFacilityType}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredFacilityTypes.map((ft) => (
+                          <SelectItem key={ft.value} value={ft.value}>
+                            {ft.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="facilityState">State <span className="text-destructive">*</span></Label>
+                    <Select value={newFacilityState} onValueChange={setNewFacilityState}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-48">
+                        {NIGERIAN_STATES.map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="facilityAddress">Address</Label>
@@ -417,86 +605,77 @@ export default function OnboardingPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="facilityCity">City <span className="text-destructive">*</span></Label>
+                    <Label htmlFor="facilityCity">City / LGA</Label>
                     <Input
                       id="facilityCity"
                       value={newFacilityCity}
                       onChange={(e) => setNewFacilityCity(e.target.value)}
-                      placeholder="e.g. Lagos"
+                      placeholder="e.g. Lagos Island"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="facilityState">State <span className="text-destructive">*</span></Label>
+                    <Label htmlFor="facilityPhone">Phone</Label>
                     <Input
-                      id="facilityState"
-                      value={newFacilityState}
-                      onChange={(e) => setNewFacilityState(e.target.value)}
-                      placeholder="e.g. Lagos State"
+                      id="facilityPhone"
+                      value={newFacilityPhone}
+                      onChange={(e) => setNewFacilityPhone(e.target.value)}
+                      placeholder="+234 801 234 5678"
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="facilityEmail">Email</Label>
+                  <Input
+                    id="facilityEmail"
+                    type="email"
+                    value={newFacilityEmail}
+                    onChange={(e) => setNewFacilityEmail(e.target.value)}
+                    placeholder="info@hospital.ng"
+                  />
                 </div>
 
-                {/* ── Verification Section ── */}
-                <div className="border-t border-border/50 pt-3 mt-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Verification Required</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    To protect against unauthorized facility creation, we require verification. Your facility will be reviewed by a NurseOS Super Admin before activation.
-                  </p>
-                  <div className="space-y-2">
-                    <Label htmlFor="regNumber">Facility Registration / License Number <span className="text-destructive">*</span></Label>
-                    <Input
-                      id="regNumber"
-                      value={newFacilityRegistrationNumber}
-                      onChange={(e) => setNewFacilityRegistrationNumber(e.target.value)}
-                      placeholder="e.g. CAC/1234567 or FMH/2024/0891"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Your CAC registration number, health facility license, or government-issued facility ID.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="facilityPhone">Facility Phone</Label>
-                      <Input
-                        id="facilityPhone"
-                        value={newFacilityPhone}
-                        onChange={(e) => setNewFacilityPhone(e.target.value)}
-                        placeholder="+234 801 234 5678"
-                      />
+                {/* ─── Verification Section — REGULAR FACILITY ADMIN ONLY ─── */}
+                {/* Institution Admin, Lecturer, Student do NOT need to provide registration number. */}
+                {isAdminRole && !isInstitutionAdminRole && (
+                  <div className="border-t border-border/50 pt-3 mt-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Verification Required</p>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      To protect against unauthorized facility creation, all new healthcare facilities must be verified by a NurseOS Super Admin. You will need to provide your facility&apos;s registration or license number.
+                    </p>
                     <div className="space-y-2">
-                      <Label htmlFor="facilityEmail">Facility Email</Label>
+                      <Label htmlFor="regNumber">
+                        Facility Registration / License Number <span className="text-destructive">*</span>
+                      </Label>
                       <Input
-                        id="facilityEmail"
-                        type="email"
-                        value={newFacilityEmail}
-                        onChange={(e) => setNewFacilityEmail(e.target.value)}
-                        placeholder="admin@hospital.ng"
+                        id="regNumber"
+                        value={newFacilityRegistrationNumber}
+                        onChange={(e) => setNewFacilityRegistrationNumber(e.target.value)}
+                        placeholder="e.g. CAC/1234567 or FMH/2024/0891"
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        Your CAC registration number, health facility license, or government-issued facility ID.
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 mt-3">
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                        Your facility application will be reviewed by a NurseOS Super Admin before activation. This typically takes 1-2 business days.
+                      </p>
                     </div>
                   </div>
-                  <div className="space-y-2 mt-2">
-                    <Label htmlFor="adminLicense">Your Professional License Number</Label>
-                    <Input
-                      id="adminLicense"
-                      value={adminLicenseNumber}
-                      onChange={(e) => setAdminLicenseNumber(e.target.value)}
-                      placeholder="e.g. RN/12345 or Admin License #"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Optional but recommended. Helps us verify your identity as a facility administrator.
-                    </p>
-                  </div>
-                </div>
+                )}
 
-                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 mt-2">
-                  <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
-                    Your facility application will be reviewed by a NurseOS Super Admin before activation. This typically takes 1-2 business days.
-                  </p>
-                </div>
+                {/* Institution Admin — show a friendly note instead of verification */}
+                {isInstitutionAdminRole && (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-2.5 mt-2">
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium">
+                      Your institution will be activated immediately — no license verification needed.
+                      A 1-week free trial starts automatically, after which a subscription is required for lecturers to continue uploading materials.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -504,14 +683,24 @@ export default function OnboardingPage() {
             <Button
               onClick={handleSubmit}
               className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
-              disabled={isLoading || !selectedRole || (facilityMode === "existing" && !selectedFacilityId) || (facilityMode === "new" && !newFacilityName.trim())}
+              disabled={
+                isLoading ||
+                !selectedRole ||
+                !customFirstName.trim() ||
+                !customLastName.trim() ||
+                (facilityMode === "existing" && !selectedFacilityId) ||
+                (facilityMode === "new" && (!newFacilityName.trim() || !newFacilityState.trim())) ||
+                // Regular Facility Admin must provide registration number
+                (facilityMode === "new" && isAdminRole && !isInstitutionAdminRole && !newFacilityRegistrationNumber.trim()) ||
+                (isStudent && !selectedStudentLevel)
+              }
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <ArrowRight className="w-4 h-4 mr-2" />
               )}
-              {isAdmin ? "Create Facility & Continue" : "Submit for Approval"}
+              {isAdmin && facilityMode === "new" ? "Create & Continue" : "Complete Sign Up"}
             </Button>
           </div>
         </div>
