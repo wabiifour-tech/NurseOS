@@ -209,6 +209,13 @@ export default function SuperAdminDashboard() {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   })
 
+  /* ─── Authenticated fetch helper (always includes cookies + token) ─── */
+  const authFetch = (url: string, options: RequestInit = {}) => fetch(url, {
+    ...options,
+    credentials: 'include',
+    headers: { ...getHeaders(), ...(options.headers || {}) },
+  })
+
   /* ─── Fetch subscriptions ─── */
   const fetchSubscriptions = React.useCallback(async () => {
     setIsLoadingSubs(true)
@@ -217,7 +224,7 @@ export default function SuperAdminDashboard() {
       if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter)
       if (planFilter && planFilter !== 'ALL') params.set('plan', planFilter)
 
-      const res = await fetch(`/api/subscriptions/admin?${params.toString()}`, {
+      const res = await authFetch(`/api/subscriptions/admin?${params.toString()}`, {
         headers: getHeaders(),
       })
       const data = await res.json()
@@ -241,7 +248,7 @@ export default function SuperAdminDashboard() {
   const fetchAppStats = React.useCallback(async () => {
     setIsLoadingStats(true)
     try {
-      const res = await fetch('/api/admin/stats', {
+      const res = await authFetch('/api/admin/stats', {
         headers: getHeaders(),
       })
       const data = await res.json()
@@ -275,7 +282,7 @@ export default function SuperAdminDashboard() {
     try {
       const params = new URLSearchParams()
       if (facilitySearch) params.set('search', facilitySearch)
-      const res = await fetch(`/api/admin/facilities?${params.toString()}`, { headers: getHeaders() })
+      const res = await authFetch(`/api/admin/facilities?${params.toString()}`)
       const data = await res.json()
       if (res.ok) setFacilities(data.facilities || [])
     } catch (error) {
@@ -292,7 +299,7 @@ export default function SuperAdminDashboard() {
       const params = new URLSearchParams()
       if (userSearch) params.set('search', userSearch)
       if (userRoleFilter) params.set('role', userRoleFilter)
-      const res = await fetch(`/api/admin/users?${params.toString()}`, { headers: getHeaders() })
+      const res = await authFetch(`/api/admin/users?${params.toString()}`)
       const data = await res.json()
       if (res.ok) setUsersList(data.users || [])
     } catch (error) {
@@ -314,7 +321,7 @@ export default function SuperAdminDashboard() {
   const fetchFacilityApprovals = React.useCallback(async () => {
     setIsLoadingApprovals(true)
     try {
-      const res = await fetch('/api/superadmin/facilities?status=pending', { headers: getHeaders() })
+      const res = await authFetch('/api/superadmin/facilities?status=pending')
       const data = await res.json()
       if (res.ok) {
         setFacilityApprovals(data.pendingFacilities || [])
@@ -340,7 +347,7 @@ export default function SuperAdminDashboard() {
         body.rejectionReason = 'Facility could not be verified. Please contact support with updated documentation.'
       }
 
-      const res = await fetch('/api/superadmin/facilities', {
+      const res = await authFetch('/api/superadmin/facilities', {
         method: 'PATCH',
         headers: getHeaders(),
         body: JSON.stringify(body),
@@ -368,7 +375,7 @@ export default function SuperAdminDashboard() {
   const handleVerifyRegistration = async (facilityId: string, regNumber: string, facilityName: string, state: string, type: string) => {
     setIsVerifying((prev) => ({ ...prev, [facilityId]: true }))
     try {
-      const res = await fetch('/api/verification/verify-registration', {
+      const res = await authFetch('/api/verification/verify-registration', {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ registrationNumber: regNumber, facilityName, state, type }),
@@ -395,7 +402,7 @@ export default function SuperAdminDashboard() {
   ) => {
     setActionLoading((prev) => ({ ...prev, [subscriptionId + action]: true }))
     try {
-      const res = await fetch('/api/subscriptions/admin', {
+      const res = await authFetch('/api/subscriptions/admin', {
         method: 'PATCH',
         headers: getHeaders(),
         body: JSON.stringify({ subscriptionId, action, ...extra }),
@@ -470,7 +477,7 @@ export default function SuperAdminDashboard() {
       }
       if (token) headers['Authorization'] = `Bearer ${token}`
 
-      const res = await fetch('/api/auth/register', {
+      const res = await authFetch('/api/auth/register', {
         method: 'POST',
         headers,
         body: JSON.stringify({

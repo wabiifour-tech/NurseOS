@@ -78,7 +78,7 @@ export default function HealthcareNews() {
       setError(null)
 
       const url = forceRefresh ? '/api/news?refresh=true' : '/api/news'
-      const res = await fetch(url)
+      const res = await fetch(url, { credentials: 'include' })
       if (!res.ok) throw new Error('Failed to fetch news')
       const data = await res.json()
       setNews(data.news || [])

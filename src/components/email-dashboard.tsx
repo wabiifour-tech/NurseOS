@@ -168,7 +168,7 @@ export function EmailDashboard({ user, token }: EmailDashboardProps) {
   const fetchStats = React.useCallback(async () => {
     setIsLoadingStats(true)
     try {
-      const res = await fetch('/api/email/stats', { headers: getHeaders() })
+      const res = await fetch('/api/email/stats', { headers: getHeaders(), credentials: 'include' })
       const data = await res.json()
       if (res.ok) setStats(data)
     } catch (error) {
@@ -187,7 +187,7 @@ export function EmailDashboard({ user, token }: EmailDashboardProps) {
       if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter)
       if (searchQuery) params.set('search', searchQuery)
 
-      const res = await fetch(`/api/email/history?${params.toString()}`, { headers: getHeaders() })
+      const res = await fetch(`/api/email/history?${params.toString()}`, { headers: getHeaders(), credentials: 'include' })
       const data = await res.json()
       if (res.ok) {
         setEmails(data.emails || [])
@@ -210,7 +210,7 @@ export function EmailDashboard({ user, token }: EmailDashboardProps) {
       const params = new URLSearchParams()
       params.set('search', query)
       params.set('limit', '10')
-      const res = await fetch(`/api/admin/users?${params.toString()}`, { headers: getHeaders() })
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { headers: getHeaders(), credentials: 'include' })
       const data = await res.json()
       if (res.ok) setRecipientResults(data.users || [])
     } catch (error) {
@@ -242,6 +242,7 @@ export function EmailDashboard({ user, token }: EmailDashboardProps) {
       const res = await fetch('/api/email/send', {
         method: 'POST',
         headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           recipientId: selectedRecipient.id,
           subject: composeSubject,
@@ -296,6 +297,7 @@ export function EmailDashboard({ user, token }: EmailDashboardProps) {
       const res = await fetch('/api/email/broadcast', {
         method: 'POST',
         headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify(body),
       })
       const data = await res.json()

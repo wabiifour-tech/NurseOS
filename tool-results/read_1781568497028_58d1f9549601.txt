@@ -1,0 +1,843 @@
+     1→'use client'
+     2→
+     3→/**
+     4→ * Super Admin Email Dashboard Component
+     5→ * Manages email sending, broadcasting, and history viewing.
+     6→ */
+     7→
+     8→import * as React from 'react'
+     9→import { toast } from 'sonner'
+    10→import {
+    11→  Card,
+    12→  CardContent,
+    13→  CardDescription,
+    14→  CardHeader,
+    15→  CardTitle,
+    16→} from '@/components/ui/card'
+    17→import { Button } from '@/components/ui/button'
+    18→import { Badge } from '@/components/ui/badge'
+    19→import { Input } from '@/components/ui/input'
+    20→import { Label } from '@/components/ui/label'
+    21→import { Textarea } from '@/components/ui/textarea'
+    22→import {
+    23→  Table,
+    24→  TableBody,
+    25→  TableCell,
+    26→  TableHead,
+    27→  TableHeader,
+    28→  TableRow,
+    29→} from '@/components/ui/table'
+    30→import {
+    31→  Select,
+    32→  SelectContent,
+    33→  SelectItem,
+    34→  SelectTrigger,
+    35→  SelectValue,
+    36→} from '@/components/ui/select'
+    37→import {
+    38→  Dialog,
+    39→  DialogContent,
+    40→  DialogDescription,
+    41→  DialogFooter,
+    42→  DialogHeader,
+    43→  DialogTitle,
+    44→} from '@/components/ui/dialog'
+    45→import {
+    46→  Mail,
+    47→  Send,
+    48→  Users,
+    49→  Clock,
+    50→  CheckCircle2,
+    51→  XCircle,
+    52→  Loader2,
+    53→  Search,
+    54→  RefreshCw,
+    55→  AlertTriangle,
+    56→  ArrowRight,
+    57→  BarChart3,
+    58→  Radio,
+    59→} from 'lucide-react'
+    60→
+    61→/* ─── Types ─── */
+    62→interface EmailRow {
+    63→  id: string
+    64→  toEmail: string
+    65→  fromEmail: string
+    66→  subject: string
+    67→  templateId: string | null
+    68→  status: string
+    69→  providerId: string | null
+    70→  error: string | null
+    71→  sentAt: string | null
+    72→  createdAt: string
+    73→  sender: { id: string; firstName: string; lastName: string; email: string }
+    74→  recipient: { id: string; firstName: string; lastName: string; email: string }
+    75→}
+    76→
+    77→interface EmailStats {
+    78→  total: number
+    79→  sent: number
+    80→  failed: number
+    81→  pending: number
+    82→  recentSent: number
+    83→}
+    84→
+    85→/* ─── Helpers ─── */
+    86→function formatDate(dateStr: string | null): string {
+    87→  if (!dateStr) return '—'
+    88→  return new Date(dateStr).toLocaleDateString('en-NG', {
+    89→    month: 'short',
+    90→    day: 'numeric',
+    91→    hour: '2-digit',
+    92→    minute: '2-digit',
+    93→  })
+    94→}
+    95→
+    96→const statusColorMap: Record<string, string> = {
+    97→  SENT: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+    98→  DELIVERED: 'bg-green-500/10 text-green-600 border-green-500/20',
+    99→  PENDING: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+   100→  FAILED: 'bg-red-500/10 text-red-600 border-red-500/20',
+   101→  BOUNCED: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+   102→}
+   103→
+   104→const statusIconMap: Record<string, React.ReactNode> = {
+   105→  SENT: <CheckCircle2 className="size-3.5" />,
+   106→  DELIVERED: <CheckCircle2 className="size-3.5" />,
+   107→  PENDING: <Clock className="size-3.5" />,
+   108→  FAILED: <XCircle className="size-3.5" />,
+   109→  BOUNCED: <AlertTriangle className="size-3.5" />,
+   110→}
+   111→
+   112→const TEMPLATE_OPTIONS = [
+   113→  { value: 'custom', label: 'Custom Message' },
+   114→  { value: 'welcome', label: 'Welcome Email' },
+   115→  { value: 'user-approved', label: 'User Approved' },
+   116→  { value: 'user-rejected', label: 'User Rejected' },
+   117→  { value: 'facility-approved', label: 'Facility Approved' },
+   118→  { value: 'facility-rejected', label: 'Facility Rejected' },
+   119→  { value: 'subscription-verified', label: 'Subscription Verified' },
+   120→  { value: 'announcement', label: 'Announcement' },
+   121→]
+   122→
+   123→/* ─── Main Component ─── */
+   124→interface EmailDashboardProps {
+   125→  user: any
+   126→  token: string | null
+   127→}
+   128→
+   129→export function EmailDashboard({ user, token }: EmailDashboardProps) {
+   130→  /* ─── State ─── */
+   131→  const [subTab, setSubTab] = React.useState<'compose' | 'broadcast' | 'history'>('compose')
+   132→  const [stats, setStats] = React.useState<EmailStats>({ total: 0, sent: 0, failed: 0, pending: 0, recentSent: 0 })
+   133→  const [isLoadingStats, setIsLoadingStats] = React.useState(true)
+   134→
+   135→  // History
+   136→  const [emails, setEmails] = React.useState<EmailRow[]>([])
+   137→  const [isLoadingEmails, setIsLoadingEmails] = React.useState(false)
+   138→  const [historyPage, setHistoryPage] = React.useState(1)
+   139→  const [historyTotal, setHistoryTotal] = React.useState(0)
+   140→  const [statusFilter, setStatusFilter] = React.useState('ALL')
+   141→  const [searchQuery, setSearchQuery] = React.useState('')
+   142→
+   143→  // Compose email
+   144→  const [isSending, setIsSending] = React.useState(false)
+   145→  const [recipientSearch, setRecipientSearch] = React.useState('')
+   146→  const [recipientResults, setRecipientResults] = React.useState<any[]>([])
+   147→  const [selectedRecipient, setSelectedRecipient] = React.useState<any>(null)
+   148→  const [composeSubject, setComposeSubject] = React.useState('')
+   149→  const [composeTemplate, setComposeTemplate] = React.useState('custom')
+   150→  const [composeMessage, setComposeMessage] = React.useState('')
+   151→  const [composeCtaUrl, setComposeCtaUrl] = React.useState('')
+   152→  const [composeCtaLabel, setComposeCtaLabel] = React.useState('')
+   153→
+   154→  // Broadcast
+   155→  const [isBroadcasting, setIsBroadcasting] = React.useState(false)
+   156→  const [broadcastRole, setBroadcastRole] = React.useState('ALL')
+   157→  const [broadcastSubject, setBroadcastSubject] = React.useState('')
+   158→  const [broadcastTemplate, setBroadcastTemplate] = React.useState('announcement')
+   159→  const [broadcastMessage, setBroadcastMessage] = React.useState('')
+   160→
+   161→  /* ─── Auth headers helper ─── */
+   162→  const getHeaders = () => ({
+   163→    'Content-Type': 'application/json',
+   164→    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+   165→  })
+   166→
+   167→  /* ─── Fetch Stats ─── */
+   168→  const fetchStats = React.useCallback(async () => {
+   169→    setIsLoadingStats(true)
+   170→    try {
+   171→      const res = await fetch('/api/email/stats', { headers: getHeaders() })
+   172→      const data = await res.json()
+   173→      if (res.ok) setStats(data)
+   174→    } catch (error) {
+   175→      console.error('Error fetching email stats:', error)
+   176→    } finally {
+   177→      setIsLoadingStats(false)
+   178→    }
+   179→  }, [token])
+   180→
+   181→  /* ─── Fetch History ─── */
+   182→  const fetchHistory = React.useCallback(async () => {
+   183→    setIsLoadingEmails(true)
+   184→    try {
+   185→      const params = new URLSearchParams()
+   186→      params.set('page', String(historyPage))
+   187→      if (statusFilter && statusFilter !== 'ALL') params.set('status', statusFilter)
+   188→      if (searchQuery) params.set('search', searchQuery)
+   189→
+   190→      const res = await fetch(`/api/email/history?${params.toString()}`, { headers: getHeaders() })
+   191→      const data = await res.json()
+   192→      if (res.ok) {
+   193→        setEmails(data.emails || [])
+   194→        setHistoryTotal(data.pagination?.total || 0)
+   195→      }
+   196→    } catch (error) {
+   197→      console.error('Error fetching email history:', error)
+   198→    } finally {
+   199→      setIsLoadingEmails(false)
+   200→    }
+   201→  }, [historyPage, statusFilter, searchQuery, token])
+   202→
+   203→  /* ─── Search Recipients ─── */
+   204→  const searchRecipients = React.useCallback(async (query: string) => {
+   205→    if (!query || query.length < 2) {
+   206→      setRecipientResults([])
+   207→      return
+   208→    }
+   209→    try {
+   210→      const params = new URLSearchParams()
+   211→      params.set('search', query)
+   212→      params.set('limit', '10')
+   213→      const res = await fetch(`/api/admin/users?${params.toString()}`, { headers: getHeaders() })
+   214→      const data = await res.json()
+   215→      if (res.ok) setRecipientResults(data.users || [])
+   216→    } catch (error) {
+   217→      console.error('Error searching recipients:', error)
+   218→    }
+   219→  }, [token])
+   220→
+   221→  React.useEffect(() => {
+   222→    fetchStats()
+   223→  }, [fetchStats])
+   224→
+   225→  React.useEffect(() => {
+   226→    if (subTab === 'history') fetchHistory()
+   227→  }, [subTab, fetchHistory])
+   228→
+   229→  React.useEffect(() => {
+   230→    const timer = setTimeout(() => searchRecipients(recipientSearch), 300)
+   231→    return () => clearTimeout(timer)
+   232→  }, [recipientSearch, searchRecipients])
+   233→
+   234→  /* ─── Send Single Email ─── */
+   235→  const handleSendEmail = async () => {
+   236→    if (!selectedRecipient || !composeSubject) {
+   237→      toast.error('Please select a recipient and enter a subject')
+   238→      return
+   239→    }
+   240→    setIsSending(true)
+   241→    try {
+   242→      const res = await fetch('/api/email/send', {
+   243→        method: 'POST',
+   244→        headers: getHeaders(),
+   245→        body: JSON.stringify({
+   246→          recipientId: selectedRecipient.id,
+   247→          subject: composeSubject,
+   248→          templateId: composeTemplate,
+   249→          message: composeMessage,
+   250→          ctaUrl: composeCtaUrl || undefined,
+   251→          ctaLabel: composeCtaLabel || undefined,
+   252→        }),
+   253→      })
+   254→      const data = await res.json()
+   255→
+   256→      if (!res.ok) {
+   257→        toast.error(data.error || 'Failed to send email')
+   258→        return
+   259→      }
+   260→
+   261→      toast.success(data.message || 'Email sent successfully')
+   262→      // Reset form
+   263→      setSelectedRecipient(null)
+   264→      setRecipientSearch('')
+   265→      setComposeSubject('')
+   266→      setComposeMessage('')
+   267→      setComposeCtaUrl('')
+   268→      setComposeCtaLabel('')
+   269→      fetchStats()
+   270→    } catch (error) {
+   271→      console.error('Send email error:', error)
+   272→      toast.error('Failed to send email')
+   273→    } finally {
+   274→      setIsSending(false)
+   275→    }
+   276→  }
+   277→
+   278→  /* ─── Broadcast Email ─── */
+   279→  const handleBroadcast = async () => {
+   280→    if (!broadcastSubject) {
+   281→      toast.error('Please enter a subject')
+   282→      return
+   283→    }
+   284→    setIsBroadcasting(true)
+   285→    try {
+   286→      const body: any = {
+   287→        subject: broadcastSubject,
+   288→        templateId: broadcastTemplate,
+   289→        message: broadcastMessage,
+   290→      }
+   291→
+   292→      if (broadcastRole && broadcastRole !== 'ALL') {
+   293→        body.roleFilter = broadcastRole
+   294→      }
+   295→
+   296→      const res = await fetch('/api/email/broadcast', {
+   297→        method: 'POST',
+   298→        headers: getHeaders(),
+   299→        body: JSON.stringify(body),
+   300→      })
+   301→      const data = await res.json()
+   302→
+   303→      if (!res.ok) {
+   304→        toast.error(data.error || 'Failed to broadcast')
+   305→        return
+   306→      }
+   307→
+   308→      toast.success(data.message || `Broadcast sent to ${data.totalSent} users`)
+   309→      setBroadcastSubject('')
+   310→      setBroadcastMessage('')
+   311→      fetchStats()
+   312→    } catch (error) {
+   313→      console.error('Broadcast error:', error)
+   314→      toast.error('Failed to broadcast email')
+   315→    } finally {
+   316→      setIsBroadcasting(false)
+   317→    }
+   318→  }
+   319→
+   320→  /* ─── Render ─── */
+   321→  return (
+   322→    <div className="space-y-6">
+   323→      {/* Stats Cards */}
+   324→      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+   325→        <Card className="border-emerald-500/20">
+   326→          <CardContent className="p-4">
+   327→            <div className="flex items-center gap-3">
+   328→              <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10">
+   329→                <Mail className="size-4 text-emerald-600" />
+   330→              </div>
+   331→              <div>
+   332→                <p className="text-xs text-muted-foreground">Total Sent</p>
+   333→                <p className="text-xl font-bold">{isLoadingStats ? '...' : stats.sent}</p>
+   334→              </div>
+   335→            </div>
+   336→          </CardContent>
+   337→        </Card>
+   338→        <Card className="border-green-500/20">
+   339→          <CardContent className="p-4">
+   340→            <div className="flex items-center gap-3">
+   341→              <div className="flex size-9 items-center justify-center rounded-lg bg-green-500/10">
+   342→                <CheckCircle2 className="size-4 text-green-600" />
+   343→              </div>
+   344→              <div>
+   345→                <p className="text-xs text-muted-foreground">Delivered</p>
+   346→                <p className="text-xl font-bold">{isLoadingStats ? '...' : stats.recentSent}</p>
+   347→              </div>
+   348→            </div>
+   349→          </CardContent>
+   350→        </Card>
+   351→        <Card className="border-amber-500/20">
+   352→          <CardContent className="p-4">
+   353→            <div className="flex items-center gap-3">
+   354→              <div className="flex size-9 items-center justify-center rounded-lg bg-amber-500/10">
+   355→                <Clock className="size-4 text-amber-600" />
+   356→              </div>
+   357→              <div>
+   358→                <p className="text-xs text-muted-foreground">Pending</p>
+   359→                <p className="text-xl font-bold">{isLoadingStats ? '...' : stats.pending}</p>
+   360→              </div>
+   361→            </div>
+   362→          </CardContent>
+   363→        </Card>
+   364→        <Card className="border-red-500/20">
+   365→          <CardContent className="p-4">
+   366→            <div className="flex items-center gap-3">
+   367→              <div className="flex size-9 items-center justify-center rounded-lg bg-red-500/10">
+   368→                <XCircle className="size-4 text-red-600" />
+   369→              </div>
+   370→              <div>
+   371→                <p className="text-xs text-muted-foreground">Failed</p>
+   372→                <p className="text-xl font-bold">{isLoadingStats ? '...' : stats.failed}</p>
+   373→              </div>
+   374→            </div>
+   375→          </CardContent>
+   376→        </Card>
+   377→      </div>
+   378→
+   379→      {/* Sub-tab Navigation */}
+   380→      <div className="flex gap-1.5 border-b border-border pb-0">
+   381→        {[
+   382→          { id: 'compose', label: 'Compose', icon: Send },
+   383→          { id: 'broadcast', label: 'Broadcast', icon: Radio },
+   384→          { id: 'history', label: 'History', icon: Clock },
+   385→        ].map((tab) => (
+   386→          <button
+   387→            key={tab.id}
+   388→            onClick={() => setSubTab(tab.id as any)}
+   389→            className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+   390→              subTab === tab.id
+   391→                ? 'border-emerald-500 text-emerald-600'
+   392→                : 'border-transparent text-muted-foreground hover:text-foreground'
+   393→            }`}
+   394→          >
+   395→            <tab.icon className="size-3.5" />
+   396→            {tab.label}
+   397→          </button>
+   398→        ))}
+   399→      </div>
+   400→
+   401→      {/* COMPOSE TAB */}
+   402→      {subTab === 'compose' && (
+   403→        <Card>
+   404→          <CardHeader>
+   405→            <div className="flex items-center gap-2">
+   406→              <Send className="size-5 text-emerald-600" />
+   407→              <CardTitle className="text-lg">Compose Email</CardTitle>
+   408→            </div>
+   409→            <CardDescription>
+   410→              Send an email to a specific user
+   411→            </CardDescription>
+   412→          </CardHeader>
+   413→          <CardContent className="space-y-5">
+   414→            {/* Recipient Search */}
+   415→            <div className="space-y-2">
+   416→              <Label>Recipient</Label>
+   417→              {selectedRecipient ? (
+   418→                <div className="flex items-center gap-3 p-3 rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20">
+   419→                  <div className="flex size-8 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 text-sm font-bold">
+   420→                    {selectedRecipient.firstName?.[0]}{selectedRecipient.lastName?.[0]}
+   421→                  </div>
+   422→                  <div className="flex-1">
+   423→                    <p className="text-sm font-medium">{selectedRecipient.firstName} {selectedRecipient.lastName}</p>
+   424→                    <p className="text-xs text-muted-foreground">{selectedRecipient.email} · {selectedRecipient.role}</p>
+   425→                  </div>
+   426→                  <Button
+   427→                    variant="ghost"
+   428→                    size="sm"
+   429→                    className="text-xs text-red-500 hover:text-red-700"
+   430→                    onClick={() => { setSelectedRecipient(null); setRecipientSearch('') }}
+   431→                  >
+   432→                    Remove
+   433→                  </Button>
+   434→                </div>
+   435→              ) : (
+   436→                <div className="relative">
+   437→                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   438→                  <Input
+   439→                    placeholder="Search by name or email..."
+   440→                    className="pl-9"
+   441→                    value={recipientSearch}
+   442→                    onChange={(e) => setRecipientSearch(e.target.value)}
+   443→                  />
+   444→                  {recipientResults.length > 0 && (
+   445→                    <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+   446→                      {recipientResults.map((u: any) => (
+   447→                        <button
+   448→                          key={u.id}
+   449→                          className="w-full text-left px-3 py-2 hover:bg-muted/50 flex items-center gap-3"
+   450→                          onClick={() => {
+   451→                            setSelectedRecipient(u)
+   452→                            setRecipientResults([])
+   453→                            setRecipientSearch('')
+   454→                          }}
+   455→                        >
+   456→                          <div className="flex size-7 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 text-xs font-bold">
+   457→                            {u.firstName?.[0]}{u.lastName?.[0]}
+   458→                          </div>
+   459→                          <div>
+   460→                            <p className="text-sm font-medium">{u.firstName} {u.lastName}</p>
+   461→                            <p className="text-xs text-muted-foreground">{u.email}</p>
+   462→                          </div>
+   463→                        </button>
+   464→                      ))}
+   465→                    </div>
+   466→                  )}
+   467→                </div>
+   468→              )}
+   469→            </div>
+   470→
+   471→            {/* Subject */}
+   472→            <div className="space-y-2">
+   473→              <Label>Subject</Label>
+   474→              <Input
+   475→                placeholder="Email subject line"
+   476→                value={composeSubject}
+   477→                onChange={(e) => setComposeSubject(e.target.value)}
+   478→              />
+   479→            </div>
+   480→
+   481→            {/* Template */}
+   482→            <div className="space-y-2">
+   483→              <Label>Email Template</Label>
+   484→              <Select value={composeTemplate} onValueChange={setComposeTemplate}>
+   485→                <SelectTrigger>
+   486→                  <SelectValue placeholder="Select template" />
+   487→                </SelectTrigger>
+   488→                <SelectContent>
+   489→                  {TEMPLATE_OPTIONS.map((opt) => (
+   490→                    <SelectItem key={opt.value} value={opt.value}>
+   491→                      {opt.label}
+   492→                    </SelectItem>
+   493→                  ))}
+   494→                </SelectContent>
+   495→              </Select>
+   496→            </div>
+   497→
+   498→            {/* Message */}
+   499→            <div className="space-y-2">
+   500→              <Label>Message</Label>
+   501→              <Textarea
+   502→                placeholder="Type your message here..."
+   503→                className="min-h-[150px]"
+   504→                value={composeMessage}
+   505→                onChange={(e) => setComposeMessage(e.target.value)}
+   506→              />
+   507→            </div>
+   508→
+   509→            {/* CTA (optional) */}
+   510→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   511→              <div className="space-y-2">
+   512→                <Label className="text-muted-foreground">CTA URL (optional)</Label>
+   513→                <Input
+   514→                  placeholder="https://..."
+   515→                  value={composeCtaUrl}
+   516→                  onChange={(e) => setComposeCtaUrl(e.target.value)}
+   517→                />
+   518→              </div>
+   519→              <div className="space-y-2">
+   520→                <Label className="text-muted-foreground">CTA Label (optional)</Label>
+   521→                <Input
+   522→                  placeholder="Go to Dashboard"
+   523→                  value={composeCtaLabel}
+   524→                  onChange={(e) => setComposeCtaLabel(e.target.value)}
+   525→                />
+   526→              </div>
+   527→            </div>
+   528→
+   529→            {/* Send Button */}
+   530→            <Button
+   531→              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+   532→              onClick={handleSendEmail}
+   533→              disabled={isSending || !selectedRecipient || !composeSubject}
+   534→            >
+   535→              {isSending ? (
+   536→                <>
+   537→                  <Loader2 className="size-4 animate-spin mr-2" />
+   538→                  Sending...
+   539→                </>
+   540→              ) : (
+   541→                <>
+   542→                  <Send className="size-4 mr-2" />
+   543→                  Send Email
+   544→                </>
+   545→              )}
+   546→            </Button>
+   547→          </CardContent>
+   548→        </Card>
+   549→      )}
+   550→
+   551→      {/* BROADCAST TAB */}
+   552→      {subTab === 'broadcast' && (
+   553→        <Card>
+   554→          <CardHeader>
+   555→            <div className="flex items-center gap-2">
+   556→              <Radio className="size-5 text-teal-600" />
+   557→              <CardTitle className="text-lg">Broadcast Email</CardTitle>
+   558→            </div>
+   559→            <CardDescription>
+   560→              Send the same email to all users, or filter by role. Max 100 recipients per broadcast.
+   561→            </CardDescription>
+   562→          </CardHeader>
+   563→          <CardContent className="space-y-5">
+   564→            {/* Role Filter */}
+   565→            <div className="space-y-2">
+   566→              <Label>Send to</Label>
+   567→              <Select value={broadcastRole} onValueChange={setBroadcastRole}>
+   568→                <SelectTrigger>
+   569→                  <SelectValue placeholder="Select recipients" />
+   570→                </SelectTrigger>
+   571→                <SelectContent>
+   572→                  <SelectItem value="ALL">All Active Users</SelectItem>
+   573→                  <SelectItem value="NURSE">All Nurses</SelectItem>
+   574→                  <SelectItem value="ADMIN">All Facility Admins</SelectItem>
+   575→                  <SelectItem value="SUPER_ADMIN">All Super Admins</SelectItem>
+   576→                  <SelectItem value="PATIENT">All Patients</SelectItem>
+   577→                </SelectContent>
+   578→              </Select>
+   579→            </div>
+   580→
+   581→            {/* Subject */}
+   582→            <div className="space-y-2">
+   583→              <Label>Subject</Label>
+   584→              <Input
+   585→                placeholder="Broadcast subject line"
+   586→                value={broadcastSubject}
+   587→                onChange={(e) => setBroadcastSubject(e.target.value)}
+   588→              />
+   589→            </div>
+   590→
+   591→            {/* Template */}
+   592→            <div className="space-y-2">
+   593→              <Label>Email Template</Label>
+   594→              <Select value={broadcastTemplate} onValueChange={setBroadcastTemplate}>
+   595→                <SelectTrigger>
+   596→                  <SelectValue placeholder="Select template" />
+   597→                </SelectTrigger>
+   598→                <SelectContent>
+   599→                  <SelectItem value="announcement">Announcement</SelectItem>
+   600→                  <SelectItem value="custom">Custom Message</SelectItem>
+   601→                </SelectContent>
+   602→              </Select>
+   603→            </div>
+   604→
+   605→            {/* Message */}
+   606→            <div className="space-y-2">
+   607→              <Label>Message</Label>
+   608→              <Textarea
+   609→                placeholder="Type your broadcast message here..."
+   610→                className="min-h-[200px]"
+   611→                value={broadcastMessage}
+   612→                onChange={(e) => setBroadcastMessage(e.target.value)}
+   613→              />
+   614→            </div>
+   615→
+   616→            {/* Warning */}
+   617→            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-500/20">
+   618→              <p className="text-xs text-amber-700 dark:text-amber-400">
+   619→                <strong>⚠ Note:</strong> Broadcasts are sent one at a time (500ms delay between each)
+   620→                to respect email provider rate limits. This may take a few minutes for large lists.
+   621→                Each email is individually logged in the History tab.
+   622→              </p>
+   623→            </div>
+   624→
+   625→            {/* Send Button */}
+   626→            <Button
+   627→              className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
+   628→              onClick={handleBroadcast}
+   629→              disabled={isBroadcasting || !broadcastSubject}
+   630→            >
+   631→              {isBroadcasting ? (
+   632→                <>
+   633→                  <Loader2 className="size-4 animate-spin mr-2" />
+   634→                  Broadcasting...
+   635→                </>
+   636→              ) : (
+   637→                <>
+   638→                  <Radio className="size-4 mr-2" />
+   639→                  Send Broadcast
+   640→                </>
+   641→              )}
+   642→            </Button>
+   643→          </CardContent>
+   644→        </Card>
+   645→      )}
+   646→
+   647→      {/* HISTORY TAB */}
+   648→      {subTab === 'history' && (
+   649→        <Card>
+   650→          <CardHeader>
+   651→            <div className="flex items-center justify-between">
+   652→              <div className="flex items-center gap-2">
+   653→                <Clock className="size-5 text-emerald-600" />
+   654→                <CardTitle className="text-lg">Email History</CardTitle>
+   655→              </div>
+   656→              <Button
+   657→                variant="outline"
+   658→                size="sm"
+   659→                className="border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+   660→                onClick={fetchHistory}
+   661→              >
+   662→                <RefreshCw className="size-3.5 mr-1" />
+   663→                Refresh
+   664→              </Button>
+   665→            </div>
+   666→            <CardDescription>
+   667→              View all emails sent from the platform
+   668→            </CardDescription>
+   669→            {/* Filters */}
+   670→            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+   671→              <div className="relative flex-1">
+   672→                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   673→                <Input
+   674→                  placeholder="Search by subject or email..."
+   675→                  className="pl-9 h-9"
+   676→                  value={searchQuery}
+   677→                  onChange={(e) => setSearchQuery(e.target.value)}
+   678→                />
+   679→              </div>
+   680→              <Select value={statusFilter} onValueChange={setStatusFilter}>
+   681→                <SelectTrigger className="w-full sm:w-[160px] h-9">
+   682→                  <SelectValue placeholder="Status" />
+   683→                </SelectTrigger>
+   684→                <SelectContent>
+   685→                  <SelectItem value="ALL">All Statuses</SelectItem>
+   686→                  <SelectItem value="SENT">Sent</SelectItem>
+   687→                  <SelectItem value="DELIVERED">Delivered</SelectItem>
+   688→                  <SelectItem value="PENDING">Pending</SelectItem>
+   689→                  <SelectItem value="FAILED">Failed</SelectItem>
+   690→                  <SelectItem value="BOUNCED">Bounced</SelectItem>
+   691→                </SelectContent>
+   692→              </Select>
+   693→            </div>
+   694→          </CardHeader>
+   695→          <CardContent>
+   696→            {isLoadingEmails ? (
+   697→              <div className="flex items-center justify-center py-12">
+   698→                <Loader2 className="size-6 animate-spin text-emerald-500" />
+   699→                <span className="ml-3 text-muted-foreground">Loading emails...</span>
+   700→              </div>
+   701→            ) : emails.length === 0 ? (
+   702→              <div className="flex flex-col items-center justify-center py-12 text-center">
+   703→                <Mail className="size-10 text-muted-foreground/50 mb-3" />
+   704→                <p className="text-sm font-medium">No emails found</p>
+   705→                <p className="text-xs text-muted-foreground mt-1">
+   706→                  Send your first email from the Compose tab.
+   707→                </p>
+   708→              </div>
+   709→            ) : (
+   710→              <>
+   711→                <div className="max-h-[500px] overflow-y-auto">
+   712→                  <Table>
+   713→                    <TableHeader>
+   714→                      <TableRow>
+   715→                        <TableHead>Recipient</TableHead>
+   716→                        <TableHead>Subject</TableHead>
+   717→                        <TableHead>Template</TableHead>
+   718→                        <TableHead>Status</TableHead>
+   719→                        <TableHead>Date</TableHead>
+   720→                      </TableRow>
+   721→                    </TableHeader>
+   722→                    <TableBody>
+   723→                      {emails.map((email) => (
+   724→                        <TableRow key={email.id}>
+   725→                          <TableCell>
+   726→                            <div>
+   727→                              <p className="text-sm font-medium">
+   728→                                {email.recipient.firstName} {email.recipient.lastName}
+   729→                              </p>
+   730→                              <p className="text-xs text-muted-foreground">{email.toEmail}</p>
+   731→                            </div>
+   732→                          </TableCell>
+   733→                          <TableCell className="text-sm max-w-[200px] truncate">
+   734→                            {email.subject}
+   735→                          </TableCell>
+   736→                          <TableCell>
+   737→                            <Badge variant="outline" className="text-[10px]">
+   738→                              {email.templateId || 'custom'}
+   739→                            </Badge>
+   740→                          </TableCell>
+   741→                          <TableCell>
+   742→                            <Badge
+   743→                              variant="outline"
+   744→                              className={`text-[10px] gap-1 ${statusColorMap[email.status] || ''}`}
+   745→                            >
+   746→                              {statusIconMap[email.status]}
+   747→                              {email.status}
+   748→                            </Badge>
+   749→                          </TableCell>
+   750→                          <TableCell className="text-xs text-muted-foreground">
+   751→                            {formatDate(email.sentAt || email.createdAt)}
+   752→                          </TableCell>
+   753→                        </TableRow>
+   754→                      ))}
+   755→                    </TableBody>
+   756→                  </Table>
+   757→                </div>
+   758→                <div className="flex items-center justify-between pt-4 text-xs text-muted-foreground">
+   759→                  <span>
+   760→                    Page {historyPage} · {historyTotal} total emails
+   761→                  </span>
+   762→                  <div className="flex gap-2">
+   763→                    <Button
+   764→                      variant="outline"
+   765→                      size="sm"
+   766→                      className="h-7 text-xs"
+   767→                      disabled={historyPage <= 1}
+   768→                      onClick={() => setHistoryPage(p => p - 1)}
+   769→                    >
+   770→                      Previous
+   771→                    </Button>
+   772→                    <Button
+   773→                      variant="outline"
+   774→                      size="sm"
+   775→                      className="h-7 text-xs"
+   776→                      disabled={emails.length < 50}
+   777→                      onClick={() => setHistoryPage(p => p + 1)}
+   778→                    >
+   779→                      Next
+   780→                    </Button>
+   781→                  </div>
+   782→                </div>
+   783→              </>
+   784→            )}
+   785→          </CardContent>
+   786→        </Card>
+   787→      )}
+   788→
+   789→      {/* Setup Instructions */}
+   790→      {stats.total === 0 && (
+   791→        <Card className="border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/20">
+   792→          <CardHeader>
+   793→            <CardTitle className="text-base flex items-center gap-2">
+   794→              <BarChart3 className="size-4 text-blue-600" />
+   795→              Email Setup Guide
+   796→            </CardTitle>
+   797→          </CardHeader>
+   798→          <CardContent className="text-sm text-muted-foreground space-y-3">
+   799→            <p>To start sending real emails, you need to configure Resend:</p>
+   800→            <ol className="list-decimal pl-5 space-y-2">
+   801→              <li>
+   802→                <strong>Create a free account</strong> at{' '}
+   803→                <a href="https://resend.com" target="_blank" className="text-emerald-600 underline">
+   804→                  resend.com
+   805→                </a>{' '}
+   806→                (100 free emails/day)
+   807→              </li>
+   808→              <li>
+   809→                <strong>Add & verify your domain</strong> in the Resend dashboard, or use their
+   810→                built-in <code className="bg-muted px-1 rounded">onboarding@resend.dev</code> for testing
+   811→              </li>
+   812→              <li>
+   813→                <strong>Generate an API key</strong> at{' '}
+   814→                <a href="https://resend.com/api-keys" target="_blank" className="text-emerald-600 underline">
+   815→                  resend.com/api-keys
+   816→                </a>
+   817→              </li>
+   818→              <li>
+   819→                <strong>Add environment variables</strong> to your Vercel project:
+   820→                <ul className="list-disc pl-5 mt-1 space-y-1">
+   821→                  <li><code className="bg-muted px-1 rounded">RESEND_API_KEY</code> = your API key</li>
+   822→                  <li><code className="bg-muted px-1 rounded">EMAIL_FROM</code> = NurseOS &lt;your@email.com&gt;</li>
+   823→                  <li><code className="bg-muted px-1 rounded">EMAIL_REPLY_TO</code> = support@yourdomain.com</li>
+   824→                </ul>
+   825→              </li>
+   826→              <li>
+   827→                <strong>Set up webhooks</strong> (optional) at{' '}
+   828→                <a href="https://resend.com/webhooks" target="_blank" className="text-emerald-600 underline">
+   829→                  resend.com/webhooks
+   830→                </a>{' '}
+   831→                pointing to <code className="bg-muted px-1 rounded">/api/email/webhook</code>
+   832→              </li>
+   833→            </ol>
+   834→            <p className="text-xs">
+   835→              Until the API key is configured, all emails will be logged with PENDING status but not actually sent.
+   836→            </p>
+   837→          </CardContent>
+   838→        </Card>
+   839→      )}
+   840→    </div>
+   841→  )
+   842→}
+   843→
