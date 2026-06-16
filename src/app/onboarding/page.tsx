@@ -267,7 +267,7 @@ export default function OnboardingPage() {
           toast.success("Account created! Waiting for admin approval.")
         }
       } else if (data.status === "ACTIVE" && data.token) {
-        // Student auto-enrolled (ACTIVE) — log them in
+        // Active user — auto-login (student auto-enrolled, OR admin who just created a new facility/institution)
         login({
           id: data.user?.id || crypto.randomUUID(),
           email: data.user?.email || oauthData?.email || "",
@@ -281,7 +281,20 @@ export default function OnboardingPage() {
           nurseProfileId: data.user?.nurseProfileId || null,
         }, data.token)
         sessionStorage.removeItem("nurseos-oauth")
-        toast.success("Welcome to NurseOS!")
+        // Show contextual welcome message
+        if (isAdmin && facilityMode === "new") {
+          toast.success(isInstitutionAdminRole
+            ? "Institution created! Welcome to NurseOS."
+            : "Facility created! Welcome to NurseOS.", {
+            description: isInstitutionAdminRole
+              ? "Your 1-week free trial has started."
+              : undefined,
+          })
+        } else if (isStudent) {
+          toast.success("Student account created! Welcome to NurseOS.")
+        } else {
+          toast.success("Welcome to NurseOS!")
+        }
         setTimeout(() => {
           window.location.href = "/dashboard"
         }, 500)

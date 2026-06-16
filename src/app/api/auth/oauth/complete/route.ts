@@ -186,9 +186,20 @@ export async function POST(request: NextRequest) {
     const studentLevelToStore = isStudent ? Number(studentLevel) : null
 
     // ── Determine status ──
-    // SECURITY: ALL new users start as PENDING (no auto-activation), EXCEPT:
-    //   - STUDENT → ACTIVE (auto-enrolled — they pick level + institution, no approval needed)
-    const userStatus = isStudent ? 'ACTIVE' : 'PENDING'
+    // The admin who CREATES a new facility/institution IS the admin — they should be ACTIVE immediately.
+    // No one is "above" them to approve their access. (Super Admin may still verify the facility separately,
+    // but that's a facility-level concern, not a user-account lock.)
+    //
+    //   - ADMIN / INSTITUTION_ADMIN creating a NEW facility → ACTIVE (they are the admin of the new facility)
+    //   - ADMIN / INSTITUTION_ADMIN joining an EXISTING facility → PENDING (existing admin must approve)
+    //   - STUDENT → ACTIVE (auto-enrolled — picks level + institution, no approval needed)
+    //   - LECTURER → PENDING (institution admin must approve)
+    //   - NURSE / DOCTOR / MATRON / OTHER → PENDING (facility admin must approve)
+    const createdNewFacility = facilityMode === 'new' && !!createdFacilityId
+    const userStatus =
+      (isAdmin && createdNewFacility) ? 'ACTIVE' :
+      isStudent ? 'ACTIVE' :
+      'PENDING'
 
     // ── Create user, profile, and subscription inside a transaction ──
     const result = await db.$transaction(async (tx) => {
@@ -372,8 +383,9 @@ export async function POST(request: NextRequest) {
       console.error('Notification error (non-critical):', notifError)
     }
 
-    // ── If student (auto-enrolled, ACTIVE) — create session and return token for auto-login ──
-    if (isStudent) {
+    // ── If user is ACTIVE (student auto-enrolled, OR admin who created a new facility/institution) ──
+    // Create a session and return a token so they can be auto-logged-in to the dashboard.
+    if (userStatus === 'ACTIVE') {
       const token = randomBytes(32).toString('hex')
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + 7)
@@ -393,6 +405,10 @@ export async function POST(request: NextRequest) {
         facilityName = f?.name || null
       }
 
+      // Normalize role for the client (SUPER_ADMIN recovery is done by the auth helper on subsequent requests;
+      // here we just send back what the client needs to know).
+      const clientRole = isAdmin ? 'ADMIN' : isStudent ? 'STUDENT' : effectiveRole
+
       const response = NextResponse.json({
         status: 'ACTIVE',
         token,
@@ -401,8 +417,8 @@ export async function POST(request: NextRequest) {
           email: result.user.email,
           firstName: result.user.firstName,
           lastName: result.user.lastName,
-          role: 'STUDENT',
-          academicRole: 'STUDENT',
+          role: clientRole,
+          academicRole: academicRoleToStore,
           studentLevel: studentLevelToStore,
           facilityId: resolvedFacilityId,
           facilityName,
@@ -420,22 +436,20 @@ export async function POST(request: NextRequest) {
       return response
     }
 
-    // ── Return response ──
-    const pendingMessage = isAdmin && createdFacilityId
-      ? (adminType === 'INSTITUTION'
-        ? 'Your institution has been registered! A NurseOS Super Admin will review and verify it. You will be notified once approved.'
-        : 'Your facility has been registered! A NurseOS Super Admin will review and verify it. You will be notified once approved.')
-      : isAdmin
-      ? 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.'
-      : isLecturer
+    // ── Return response (PENDING only — admin-creating-new-facility case is handled above as ACTIVE) ──
+    const pendingMessage =
+      isLecturer
       ? 'Your lecturer account has been created and is pending approval from your institution admin. You will be notified once approved.'
+      : isAdmin
+      ? (adminType === 'INSTITUTION'
+        ? 'Your account has been created. The existing institution admin needs to approve your access before you can sign in.'
+        : 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.')
       : 'Your account has been created. Please wait for the facility admin to approve your access.'
 
     return NextResponse.json({
       status: 'PENDING',
       message: pendingMessage,
       requiresApproval: true,
-      ...(isAdmin && createdFacilityId ? { facilityCreated: true, facilityName: newFacilityName } : {}),
     })
   } catch (error: unknown) {
     console.error('OAuth complete error:', error)

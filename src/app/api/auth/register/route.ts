@@ -282,15 +282,20 @@ export async function POST(request: NextRequest) {
                    ['ADMIN', 'SUPER_ADMIN'].includes(normalizedRole) ? 'ADMIN' : 'PATIENT'
 
     // ── Determine user status ──
-    // SECURITY: ALL new users start as PENDING (no auto-activation)
-    // - Admins creating NEW facilities → PENDING (requires SUPER_ADMIN to verify facility + approve admin)
-    // - Admins joining EXISTING facilities → PENDING (requires existing facility admin approval)
-    // - Healthcare workers → PENDING (requires facility admin approval)
-    // - LECTURERS → PENDING (requires institution admin approval)
-    // - STUDENTS → ACTIVE (auto-enrolled, no approval needed — they select their level + institution)
-    // - SUPER_ADMIN → ACTIVE only if created by another SUPER_ADMIN
+    // The admin who CREATES a new facility/institution IS the admin — they should be ACTIVE immediately.
+    // No one is "above" them to approve their access. (Super Admin may still verify the facility separately,
+    // but that's a facility-level concern, not a user-account lock.)
+    //
+    //   - SUPER_ADMIN (created by another SUPER_ADMIN) → ACTIVE
+    //   - ADMIN creating a NEW facility → ACTIVE (they are the admin of the new facility)
+    //   - ADMIN joining an EXISTING facility → PENDING (existing admin must approve)
+    //   - STUDENT → ACTIVE (auto-enrolled — picks level + institution, no approval needed)
+    //   - LECTURER → PENDING (institution admin must approve)
+    //   - NURSE / DOCTOR / MATRON / OTHER → PENDING (facility admin must approve)
+    const createdNewFacility = !!newFacilityCreated && !!facilityIdToAssign
     const userStatus =
       normalizedRole === 'SUPER_ADMIN' ? 'ACTIVE' :
+      (normalizedRole === 'ADMIN' && createdNewFacility) ? 'ACTIVE' :
       normalizedRole === 'STUDENT' ? 'ACTIVE' :
       'PENDING'
 
@@ -384,12 +389,12 @@ export async function POST(request: NextRequest) {
         resource: normalizedRole === 'ADMIN' && newFacilityCreated ? 'Facility' : 'User',
         resourceId: normalizedRole === 'ADMIN' && newFacilityCreated ? facilityIdToAssign! : user.id,
         details: normalizedRole === 'ADMIN' && newFacilityCreated
-          ? `New facility application: ${newFacility.name} (Reg: ${newFacility.registrationNumber}) — admin ${firstName} ${lastName} (${email}). Requires SUPER_ADMIN verification.`
+          ? `New ${adminType === 'INSTITUTION' ? 'institution' : 'facility'}: ${newFacility.name}${newFacility.registrationNumber ? ` (Reg: ${newFacility.registrationNumber})` : ''} — admin ${firstName} ${lastName} (${email}). Admin is ACTIVE.${adminType === 'INSTITUTION' ? ' 1-week free trial started.' : ' Super Admin may verify facility.'}`
           : `New ${normalizedRole} registered${facilityIdToAssign ? ' at facility: ' + facilityIdToAssign : ''} — pending approval`,
       },
     })
 
-    // ── Notify SUPER_ADMIN about new facility applications ──
+    // ── Notify SUPER_ADMIN about new facility creation (FYI — admin is already ACTIVE) ──
     if (normalizedRole === 'ADMIN' && newFacilityCreated) {
       // Find all SUPER_ADMIN users to notify
       const superAdmins = await db.adminProfile.findMany({
@@ -397,20 +402,28 @@ export async function POST(request: NextRequest) {
         include: { user: { select: { id: true } } },
       })
 
+      const isInstAdmin = adminType === 'INSTITUTION'
+      const regNumInfo = newFacility.registrationNumber
+        ? ` Registration #: ${newFacility.registrationNumber}.`
+        : ''
+
       for (const sa of superAdmins) {
         if (sa.user?.id) {
           await db.notification.create({
             data: {
               userId: sa.user.id,
               type: 'FACILITY_VERIFICATION',
-              title: 'New Facility Application Requires Verification',
-              message: `${firstName} ${lastName} (${email}) has applied to register "${newFacility.name}" in ${newFacility.city || newFacility.state}. Registration #: ${newFacility.registrationNumber}. Please verify and approve or reject this facility.`,
+              title: isInstAdmin
+                ? 'New Institution Registered'
+                : 'New Facility Application Requires Verification',
+              message: `${firstName} ${lastName} (${email}) has registered "${newFacility.name}" in ${newFacility.city || newFacility.state}.${regNumInfo} ${isInstAdmin ? 'Institution admin is already active — 1-week free trial started.' : 'Please verify the facility when convenient.'}`,
               data: JSON.stringify({
                 facilityId: facilityIdToAssign,
                 facilityName: newFacility.name,
                 adminUserId: user.id,
                 adminEmail: email,
-                registrationNumber: newFacility.registrationNumber,
+                registrationNumber: newFacility.registrationNumber || null,
+                adminType: adminType || 'FACILITY',
               }),
             },
           })
@@ -469,7 +482,10 @@ export async function POST(request: NextRequest) {
 
     // ── Return response based on status ──
     if (userStatus === 'ACTIVE') {
-      // Auto-login for SUPER_ADMIN (created by another SUPER_ADMIN) and STUDENT (auto-enrolled)
+      // Auto-login for:
+      //   - SUPER_ADMIN (created by another SUPER_ADMIN)
+      //   - STUDENT (auto-enrolled)
+      //   - ADMIN who just CREATED a new facility/institution (they ARE the admin — no one above them to approve)
       const token = randomBytes(32).toString('hex')
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + 7)
@@ -495,6 +511,8 @@ export async function POST(request: NextRequest) {
         ? 'Super Admin account created successfully'
         : normalizedRole === 'STUDENT'
         ? 'Student account created! Welcome to NurseOS.'
+        : (normalizedRole === 'ADMIN' && createdNewFacility)
+        ? 'Your facility has been created! Welcome to NurseOS.'
         : 'Account created successfully'
 
       const response = NextResponse.json(
@@ -506,9 +524,10 @@ export async function POST(request: NextRequest) {
             firstName: user.firstName,
             lastName: user.lastName,
             role: normalizedRole === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (academicRoleToStore || dbRole),
+            academicRole: academicRoleToStore,
+            studentLevel: studentLevelToStore,
             facilityId: facilityIdToAssign,
             facilityName: fullUser?.facility?.name || null,
-            studentLevel: studentLevelToStore,
           },
           token,
           originalRole: normalizedRole,
@@ -529,12 +548,11 @@ export async function POST(request: NextRequest) {
     }
 
     // All other users: PENDING status — no auto-login
-    const pendingMessage = normalizedRole === 'ADMIN' && newFacilityCreated
-      ? 'Your facility application has been submitted! A NurseOS Super Admin will review and verify your facility. You will be notified once approved. This typically takes 1-2 business days.'
+    // (Lecturer waiting for institution admin approval, or nurse/doctor/matron/other/admin-joining-existing waiting for facility admin approval)
+    const pendingMessage = normalizedRole === 'LECTURER'
+      ? 'Your lecturer account has been created and is pending approval from your institution admin. You will be notified once approved and can then sign in.'
       : normalizedRole === 'ADMIN'
       ? 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.'
-      : normalizedRole === 'LECTURER'
-      ? 'Your lecturer account has been created and is pending approval from your institution admin. You will be notified once approved and can then sign in.'
       : 'Your account has been created and is pending approval from your facility admin. You will be notified once approved.'
 
     return NextResponse.json(
