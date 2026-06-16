@@ -88,20 +88,22 @@ interface NavSection {
 }
 
 // Role-based visibility for nav sections
-// SUPER_ADMIN: sees everything (admin section + all nav sections)
-// ADMIN: sees admin section + all nav sections
-// NURSE/MATRON/DOCTOR: sees NurseAI, CareGrid (limited), NurseID, Academy
-// STUDENT: sees Academy, NurseID (limited), Academic
-// LECTURER: sees Academic, NurseID, Academy
-// OTHER: sees NurseAI, CareGrid, NurseID
+// Each role sees ONLY the sections relevant to them:
+//   - SUPER_ADMIN: all 5 modules (manages everything)
+//   - ADMIN at hospital: all 5 modules + admin dashboard (manages facility)
+//   - ADMIN at UNIVERSITY/SCHOOL_OF_NURSING: ONLY Academic section (institution admin dashboard is their main page)
+//   - NURSE/MATRON/DOCTOR/OTHER at hospital: all 5 modules (healthcare workers)
+//   - STUDENT: ONLY Academic section (course materials + announcements — NO patient content, NO 5 modules)
+//   - LECTURER: ONLY Academic section (course materials + shared + announcements — NO patient content, NO 5 modules)
+//   - PATIENT: nothing
 const roleNavVisibility: Record<string, string[]> = {
   SUPER_ADMIN: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
-  ADMIN: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
+  ADMIN: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],  // hospital admin — overridden below for institution admin
   NURSE: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
   MATRON: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
   DOCTOR: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
-  STUDENT: ['NurseID', 'Academy', 'Academic'],
-  LECTURER: ['Academic', 'NurseID', 'Academy'],
+  STUDENT: ['Academic'],               // ONLY academic — no 5 modules, no patient content
+  LECTURER: ['Academic'],              // ONLY academic — no 5 modules, no patient content
   OTHER: ['NurseAI', 'CareGrid', 'NurseID'],
   PATIENT: [],
 }
@@ -261,6 +263,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const lastName = user?.lastName || ""
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
   const userRole = user?.role || "Nurse"
+  const academicRole = user?.academicRole
+  const facilityType = user?.facilityType
 
   const handleSignOut = async () => {
     // Call the server-side logout API to clear the HttpOnly cookie
@@ -269,10 +273,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     window.location.href = "/login"
   }
 
+  // Determine if this is an institution admin (ADMIN at UNIVERSITY / SCHOOL_OF_NURSING)
+  const isInstitutionAdmin = userRole === 'ADMIN' && (facilityType === 'UNIVERSITY' || facilityType === 'SCHOOL_OF_NURSING')
+
   // Determine the admin dashboard path based on role
   const adminDashboardPath = userRole === 'SUPER_ADMIN' ? '/superadmin' : '/admin'
-  const adminDashboardLabel = userRole === 'SUPER_ADMIN' ? 'Super Admin Dashboard' : 'Facility Admin Dashboard'
+  const adminDashboardLabel = userRole === 'SUPER_ADMIN'
+    ? 'Super Admin Dashboard'
+    : isInstitutionAdmin
+    ? 'Institution Admin Dashboard'
+    : 'Facility Admin Dashboard'
   const showAdminSection = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+
+  // Override nav visibility for institution admin — they get ONLY the Academic section (no 5 modules)
+  // Hospital admins keep the 5 modules (they manage a healthcare facility)
+  const effectiveNavVisibility = isInstitutionAdmin
+    ? ['Academic']  // institution admin: ONLY academic section
+    : roleNavVisibility[userRole] || roleNavVisibility['NURSE']
+
+  // For institution roles (student, lecturer, institution admin), the "Dashboard Home" link
+  // should be labeled "My Dashboard" and link to /dashboard (which renders their role-specific page).
+  // For hospital admins and super admin, "Dashboard Home" is hidden — they use their admin dashboard link instead.
+  // For hospital healthcare workers (nurse, doctor, matron, other), "Dashboard Home" shows the general hospital dashboard.
+  const isAcademicRole = academicRole === 'STUDENT' || academicRole === 'LECTURER' || isInstitutionAdmin
+  const showDashboardHome = !showAdminSection  // hospital workers + academic roles see "Dashboard Home"; admins use their admin dashboard link
+  const dashboardHomeLabel = isAcademicRole ? 'My Dashboard' : 'Dashboard Home'
 
   return (
     <Sidebar
@@ -320,38 +345,46 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
 
-        {/* Dashboard Home link */}
+        {/* Dashboard Home link — role-aware */}
+        {/* For admin roles (SUPER_ADMIN, ADMIN): HIDDEN — they use their admin dashboard link below */}
+        {/* For hospital workers (NURSE, DOCTOR, MATRON, OTHER): shows "Dashboard Home" → /dashboard (general hospital dashboard) */}
+        {/* For academic roles (STUDENT, LECTURER, INSTITUTION_ADMIN): shows "My Dashboard" → /dashboard (role-specific academic dashboard) */}
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname === "/dashboard"}
-              tooltip="Dashboard"
-              className={
-                pathname === "/dashboard"
-                  ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 font-medium"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
-              }
-            >
-              <Link href="/dashboard">
-                <LayoutDashboard className="size-4" />
-                <span>Dashboard Home</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={false}
-              tooltip="Healthcare News"
-              className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
-            >
-              <Link href="/dashboard#news">
-                <Newspaper className="size-4" />
-                <span>News</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {showDashboardHome && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === "/dashboard"}
+                tooltip={dashboardHomeLabel}
+                className={
+                  pathname === "/dashboard"
+                    ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 font-medium"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                }
+              >
+                <Link href="/dashboard">
+                  <LayoutDashboard className="size-4" />
+                  <span>{dashboardHomeLabel}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {/* News link — only for hospital roles (not academic roles) */}
+          {!isAcademicRole && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={false}
+                tooltip="Healthcare News"
+                className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+              >
+                <Link href="/dashboard#news">
+                  <Newspaper className="size-4" />
+                  <span>News</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
 
         <SidebarSeparator className="bg-slate-700/50" />
@@ -365,7 +398,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarGroupLabel asChild>
               <span className="flex items-center gap-2">
                 <Crown className="size-3.5 text-emerald-400" />
-                {userRole === 'SUPER_ADMIN' ? 'Super Admin' : 'Facility Admin'}
+                {userRole === 'SUPER_ADMIN' ? 'Super Admin' : isInstitutionAdmin ? 'Institution Admin' : 'Facility Admin'}
               </span>
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -428,7 +461,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {navSections
           .filter((section) => {
             // Filter sections based on the user's role
-            const allowedSections = roleNavVisibility[userRole] || roleNavVisibility['NURSE']
+            const allowedSections = effectiveNavVisibility
             return allowedSections.includes(section.title)
           })
           .map((section) => (
@@ -446,18 +479,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarSeparator className="bg-slate-700/50 mb-2" />
 
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              tooltip="Subscription"
-              className="text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-            >
-              <Link href="/subscription">
-                <Crown className="size-4" />
-                <span>Subscription</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {/* Subscription — only for admins (they manage the facility/institution subscription). Hidden from students, lecturers, and other workers. */}
+          {showAdminSection && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip="Subscription"
+                className="text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+              >
+                <Link href="/subscription">
+                  <Crown className="size-4" />
+                  <span>Subscription</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
@@ -504,7 +540,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-200 truncate">{firstName} {lastName}</p>
-            <p className="text-[10px] text-slate-400 truncate">{userRole === 'SUPER_ADMIN' ? 'Super Admin' : userRole === 'ADMIN' ? 'Facility Admin' : userRole} — NurseOS</p>
+            <p className="text-[10px] text-slate-400 truncate">{
+              userRole === 'SUPER_ADMIN' ? 'Super Admin'
+              : isInstitutionAdmin ? 'Institution Admin'
+              : userRole === 'ADMIN' ? 'Facility Admin'
+              : academicRole === 'STUDENT' ? 'Nursing Student'
+              : academicRole === 'LECTURER' ? 'Lecturer'
+              : userRole
+            } — NurseOS</p>
           </div>
         </div>
       </SidebarFooter>

@@ -127,6 +127,13 @@ export async function POST(request: NextRequest) {
       user.adminProfile?.facility?.name ||
       null
 
+    // Fetch facility type so the sidebar can differentiate hospital admin from institution admin
+    let facilityType: string | null = null
+    if (facilityId) {
+      const f = await db.facility.findUnique({ where: { id: facilityId }, select: { type: true } })
+      facilityType = f?.type || null
+    }
+
     const nurseProfileId = user.nurseProfile?.id || null
 
     // Return user data without password hash, plus facility info
@@ -146,6 +153,7 @@ export async function POST(request: NextRequest) {
       // Top-level facility context for easy client access
       facilityId,
       facilityName,
+      facilityType,
       nurseProfileId,
     })
 

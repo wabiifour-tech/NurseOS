@@ -406,11 +406,13 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Fetch facility name
+      // Fetch facility name + type
       let facilityName: string | null = null
+      let facilityType: string | null = null
       if (resolvedFacilityId) {
-        const f = await db.facility.findUnique({ where: { id: resolvedFacilityId }, select: { name: true } })
+        const f = await db.facility.findUnique({ where: { id: resolvedFacilityId }, select: { name: true, type: true } })
         facilityName = f?.name || null
+        facilityType = f?.type || null
       }
 
       // Normalize role for the client (SUPER_ADMIN recovery is done by the auth helper on subsequent requests;
@@ -431,6 +433,7 @@ export async function POST(request: NextRequest) {
           matricNumber: matricNumberToStore,
           facilityId: resolvedFacilityId,
           facilityName,
+          facilityType,
         },
       })
 

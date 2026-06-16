@@ -12,6 +12,7 @@ interface User {
   avatarUrl?: string;
   facilityId?: string | null;
   facilityName?: string | null;
+  facilityType?: string | null;   // HOSPITAL | UNIVERSITY | SCHOOL_OF_NURSING | etc. — used to differentiate institution admin from hospital admin
   nurseProfileId?: string | null;
   subscriptionPlan?: string;
   subscriptionStatus?: string;

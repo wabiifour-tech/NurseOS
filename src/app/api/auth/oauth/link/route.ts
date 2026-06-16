@@ -67,9 +67,11 @@ export async function POST(request: NextRequest) {
         // Resolve facility
         const facilityId = existingUser.nurseProfile?.currentFacilityId || existingUser.adminProfile?.facilityId || null
         let facilityName: string | null = null
+        let facilityType: string | null = null
         if (facilityId) {
-          const facility = await db.facility.findUnique({ where: { id: facilityId }, select: { name: true } })
+          const facility = await db.facility.findUnique({ where: { id: facilityId }, select: { name: true, type: true } })
           facilityName = facility?.name || null
+          facilityType = facility?.type || null
         }
 
         // Normalize role
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
             studentLevel: existingUser.studentLevel ?? null,
             facilityId,
             facilityName,
+            facilityType,
             nurseProfileId: existingUser.nurseProfile?.id || null,
             avatarUrl: existingUser.avatarUrl,
           },

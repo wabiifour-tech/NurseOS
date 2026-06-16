@@ -53,6 +53,13 @@ export async function GET(request: NextRequest) {
       user.adminProfile?.facility?.name ||
       null
 
+    // Fetch facility type so the sidebar can differentiate hospital admin from institution admin
+    let facilityType: string | null = null
+    if (facilityId) {
+      const f = await db.facility.findUnique({ where: { id: facilityId }, select: { type: true } })
+      facilityType = f?.type || null
+    }
+
     const nurseProfileId = user.nurseProfile?.id || null
 
     // Get the current active session token
@@ -92,6 +99,7 @@ export async function GET(request: NextRequest) {
       token,
       facilityId,
       facilityName,
+      facilityType,
       nurseProfileId,
     })
   } catch (error) {

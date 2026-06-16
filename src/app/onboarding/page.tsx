@@ -284,6 +284,7 @@ export default function OnboardingPage() {
           studentLevel: data.user?.studentLevel ?? (isStudent ? Number(selectedStudentLevel) : null),
           facilityId: data.user?.facilityId || null,
           facilityName: data.user?.facilityName || null,
+          facilityType: data.user?.facilityType || null,
           nurseProfileId: data.user?.nurseProfileId || null,
         }, data.token)
         sessionStorage.removeItem("nurseos-oauth")

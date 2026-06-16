@@ -59,6 +59,7 @@ export default function AuthCallbackPage() {
                   avatarUrl: data.user.avatarUrl || null,
                   facilityId: data.user.facilityId || null,
                   facilityName: data.user.facilityName || null,
+                  facilityType: data.user.facilityType || null,
                   nurseProfileId: data.user.nurseProfileId || null,
                 },
                 token: data.token,

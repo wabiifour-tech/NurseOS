@@ -561,6 +561,7 @@ export default function DashboardLayout({
             studentLevel: data.user.studentLevel ?? null,
             facilityId: data.facilityId || data.user.nurseProfile?.currentFacilityId || data.user.adminProfile?.facilityId || null,
             facilityName: data.facilityName || data.user.nurseProfile?.facility?.name || data.user.adminProfile?.facility?.name || null,
+            facilityType: data.facilityType || null,
             nurseProfileId: data.nurseProfileId || data.user.nurseProfile?.id || null,
           }, data.token)
           setAuthChecked(true)

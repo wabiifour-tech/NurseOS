@@ -91,6 +91,7 @@ function LoginForm() {
         studentLevel: result.user.studentLevel ?? null,
         facilityId: result.facilityId || null,
         facilityName: result.facilityName || null,
+        facilityType: result.facilityType || result.user.facilityType || null,
         nurseProfileId: result.nurseProfileId || null,
       }, result.token);
 
