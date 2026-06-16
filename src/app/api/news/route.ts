@@ -111,9 +111,13 @@ export async function GET() {
       return NextResponse.json({ news: cachedNews.data, cached: true, stale: true })
     }
 
+    // No cache available — return an empty list with a 200 status so the
+    // client can show a graceful "No news available yet" empty state
+    // instead of an error screen. This handles transient failures such as
+    // the upstream web_search rate limit (HTTP 429) without breaking the UI.
     return NextResponse.json(
-      { error: 'Failed to fetch healthcare news', news: [] },
-      { status: 500 }
+      { news: [], cached: false, unavailable: true },
+      { status: 200 }
     )
   }
 }

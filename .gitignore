@@ -50,6 +50,20 @@ test
 prompt
 
 server.log
-# Skills directory
-/skills/tool-results/
-NurseOS/
+
+# ─── Project-unrelated directories (do not commit) ───
+# These are tooling / scratch dirs that should never end up in the repo.
+/skills/
+/tool-results/
+/NurseOS/
+/download/
+/.agent-ctx/
+/.z-ai-config/
+/.claude/
+
+# ─── Backups & temp files ───
+*.bak
+*.tmp
+*.swp
+*~
+

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import { toast } from 'sonner'
 import {
@@ -141,8 +142,10 @@ const planColorMap: Record<string, string> = {
 }
 
 /* ─── Main Page ─── */
-export default function SuperAdminDashboard() {
+function SuperAdminDashboard() {
   const { user, token } = useAuthStore()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   /* ─── State ─── */
   const [subscriptions, setSubscriptions] = React.useState<SubscriptionRow[]>([])
@@ -183,8 +186,35 @@ export default function SuperAdminDashboard() {
   const [newAdminEmail, setNewAdminEmail] = React.useState('')
   const [newAdminPassword, setNewAdminPassword] = React.useState('')
 
-  // Active tab
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'subscriptions' | 'facility-approvals' | 'facilities' | 'users' | 'email'>('overview')
+  // Active tab — initialize from URL ?tab= param so sidebar "Email Center"
+  // link (/superadmin?tab=email) actually opens the email tab.
+  const validTabs = ['overview', 'subscriptions', 'facility-approvals', 'facilities', 'users', 'email'] as const
+  type TabId = (typeof validTabs)[number]
+  const tabFromUrl = searchParams.get('tab') as TabId | null
+  const [activeTab, setActiveTab] = React.useState<TabId>(
+    tabFromUrl && (validTabs as readonly string[]).includes(tabFromUrl) ? tabFromUrl : 'overview'
+  )
+
+  // Keep activeTab in sync when the URL ?tab= changes (e.g. user clicks the sidebar Email Center link)
+  React.useEffect(() => {
+    if (tabFromUrl && (validTabs as readonly string[]).includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabFromUrl])
+
+  // Helper to switch tabs and update the URL query param
+  const switchTab = React.useCallback((tab: TabId) => {
+    setActiveTab(tab)
+    const params = new URLSearchParams(Array.from(searchParams.entries()))
+    if (tab === 'overview') {
+      params.delete('tab')
+    } else {
+      params.set('tab', tab)
+    }
+    const qs = params.toString()
+    router.replace(qs ? `/superadmin?${qs}` : '/superadmin', { scroll: false })
+  }, [router, searchParams])
 
   // Facilities & Users state
   const [facilities, setFacilities] = React.useState<any[]>([])
@@ -267,6 +297,23 @@ export default function SuperAdminDashboard() {
     }
   }, [user?.id, token])
 
+  /* ─── Fetch facility approvals ─── */
+  const fetchFacilityApprovals = React.useCallback(async () => {
+    setIsLoadingApprovals(true)
+    try {
+      const res = await authFetch('/api/superadmin/facilities?status=pending')
+      const data = await res.json()
+      if (res.ok) {
+        setFacilityApprovals(data.pendingFacilities || data.facilities || [])
+      }
+    } catch (error) {
+      console.error('Error fetching facility approvals:', error)
+      toast.error('Failed to load facility approvals')
+    } finally {
+      setIsLoadingApprovals(false)
+    }
+  }, [user?.id, token])
+
   React.useEffect(() => {
     fetchSubscriptions()
   }, [fetchSubscriptions])
@@ -316,23 +363,6 @@ export default function SuperAdminDashboard() {
   React.useEffect(() => {
     if (activeTab === 'users') fetchUsers()
   }, [activeTab, fetchUsers])
-
-  /* ─── Fetch facility approvals ─── */
-  const fetchFacilityApprovals = React.useCallback(async () => {
-    setIsLoadingApprovals(true)
-    try {
-      const res = await authFetch('/api/superadmin/facilities?status=pending')
-      const data = await res.json()
-      if (res.ok) {
-        setFacilityApprovals(data.pendingFacilities || [])
-      }
-    } catch (error) {
-      console.error('Error fetching facility approvals:', error)
-      toast.error('Failed to load facility approvals')
-    } finally {
-      setIsLoadingApprovals(false)
-    }
-  }, [user?.id, token])
 
   React.useEffect(() => {
     if (activeTab === 'facility-approvals') fetchFacilityApprovals()
@@ -574,7 +604,7 @@ export default function SuperAdminDashboard() {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => switchTab(tab.id as any)}
             className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-emerald-500 text-emerald-600'
@@ -1062,7 +1092,7 @@ export default function SuperAdminDashboard() {
                 <Button
                   size="sm"
                   className="bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white text-xs"
-                  onClick={() => setActiveTab('email')}
+                  onClick={() => switchTab('email')}
                 >
                   <Mail className="size-3.5 mr-1.5" />
                   Go to Email Dashboard
@@ -1947,5 +1977,26 @@ export default function SuperAdminDashboard() {
         <EmailDashboard user={user} token={token} />
       )}
     </div>
+  )
+}
+
+/* ─── Suspense wrapper ───
+   Next.js App Router requires components that use `useSearchParams` to be
+   wrapped in a Suspense boundary, otherwise the entire route opts out of
+   static rendering. We export a thin wrapper that provides the boundary. */
+export default function SuperAdminPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <div className="size-5 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+            <span className="text-sm">Loading Super Admin Dashboard…</span>
+          </div>
+        </div>
+      }
+    >
+      <SuperAdminDashboard />
+    </React.Suspense>
   )
 }
