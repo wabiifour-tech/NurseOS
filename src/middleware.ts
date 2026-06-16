@@ -33,6 +33,7 @@ const nonIndexablePublicRoutes = [
   '/forgot-password',
   '/onboarding',
   '/auth/callback',
+  '/setup',
 ]
 
 // All public routes combined
