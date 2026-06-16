@@ -188,7 +188,7 @@ function SuperAdminDashboard() {
 
   // Active tab — initialize from URL ?tab= param so sidebar "Email Center"
   // link (/superadmin?tab=email) actually opens the email tab.
-  const validTabs = ['overview', 'subscriptions', 'facility-approvals', 'facilities', 'users', 'email'] as const
+  const validTabs = ['overview', 'facility-approvals', 'facilities', 'users', 'email'] as const
   type TabId = (typeof validTabs)[number]
   const tabFromUrl = searchParams.get('tab') as TabId | null
   const [activeTab, setActiveTab] = React.useState<TabId>(
@@ -596,7 +596,7 @@ function SuperAdminDashboard() {
       <div className="flex gap-1.5 border-b border-border pb-0 overflow-x-auto">
         {[
           { id: 'overview', label: 'Overview', icon: Activity },
-          { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
+          // Subscription tab REMOVED — NurseOS is free forever
           { id: 'facility-approvals', label: 'Facility Approvals', icon: ShieldCheck, badge: facilityApprovals.length || undefined },
           { id: 'facilities', label: 'Facilities', icon: Building2 },
           { id: 'users', label: 'Users', icon: Users },

@@ -479,21 +479,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarSeparator className="bg-slate-700/50 mb-2" />
 
         <SidebarMenu>
-          {/* Subscription — only for admins (they manage the facility/institution subscription). Hidden from students, lecturers, and other workers. */}
-          {showAdminSection && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip="Subscription"
-                className="text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-              >
-                <Link href="/subscription">
-                  <Crown className="size-4" />
-                  <span>Subscription</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          {/* Subscription feature REMOVED — NurseOS is free forever, no payments */}
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild

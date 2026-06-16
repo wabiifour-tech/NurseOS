@@ -253,6 +253,16 @@ export async function POST(request: NextRequest) {
       newFacilityCreated = true
     }
 
+    // ─── FACILITY ASSIGNMENT IS MANDATORY ───
+    // Every user (except SUPER_ADMIN) MUST be assigned to a facility. No exceptions.
+    // This is a hard requirement — users without a facility have no scope for their data.
+    if (normalizedRole !== 'SUPER_ADMIN' && !facilityIdToAssign) {
+      return NextResponse.json(
+        { error: 'Facility assignment is required. Please select an existing facility or create a new one.' },
+        { status: 400 }
+      )
+    }
+
     // Check if user already exists — STRONG duplicate check (case-insensitive)
     // The DB unique constraint is case-sensitive on PostgreSQL by default, so we normalize
     // to lowercase both at storage and lookup time. This prevents duplicates that would

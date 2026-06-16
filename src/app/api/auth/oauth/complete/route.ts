@@ -181,6 +181,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ─── FACILITY ASSIGNMENT IS MANDATORY ───
+    // Every user MUST be assigned to a facility. No exceptions.
+    if (!resolvedFacilityId) {
+      return NextResponse.json(
+        { error: 'Facility assignment is required. Please select an existing facility or create a new one.' },
+        { status: 400 }
+      )
+    }
+
     // ── Map role to DB role ──
     // LECTURER + STUDENT + NURSE + MATRON + OTHER all map to NURSE in the DB role enum
     const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER'].includes(effectiveRole) ? 'NURSE' :

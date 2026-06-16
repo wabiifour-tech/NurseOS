@@ -34,6 +34,7 @@ const nonIndexablePublicRoutes = [
   '/onboarding',
   '/auth/callback',
   '/setup',
+  '/test-login',
 ]
 
 // All public routes combined
@@ -51,6 +52,7 @@ const publicApiRoutes = [
   '/api/auth/oauth/link',
   '/api/auth/oauth/complete',
   '/api/auth/setup-status',
+  '/api/auth/dev-login',
   '/api/facilities/public',
   '/api/health',
   '/api/setup',

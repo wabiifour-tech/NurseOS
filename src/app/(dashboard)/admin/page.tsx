@@ -496,203 +496,47 @@ export default function FacilityAdminDashboard() {
         </Card>
       </div>
 
-      {/* ── Subscription & Plan Section ── */}
-      <Card className="border-emerald-500/20">
+      {/* ── Plan Section — FREE FOREVER (subscription feature removed) ── */}
+      <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-50/40 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/20">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Crown className="size-5 text-emerald-600" />
-              <CardTitle className="text-lg">Subscription & Plan</CardTitle>
-            </div>
-            <Badge className={PLAN_COLORS[currentPlan]}>
-              {currentLimits.name}
-            </Badge>
+          <div className="flex items-center gap-2">
+            <Crown className="size-5 text-emerald-600" />
+            <CardTitle className="text-lg">Your Plan</CardTitle>
           </div>
-          <CardDescription>Your facility's subscription and usage</CardDescription>
+          <CardDescription>NurseOS is free forever — no subscription required</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Plan status */}
+        <CardContent>
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className={statusColorMap[planStatus] || ''}>
-              {planStatus}
+            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+              <Check className="size-3 mr-1" />Active · Free Forever
             </Badge>
-            {data?.subscription?.currentPeriodEnd && (
-              <span className="text-xs text-muted-foreground">
-                {planStatus === 'ACTIVE'
-                  ? `Renews ${formatDate(data.subscription.currentPeriodEnd)}`
-                  : planStatus === 'TRIALING'
-                  ? `Trial ends ${formatDate(data.subscription.trialEndsAt || data.subscription.currentPeriodEnd)}`
-                  : ''}
-              </span>
-            )}
           </div>
-
-          <Separator />
-
-          {/* Usage */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-              <p className="text-xs text-muted-foreground">Patients</p>
-              <p className="text-lg font-bold">
-                {data?.patientCount || 0}
-                <span className="text-sm font-normal text-muted-foreground">
-                  {' '}/ {currentLimits.patientLimit === -1 ? '∞' : currentLimits.patientLimit}
-                </span>
-              </p>
-              {currentLimits.patientLimit !== -1 && (data?.patientCount || 0) >= currentLimits.patientLimit && (
-                <Badge variant="outline" className="text-[10px] border-red-300 text-red-600 bg-red-50 mt-1">Limit Reached</Badge>
-              )}
-            </div>
-            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-              <p className="text-xs text-muted-foreground">Workers</p>
-              <p className="text-lg font-bold">
-                {data?.workers?.length || 0}
-                <span className="text-sm font-normal text-muted-foreground">
-                  {' '}/ {currentLimits.nurseAccounts === -1 ? '∞' : currentLimits.nurseAccounts}
-                </span>
-              </p>
-              {currentLimits.nurseAccounts !== -1 && (data?.workers?.length || 0) >= currentLimits.nurseAccounts && (
-                <Badge variant="outline" className="text-[10px] border-red-300 text-red-600 bg-red-50 mt-1">Limit Reached</Badge>
-              )}
-            </div>
-            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-              <p className="text-xs text-muted-foreground">AI Queries/Day</p>
-              <p className="text-lg font-bold">
-                0
-                <span className="text-sm font-normal text-muted-foreground">
-                  {' '}/ {currentLimits.aiQueriesPerDay === -1 ? '∞' : currentLimits.aiQueriesPerDay}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {/* Feature checklist */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Included Features:</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-              {currentLimits.nurseIdVerification && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> NurseID Verification
-                </div>
-              )}
-              {currentLimits.predictiveAnalytics && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> Predictive Analytics
-                </div>
-              )}
-              {currentLimits.dataExport && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> Data Export
-                </div>
-              )}
-              {currentLimits.premiumCourses && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> Premium Courses
-                </div>
-              )}
-              {currentLimits.customReporting && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> Custom Reporting
-                </div>
-              )}
-              {currentLimits.prioritySupport && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> Priority Support
-                </div>
-              )}
-              {currentLimits.customIntegrations && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> Custom Integrations
-                </div>
-              )}
-              {currentLimits.multiDepartment && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Check className="size-3 text-emerald-500" /> Multi-Department
-                </div>
-              )}
-            </div>
-          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            All features are available to all users at no cost. No payments, no trials, no billing.
+          </p>
         </CardContent>
-        <CardFooter className="flex gap-2">
-          <Button variant="outline" onClick={() => router.push('/subscription')}>
-            <CreditCard className="size-4 mr-2" /> Manage Subscription
-          </Button>
-          <Button variant="outline" onClick={() => window.open('https://wa.me/2347052356638', '_blank')}>
-            <MessageCircle className="size-4 mr-2" /> Billing Support
-          </Button>
-        </CardFooter>
       </Card>
 
       {/* ── Academic Institution Card (only for UNIVERSITY / SCHOOL_OF_NURSING) ── */}
+      {/* Subscription/trial references removed — NurseOS is free forever */}
       {data?.academicStats?.isAcademicInstitution && (
-        <Card className={
-          data.academicStats.trialEnded
-            ? 'border-red-500/30 bg-gradient-to-br from-red-50/60 to-orange-50/60 dark:from-red-950/20 dark:to-orange-950/20'
-            : 'border-emerald-500/20 bg-gradient-to-br from-emerald-50/60 to-teal-50/60 dark:from-emerald-950/20 dark:to-teal-950/20'
-        }>
+        <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-50/60 to-teal-50/60 dark:from-emerald-950/20 dark:to-teal-950/20">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <School className="size-5 text-emerald-600" />
                 <CardTitle className="text-lg">Academic Institution</CardTitle>
               </div>
-              {data.academicStats.trialEnded ? (
-                <Badge variant="outline" className="text-red-600 border-red-500/30 bg-red-50">
-                  <AlertTriangle className="size-3 mr-1" />
-                  Trial Ended
-                </Badge>
-              ) : data.academicStats.trialDaysLeft !== null ? (
-                <Badge variant="outline" className="text-amber-600 border-amber-500/30 bg-amber-50">
-                  <Clock className="size-3 mr-1" />
-                  {data.academicStats.trialDaysLeft} {data.academicStats.trialDaysLeft === 1 ? 'day' : 'days'} left
-                </Badge>
-              ) : null}
+              <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 bg-emerald-50">
+                <Check className="size-3 mr-1" />
+                Free Forever
+              </Badge>
             </div>
             <CardDescription>
-              {data.facility?.type === 'UNIVERSITY' ? 'University' : 'School of Nursing'} · Free trial active for new institutions
+              {data.facility?.type === 'UNIVERSITY' ? 'University' : 'School of Nursing'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Trial banner */}
-            {data.academicStats.trialEnded ? (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <AlertTriangle className="size-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-700 dark:text-red-400">
-                    Free trial has ended — subscription required
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Your 1-week free trial ended on{' '}
-                    {data.academicStats.trialEndsAt ? formatDate(data.academicStats.trialEndsAt) : 'recently'}.
-                    Lecturers can no longer upload materials until you subscribe.
-                    Students can still view previously uploaded materials.
-                  </p>
-                  <Button
-                    size="sm"
-                    className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => router.push('/subscription')}
-                  >
-                    <CreditCard className="size-3.5 mr-1.5" />
-                    Subscribe Now
-                  </Button>
-                </div>
-              </div>
-            ) : data.academicStats.trialDaysLeft !== null ? (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                <Clock className="size-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                    Free trial · {data.academicStats.trialDaysLeft} {data.academicStats.trialDaysLeft === 1 ? 'day' : 'days'} remaining
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Trial ends{' '}
-                    {data.academicStats.trialEndsAt ? formatDate(data.academicStats.trialEndsAt) : 'soon'}.
-                    After the trial, your institution must subscribe to continue uploading materials.
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
@@ -745,23 +589,6 @@ export default function FacilityAdminDashboard() {
                 </div>
               </div>
             )}
-
-            <Separator />
-
-            {/* Quick actions */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => router.push('/subscription')}
-              >
-                <CreditCard className="size-3.5 mr-1.5" />
-                {data.academicStats.trialEnded ? 'Subscribe' : 'Pre-subscribe'}
-              </Button>
-              <p className="text-xs text-muted-foreground self-center">
-                Subscription unlocks unlimited uploads after the free trial ends.
-              </p>
-            </div>
           </CardContent>
         </Card>
       )}
