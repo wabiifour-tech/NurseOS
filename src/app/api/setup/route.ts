@@ -1305,7 +1305,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Count existing users (to decide if auto-repair is safe)
+  // Count existing users (informational only — used for the response message)
   let userCount = 0
   try {
     const countResult = await db.$queryRaw`SELECT COUNT(*)::int as count FROM "User"` as Array<{ count: number }>
@@ -1314,34 +1314,36 @@ export async function POST(request: NextRequest) {
     userCount = 0
   }
 
-  // If schema is broken and no users, auto-repair
-  // Otherwise if tables exist and no force/repair, return already_setup
-  if (schemaBroken && userCount === 0) {
-    // Auto-force reset: safe because no data to protect
-  } else if (tablesAlreadyExist && !forceReset && !repairMode) {
-    return NextResponse.json({
-      message: 'Database is already set up. Tables exist. You can register and log in!',
-      status: 'already_setup',
-    })
-  }
+  // ─── IMPORTANT: The setup route is IDEMPOTENT and ALWAYS safe to run. ───
+  // It uses CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN IF NOT EXISTS,
+  // so running it on an existing database will:
+  //   - Skip tables that already exist (no-op)
+  //   - ADD any new columns that are missing (this is the key use case — applying migrations)
+  //   - Create any missing indexes
+  //   - NOT delete or modify any existing data
+  //
+  // The ONLY destructive operation is `?force=true` which DROPS and recreates tables.
+  // That requires admin authentication. The default (no force) is always safe.
+  //
+  // Previously, this route returned "already_setup" early when tables existed, which
+  // prevented new column migrations from being applied. That was a bug — users had to
+  // manually run SQL to add columns. Now we always proceed unless force=true is requested
+  // without authentication.
 
-  // Auth check for destructive operations on existing data
+  // Auth check for destructive operations only (force reset)
   let authUser = null
   try {
     authUser = await getAuthenticatedUser(request)
   } catch {}
 
-  if (forceReset && !schemaBroken) {
+  if (forceReset) {
+    // Force reset is DESTRUCTIVE — drops and recreates tables. Requires admin auth.
     if (!authUser) return unauthorizedResponse()
     if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Super Admin access required for force reset' }, { status: 403 })
     }
-  } else if (userCount > 0 && !schemaBroken) {
-    if (!authUser) return unauthorizedResponse()
-    if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
   }
+  // Non-force setup: always allowed, no auth required (it's idempotent and safe)
 
   try {
     const dbConnected = await isDatabaseConnected()
@@ -1473,14 +1475,22 @@ export async function POST(request: NextRequest) {
 
       const seedMsg = superAdminSeeded
         ? ' Super Admin account has been seeded.'
+        : userCount > 0
+        ? ` Existing ${userCount} user(s) preserved.`
         : ' No super admin seeded — set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars to seed one on next setup.'
 
+      // More informative message based on what actually happened
+      const actionMsg = userCount > 0 || tablesAlreadyExist
+        ? `Database setup complete. ${tablesCreated} tables verified/created and all pending column migrations applied. Existing data was preserved.`
+        : `Database schema created successfully! ${tablesCreated} tables are ready. You can now register and log in.`
+
       return NextResponse.json({
-        message: `Database schema created successfully! ${tablesCreated} tables are ready. You can now register and log in.${seedMsg}`,
+        message: `${actionMsg}${seedMsg}`,
         status: 'setup_complete',
         method: 'raw_sql_ddl',
         tablesCreated,
         superAdminSeeded,
+        migrationsApplied: userCount > 0 || tablesAlreadyExist,
         errors: errors.length > 0 ? errors : undefined,
       })
     } else {
