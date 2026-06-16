@@ -1,14 +1,17 @@
-const CACHE_NAME = 'nurseos-v1';
+const CACHE_NAME = 'nurseos-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Core app shell resources to pre-cache
 const PRECACHE_URLS = [
   '/',
+  '/dashboard',
   '/manifest.webmanifest',
+  '/offline.html',
   '/favicon.ico',
   '/favicon-32x32.png',
   '/apple-touch-icon.png',
   '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
 ];
 
 // Install event - pre-cache critical resources

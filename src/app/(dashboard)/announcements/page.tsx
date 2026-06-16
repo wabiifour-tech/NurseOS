@@ -58,12 +58,15 @@ interface AnnouncementItem {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  targetScope?: string  // ALL | LEVEL | LECTURERS | STUDENTS
+  targetLevel?: number | null
   author: {
     id: string
     firstName: string
     lastName: string
     avatarUrl: string | null
     role: string
+    academicRole?: string | null
   }
   facility: {
     id: string
@@ -125,9 +128,16 @@ export default function AnnouncementsPage() {
   const [formCategory, setFormCategory] = React.useState('GENERAL')
   const [formIsPinned, setFormIsPinned] = React.useState(false)
   const [formExpiresAt, setFormExpiresAt] = React.useState('')
+  // Academic targeting — level / scope
+  const [formTargetScope, setFormTargetScope] = React.useState('ALL')
+  const [formTargetLevel, setFormTargetLevel] = React.useState('')
   const [creating, setCreating] = React.useState(false)
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
+  const isLecturer = user?.academicRole === 'LECTURER'
+  const isStudent = user?.academicRole === 'STUDENT'
+  const canCreate = isAdmin || isLecturer
+  const isAcademicInstitution = isAdmin || isLecturer || isStudent
 
   const headers = React.useMemo(() => {
     const h: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -182,6 +192,11 @@ export default function AnnouncementsPage() {
       toast.error('Title and content are required')
       return
     }
+    // If scope is LEVEL, targetLevel must be set
+    if (formTargetScope === 'LEVEL' && !formTargetLevel) {
+      toast.error('Please select a target level for level-specific announcements')
+      return
+    }
     setCreating(true)
     try {
       const res = await fetch('/api/announcements', {
@@ -194,6 +209,8 @@ export default function AnnouncementsPage() {
           category: formCategory,
           isPinned: formIsPinned,
           expiresAt: formExpiresAt || null,
+          targetScope: formTargetScope,
+          targetLevel: formTargetScope === 'LEVEL' ? Number(formTargetLevel) : null,
         }),
       })
       if (!res.ok) {
@@ -209,6 +226,8 @@ export default function AnnouncementsPage() {
       setFormCategory('GENERAL')
       setFormIsPinned(false)
       setFormExpiresAt('')
+      setFormTargetScope('ALL')
+      setFormTargetLevel('')
       await fetchAnnouncements()
       await fetchUnreadCount()
     } catch {
@@ -216,7 +235,7 @@ export default function AnnouncementsPage() {
     } finally {
       setCreating(false)
     }
-  }, [formTitle, formContent, formPriority, formCategory, formIsPinned, formExpiresAt, headers, fetchAnnouncements, fetchUnreadCount])
+  }, [formTitle, formContent, formPriority, formCategory, formIsPinned, formExpiresAt, formTargetScope, formTargetLevel, headers, fetchAnnouncements, fetchUnreadCount])
 
   // Filter announcements
   const filtered = React.useMemo(() => {
@@ -245,7 +264,7 @@ export default function AnnouncementsPage() {
           </div>
         </div>
 
-        {isAdmin && (
+        {canCreate && (
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
@@ -257,7 +276,9 @@ export default function AnnouncementsPage() {
               <DialogHeader>
                 <DialogTitle>Create Announcement</DialogTitle>
                 <DialogDescription>
-                  {user?.role === 'SUPER_ADMIN'
+                  {isLecturer
+                    ? 'Create an announcement for students and lecturers at your institution. Target by level for level-specific news.'
+                    : user?.role === 'SUPER_ADMIN'
                     ? 'Create a system-wide or facility-specific announcement. System-wide announcements are visible to all users.'
                     : 'Create an announcement for your facility. All staff at your facility will be notified.'}
                 </DialogDescription>
@@ -302,6 +323,41 @@ export default function AnnouncementsPage() {
                     </Select>
                   </div>
                 </div>
+                {/* Target audience — only show for academic institutions */}
+                {isAcademicInstitution && (
+                  <div className="space-y-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50/40">
+                    <label className="text-xs font-medium text-emerald-800 flex items-center gap-1.5">
+                      <GraduationCap className="size-3.5" />
+                      Target Audience
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Select value={formTargetScope} onValueChange={setFormTargetScope}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">Everyone (all levels + lecturers)</SelectItem>
+                          <SelectItem value="LEVEL">Specific Level</SelectItem>
+                          <SelectItem value="LECTURERS">Lecturers only</SelectItem>
+                          <SelectItem value="STUDENTS">Students only (all levels)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formTargetScope === 'LEVEL' && (
+                        <Select value={formTargetLevel} onValueChange={setFormTargetLevel}>
+                          <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="100">100 Level</SelectItem>
+                            <SelectItem value="200">200 Level</SelectItem>
+                            <SelectItem value="300">300 Level</SelectItem>
+                            <SelectItem value="400">400 Level</SelectItem>
+                            <SelectItem value="500">500 Level</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Only the selected audience will see this announcement in their feed and receive a notification.
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2">
                     <input
@@ -428,6 +484,15 @@ export default function AnnouncementsPage() {
                       <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${pConfig.color}`}>
                         {pConfig.label}
                       </Badge>
+                      {announcement.targetScope && announcement.targetScope !== 'ALL' && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 gap-0.5 text-emerald-700 border-emerald-500/30 bg-emerald-50/50">
+                          <GraduationCap className="size-2.5" />
+                          {announcement.targetScope === 'LEVEL' ? `${announcement.targetLevel} Level only`
+                            : announcement.targetScope === 'LECTURERS' ? 'Lecturers only'
+                            : announcement.targetScope === 'STUDENTS' ? 'Students only'
+                            : announcement.targetScope}
+                        </Badge>
+                      )}
                       {announcement.facility ? (
                         <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                           <Building2 className="size-3" />

@@ -116,8 +116,8 @@ const registerSchema = z
   )
   .refine(
     (data) => {
-      // For admin creating new facility, newFacility fields are required including registration number
-      if (data.role === "admin" && data.facilityOption === "new") {
+      // For admin / institution_admin creating new facility, newFacility fields are required including registration number
+      if ((data.role === "admin" || data.role === "institution_admin") && data.facilityOption === "new") {
         if (!data.newFacility?.name || !data.newFacility?.type || !data.newFacility?.state || !data.newFacility?.registrationNumber) {
           return false;
         }
@@ -148,7 +148,8 @@ type RegisterForm = z.infer<typeof registerSchema>;
 const roles = [
   { value: "nurse", label: "Nurse" },
   { value: "doctor", label: "Doctor" },
-  { value: "admin", label: "Facility / Institution Admin" },
+  { value: "admin", label: "Facility Admin (Hospital / Clinic / PHC)" },
+  { value: "institution_admin", label: "Institution Admin (University / School of Nursing)" },
   { value: "matron", label: "Matron" },
   { value: "lecturer", label: "Lecturer (University / School of Nursing)" },
   { value: "student", label: "Nursing Student" },
@@ -158,7 +159,7 @@ const roles = [
 interface FacilityOption {
   id: string;
   name: string;
-  type: string;
+  type?: string;
   city: string;
   state: string;
 }
@@ -232,7 +233,7 @@ export default function RegisterPage() {
 
   // Reset facility option when role changes
   useEffect(() => {
-    if (selectedRole !== "admin") {
+    if (selectedRole !== "admin" && selectedRole !== "institution_admin") {
       setFacilityOption("existing");
       setValue("facilityOption", "existing");
     }
@@ -242,21 +243,33 @@ export default function RegisterPage() {
   }, [selectedRole, setValue, clearErrors]);
 
   const isWorkerRole = ["nurse", "doctor", "matron", "student", "other", "lecturer"].includes(selectedRole);
-  const isAdminRole = selectedRole === "admin";
+  const isAdminRole = selectedRole === "admin" || selectedRole === "institution_admin";
+  const isInstitutionAdminRole = selectedRole === "institution_admin";
   const isStudentRole = selectedRole === "student";
   const isLecturerRole = selectedRole === "lecturer";
 
   async function onSubmit(data: RegisterForm) {
     setIsLoading(true);
     try {
+      // Map `institution_admin` → `ADMIN` for backend (DB enum compatibility)
+      // The original selection is preserved via the `adminType` payload field.
+      const backendRole = data.role === "institution_admin" ? "ADMIN" : data.role.toUpperCase();
+
       // Build the request payload
       const payload: Record<string, unknown> = {
         email: data.email,
         password: data.password,
         firstName: data.firstName,
         lastName: data.lastName,
-        role: data.role.toUpperCase(),
+        role: backendRole,
       };
+
+      // Preserve the original admin selection (facility vs institution) for the backend
+      if (data.role === "institution_admin") {
+        payload.adminType = "INSTITUTION";
+      } else if (data.role === "admin") {
+        payload.adminType = "FACILITY";
+      }
 
       if (isAdminRole && facilityOption === "new" && data.newFacility) {
         // Admin creating a new facility — include verification fields
@@ -389,9 +402,11 @@ export default function RegisterPage() {
         {selectedRole && (
           <div className="space-y-3">
             {isAdminRole ? (
-              /* ===== ADMIN: Show toggle between existing and new facility ===== */
+              /* ===== ADMIN / INSTITUTION ADMIN: Show toggle between existing and new facility ===== */
               <>
-                <Label className="text-sm font-medium">Your Facility</Label>
+                <Label className="text-sm font-medium">
+                  {isInstitutionAdminRole ? "Your Institution" : "Your Facility"}
+                </Label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -423,6 +438,10 @@ export default function RegisterPage() {
                     onClick={() => {
                       setFacilityOption("new");
                       setValue("facilityOption", "new");
+                      // Pre-select UNIVERSITY type for institution admins
+                      if (isInstitutionAdminRole) {
+                        setValue("newFacility.type", "UNIVERSITY");
+                      }
                       setValue("facilityId", "");
                       clearErrors("facilityId");
                     }}
@@ -441,10 +460,23 @@ export default function RegisterPage() {
                     >
                       <SelectTrigger className="w-full">
                         <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
-                        <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your facility"} />
+                        <SelectValue
+                          placeholder={
+                            loadingFacilities
+                              ? "Loading..."
+                              : isInstitutionAdminRole
+                              ? "Select your university or school of nursing"
+                              : "Select your facility"
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent className="max-h-64">
                         {facilities
+                          .filter((f) =>
+                            isInstitutionAdminRole
+                              ? f.type === "UNIVERSITY" || f.type === "SCHOOL_OF_NURSING"
+                              : true
+                          )
                           .sort((a, b) => a.state.localeCompare(b.state))
                           .map((facility) => (
                             <SelectItem key={facility.id} value={facility.id}>
@@ -454,7 +486,9 @@ export default function RegisterPage() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Your admin account will be linked to this facility. You can also create a new facility if yours isn&apos;t listed.
+                      {isInstitutionAdminRole
+                        ? "Your institution admin account will be linked to this university or school of nursing. You can also create a new institution if yours isn't listed."
+                        : "Your admin account will be linked to this facility. You can also create a new facility if yours isn't listed."}
                     </p>
                   </div>
                 ) : (
@@ -462,15 +496,17 @@ export default function RegisterPage() {
                   <div className="space-y-3 p-4 rounded-lg border border-emerald-200 bg-emerald-50/50">
                     <div className="flex items-center gap-2 text-sm font-medium text-emerald-800">
                       <Plus className="w-4 h-4" />
-                      Register a New Facility
+                      {isInstitutionAdminRole ? "Register a New Institution" : "Register a New Facility"}
                     </div>
 
                     {/* Facility Name */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="newFacName" className="text-xs">Facility Name *</Label>
+                      <Label htmlFor="newFacName" className="text-xs">
+                        {isInstitutionAdminRole ? "Institution Name *" : "Facility Name *"}
+                      </Label>
                       <Input
                         id="newFacName"
-                        placeholder="e.g., Lagos General Hospital"
+                        placeholder={isInstitutionAdminRole ? "e.g., Redeemer's University, Department of Nursing Sciences" : "e.g., Lagos General Hospital"}
                         {...register("newFacility.name")}
                       />
                       {errors.newFacility?.name && (
@@ -481,16 +517,21 @@ export default function RegisterPage() {
                     {/* Facility Type & State */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Facility Type *</Label>
+                        <Label className="text-xs">
+                          {isInstitutionAdminRole ? "Institution Type *" : "Facility Type *"}
+                        </Label>
                         <Select
-                          defaultValue="HOSPITAL"
+                          defaultValue={isInstitutionAdminRole ? "UNIVERSITY" : "HOSPITAL"}
                           onValueChange={(value) => setValue("newFacility.type", value)}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                           <SelectContent>
-                            {FACILITY_TYPES.map((ft) => (
+                            {(isInstitutionAdminRole
+                              ? FACILITY_TYPES.filter((ft) => ft.value === "UNIVERSITY" || ft.value === "SCHOOL_OF_NURSING")
+                              : FACILITY_TYPES
+                            ).map((ft) => (
                               <SelectItem key={ft.value} value={ft.value}>
                                 {ft.label}
                               </SelectItem>

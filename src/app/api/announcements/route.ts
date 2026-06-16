@@ -43,6 +43,37 @@ export async function GET(request: NextRequest) {
     if (category) where.category = category
     if (priority) where.priority = priority
 
+    // ─── Target-scope filtering (academic module) ───
+    // Each user only sees announcements targeted at them:
+    //   - ALL: everyone sees it
+    //   - LEVEL: only students/lecturers whose studentLevel matches targetLevel (or lecturers, who see all level-specific)
+    //   - LECTURERS: only users with academicRole='LECTURER' (or admins)
+    //   - STUDENTS: only users with academicRole='STUDENT' (or admins)
+    // Admins see everything in their facility.
+    const isAdmin = authUser.role === 'ADMIN' || authUser.role === 'SUPER_ADMIN'
+    if (!isAdmin) {
+      const scopeConditions: Record<string, unknown>[] = [{ targetScope: 'ALL' }]
+      if (authUser.academicRole === 'LECTURER') {
+        // Lecturers see LEVEL announcements (any level — they manage all levels), LECTURERS, and ALL
+        scopeConditions.push({ targetScope: 'LECTURERS' })
+        scopeConditions.push({ targetScope: 'LEVEL' })
+      } else if (authUser.academicRole === 'STUDENT') {
+        // Students see STUDENTS, ALL, and LEVEL where targetLevel === their level
+        scopeConditions.push({ targetScope: 'STUDENTS' })
+        if (authUser.studentLevel) {
+          scopeConditions.push({
+            AND: [
+              { targetScope: 'LEVEL' },
+              { targetLevel: authUser.studentLevel },
+            ],
+          })
+        }
+      }
+      // Wrap the existing OR with the scope filter
+      where.AND = where.AND || []
+      where.AND.push({ OR: scopeConditions })
+    }
+
     // Filter out expired announcements
     where.OR = (where.OR as Record<string, unknown>[]).map((condition) => ({
       ...condition,
@@ -109,14 +140,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/announcements - Create an announcement (admin only)
+// POST /api/announcements - Create an announcement (admin OR lecturer for academic institutions)
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
-  // Only admins can create announcements
-  if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Only administrators can create announcements' }, { status: 403 })
+  // Admins (facility or institution) AND lecturers can create announcements.
+  // Lecturers are restricted to their own institution + academic scopes (LEVEL/LECTURERS/STUDENTS).
+  const isAdmin = authUser.role === 'ADMIN' || authUser.role === 'SUPER_ADMIN'
+  const isLecturer = authUser.academicRole === 'LECTURER'
+  if (!isAdmin && !isLecturer) {
+    return NextResponse.json({ error: 'Only administrators or lecturers can create announcements' }, { status: 403 })
   }
 
   try {
@@ -127,7 +161,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    const { title, content, priority, category, facilityId, isPinned, expiresAt, isGlobal } = body
+    const { title, content, priority, category, facilityId, isPinned, expiresAt, isGlobal, targetScope, targetLevel } = body
 
     if (!title?.trim() || !content?.trim()) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 })
@@ -135,18 +169,41 @@ export async function POST(request: NextRequest) {
 
     // Only SUPER_ADMIN can create system-wide announcements (facilityId = null)
     let targetFacilityId = facilityId || null
-    if (!targetFacilityId && authUser.role === 'ADMIN') {
-      // Regular admin must target their own facility
+    if (!targetFacilityId && (authUser.role === 'ADMIN' || isLecturer)) {
+      // Regular admin / lecturer must target their own facility
       targetFacilityId = authUser.facilityId
     }
 
-    // ADMIN can only post to their own facility
-    if (authUser.role === 'ADMIN' && targetFacilityId && targetFacilityId !== authUser.facilityId) {
+    // ADMIN / LECTURER can only post to their own facility
+    if ((authUser.role === 'ADMIN' || isLecturer) && targetFacilityId && targetFacilityId !== authUser.facilityId) {
       return NextResponse.json({ error: 'You can only create announcements for your own facility' }, { status: 403 })
     }
 
     const validPriorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT']
     const validCategories = ['GENERAL', 'POLICY', 'SAFETY', 'TRAINING', 'MAINTENANCE', 'EMERGENCY']
+    const validScopes = ['ALL', 'LEVEL', 'LECTURERS', 'STUDENTS']
+    const validLevels = [100, 200, 300, 400, 500]
+
+    // Lecturers can only use academic scopes (LEVEL / LECTURERS / STUDENTS). Admins can use any.
+    let finalScope = validScopes.includes(targetScope) ? targetScope : 'ALL'
+    if (isLecturer && finalScope === 'ALL') {
+      // Lecturers defaulting to ALL still allowed (treated as facility-wide for their institution)
+    }
+    if (isLecturer && !['LEVEL', 'LECTURERS', 'STUDENTS', 'ALL'].includes(finalScope)) {
+      finalScope = 'ALL'
+    }
+
+    // If scope is LEVEL, targetLevel must be a valid level
+    let finalLevel: number | null = null
+    if (finalScope === 'LEVEL') {
+      if (!validLevels.includes(Number(targetLevel))) {
+        return NextResponse.json(
+          { error: 'targetLevel must be one of 100, 200, 300, 400, 500 when targetScope is LEVEL' },
+          { status: 400 }
+        )
+      }
+      finalLevel = Number(targetLevel)
+    }
 
     const announcement = await db.announcement.create({
       data: {
@@ -158,11 +215,13 @@ export async function POST(request: NextRequest) {
         category: validCategories.includes(category) ? category : 'GENERAL',
         isPinned: isPinned === true,
         isGlobal: !targetFacilityId || isGlobal === true,
+        targetScope: finalScope,
+        targetLevel: finalLevel,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
       include: {
         author: {
-          select: { id: true, firstName: true, lastName: true, avatarUrl: true, role: true },
+          select: { id: true, firstName: true, lastName: true, avatarUrl: true, role: true, academicRole: true },
         },
         facility: {
           select: { id: true, name: true },
@@ -175,18 +234,106 @@ export async function POST(request: NextRequest) {
     const scopeLabel = targetFacilityId ? '' : ' [System-Wide]'
 
     if (targetFacilityId) {
-      await notifyFacilityUsers(targetFacilityId, {
-        type: 'ANNOUNCEMENT',
-        title: `${priorityLabel} Announcement${scopeLabel}`,
-        message: `${announcement.title}`,
-        data: JSON.stringify({
-          announcementId: announcement.id,
-          category: announcement.category,
-          priority: announcement.priority,
-          action: 'NEW_ANNOUNCEMENT',
-        }),
-        force: announcement.priority === 'URGENT' || announcement.priority === 'HIGH',
-      })
+      // For level-targeted announcements, only notify users matching the scope
+      if (finalScope === 'LEVEL' && finalLevel) {
+        // Notify only students with the matching level + all lecturers + admins at the facility
+        const targetUsers = await db.user.findMany({
+          where: {
+            facilityId: targetFacilityId,
+            status: 'ACTIVE',
+            OR: [
+              { academicRole: 'LECTURER' },
+              { academicRole: 'STUDENT', studentLevel: finalLevel },
+              { role: 'ADMIN' },
+              { role: 'SUPER_ADMIN' },
+            ],
+          },
+          select: { id: true },
+        })
+        await Promise.all(
+          targetUsers.map((u) =>
+            createNotification({
+              userId: u.id,
+              type: 'ANNOUNCEMENT',
+              title: `${priorityLabel} Announcement (${finalLevel} Level)`,
+              message: announcement.title,
+              data: JSON.stringify({
+                announcementId: announcement.id,
+                category: announcement.category,
+                priority: announcement.priority,
+                action: 'NEW_ANNOUNCEMENT',
+              }),
+              force: announcement.priority === 'URGENT',
+            })
+          )
+        )
+      } else if (finalScope === 'LECTURERS') {
+        const targetUsers = await db.user.findMany({
+          where: {
+            facilityId: targetFacilityId,
+            status: 'ACTIVE',
+            OR: [{ academicRole: 'LECTURER' }, { role: 'ADMIN' }, { role: 'SUPER_ADMIN' }],
+          },
+          select: { id: true },
+        })
+        await Promise.all(
+          targetUsers.map((u) =>
+            createNotification({
+              userId: u.id,
+              type: 'ANNOUNCEMENT',
+              title: `${priorityLabel} Announcement (Lecturers)`,
+              message: announcement.title,
+              data: JSON.stringify({
+                announcementId: announcement.id,
+                category: announcement.category,
+                priority: announcement.priority,
+                action: 'NEW_ANNOUNCEMENT',
+              }),
+              force: announcement.priority === 'URGENT',
+            })
+          )
+        )
+      } else if (finalScope === 'STUDENTS') {
+        const targetUsers = await db.user.findMany({
+          where: {
+            facilityId: targetFacilityId,
+            status: 'ACTIVE',
+            academicRole: 'STUDENT',
+          },
+          select: { id: true },
+        })
+        await Promise.all(
+          targetUsers.map((u) =>
+            createNotification({
+              userId: u.id,
+              type: 'ANNOUNCEMENT',
+              title: `${priorityLabel} Announcement (Students)`,
+              message: announcement.title,
+              data: JSON.stringify({
+                announcementId: announcement.id,
+                category: announcement.category,
+                priority: announcement.priority,
+                action: 'NEW_ANNOUNCEMENT',
+              }),
+              force: announcement.priority === 'URGENT',
+            })
+          )
+        )
+      } else {
+        // ALL scope — notify everyone in the facility
+        await notifyFacilityUsers(targetFacilityId, {
+          type: 'ANNOUNCEMENT',
+          title: `${priorityLabel} Announcement${scopeLabel}`,
+          message: `${announcement.title}`,
+          data: JSON.stringify({
+            announcementId: announcement.id,
+            category: announcement.category,
+            priority: announcement.priority,
+            action: 'NEW_ANNOUNCEMENT',
+          }),
+          force: announcement.priority === 'URGENT' || announcement.priority === 'HIGH',
+        })
+      }
     } else {
       // System-wide — notify all active users
       const allUsers = await db.user.findMany({

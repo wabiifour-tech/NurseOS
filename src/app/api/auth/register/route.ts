@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId, newFacility, studentLevel } = body
+    const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId, newFacility, studentLevel, adminType } = body
 
     // Rate limiting
     const rateLimitResult = checkRateLimit(getRateLimitIdentifier(request), AUTH_RATE_LIMIT)
@@ -136,11 +136,18 @@ export async function POST(request: NextRequest) {
     if (facilityId) {
       const facility = await db.facility.findUnique({
         where: { id: facilityId },
-        select: { id: true, name: true },
+        select: { id: true, name: true, type: true },
       })
       if (!facility) {
         return NextResponse.json(
           { error: 'Selected facility not found. Please choose a valid facility.' },
+          { status: 400 }
+        )
+      }
+      // Institution admins can only join UNIVERSITY / SCHOOL_OF_NURSING facilities
+      if (adminType === 'INSTITUTION' && !['UNIVERSITY', 'SCHOOL_OF_NURSING'].includes(facility.type)) {
+        return NextResponse.json(
+          { error: 'Institution admins can only join universities or schools of nursing. Please select an academic institution.' },
           { status: 400 }
         )
       }
@@ -181,6 +188,15 @@ export async function POST(request: NextRequest) {
       if (newFacility.type && !validTypes.includes(newFacility.type)) {
         return NextResponse.json(
           { error: `Invalid facility type. Must be one of: ${validTypes.join(', ')}` },
+          { status: 400 }
+        )
+      }
+
+      // If adminType is INSTITUTION, the facility type MUST be UNIVERSITY or SCHOOL_OF_NURSING
+      // (this is a safety check — the client UI already restricts this, but we enforce server-side too)
+      if (adminType === 'INSTITUTION' && !['UNIVERSITY', 'SCHOOL_OF_NURSING'].includes(newFacility.type || '')) {
+        return NextResponse.json(
+          { error: 'Institution admins can only register universities or schools of nursing.' },
           { status: 400 }
         )
       }

@@ -44,6 +44,7 @@ import {
   MessageCircle,
   Upload,
   School,
+  Share2,
 } from "lucide-react"
 import Image from "next/image"
 
@@ -169,6 +170,8 @@ const navSections: NavSection[] = [
       // For lecturers: "My Materials" → upload & manage. For students: same link shows their level-filtered view.
       // Default to /lecturer/materials here; the rendering code below swaps the href based on role.
       { title: "Course Materials", href: "/lecturer/materials", icon: Upload },
+      { title: "Announcements", href: "/announcements", icon: Newspaper },
+      { title: "Shared Materials", href: "/lecturer/shared", icon: Share2 },
     ],
   },
 ]
@@ -182,14 +185,25 @@ function NavSectionGroup({
   pathname: string
   academicRole?: string | null
 }) {
-  // For students in the Academic section, redirect "Course Materials" to /student/materials
-  // For lecturers, keep /lecturer/materials
-  const items = section.items.map((item) => {
-    if (section.title === 'Academic' && academicRole === 'STUDENT') {
-      return { ...item, href: '/student/materials' }
-    }
-    return item
-  })
+  // For students in the Academic section:
+  //   - "Course Materials" → /student/materials
+  //   - "Announcements" → keep /announcements (students can view)
+  //   - "Shared Materials" → HIDE (only lecturers share materials)
+  let items = section.items
+  if (section.title === 'Academic') {
+    items = section.items
+      .filter((item) => {
+        // Hide "Shared Materials" from students — only lecturers share/receive materials
+        if (academicRole === 'STUDENT' && item.href === '/lecturer/shared') return false
+        return true
+      })
+      .map((item) => {
+        if (academicRole === 'STUDENT' && item.href === '/lecturer/materials') {
+          return { ...item, href: '/student/materials' }
+        }
+        return item
+      })
+  }
 
   const isActive = items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
 

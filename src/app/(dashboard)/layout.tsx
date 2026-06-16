@@ -557,6 +557,8 @@ export default function DashboardLayout({
             firstName: data.user.firstName,
             lastName: data.user.lastName,
             role: data.user.role,
+            academicRole: data.user.academicRole || null,
+            studentLevel: data.user.studentLevel ?? null,
             facilityId: data.facilityId || data.user.nurseProfile?.currentFacilityId || data.user.adminProfile?.facilityId || null,
             facilityName: data.facilityName || data.user.nurseProfile?.facility?.name || data.user.adminProfile?.facility?.name || null,
             nurseProfileId: data.nurseProfileId || data.user.nurseProfile?.id || null,

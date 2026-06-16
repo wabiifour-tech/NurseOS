@@ -153,3 +153,55 @@ Stage Summary:
 - ✅ wabithetechnurse@nurseos.digital receives forwarded mail on user's phone
 - ✅ Help page typo fix deployed to production
 - Email system is now production-ready and fully bidirectional
+
+---
+Task ID: academic-module-enhancements
+Agent: Main Agent
+Task: Add 8 new features to the academic module + fix About page bio + add Institution Admin role
+
+Work Log:
+- Fixed Wabi's bio on About page — now correctly states: Registered Nurse from Redeemer's University, certified BLS Provider, certified Full Stack Web Developer and AI Engineer/Developer, Data Analyst, premium PowerPoint slides and presentations Developer
+- Added new "Institution Admin (University / School of Nursing)" role to register dropdown (separate from "Facility Admin"). Both map to ADMIN on backend but the institution_admin flow restricts facility types to UNIVERSITY / SCHOOL_OF_NURSING (server-enforced)
+- Updated register API to accept `adminType` field and validate facility types match the admin type
+- Schema changes (Prisma + setup route SQL DDL):
+  - Added MaterialComment model (Q&A thread, 1-level nested replies, lecturer flag)
+  - Added MaterialDownload model (per-student view/download tracking)
+  - Added MaterialView model (per-student view counter, unique per user/material)
+  - Added SharedMaterial model (lecturer-to-lecturer cross-institution sharing)
+  - Added `publishAt` field to CourseMaterial (scheduling)
+  - Added `viewCount` field to CourseMaterial (denormalized)
+  - Added `targetScope` and `targetLevel` to Announcement (level-specific announcements)
+  - Added all corresponding SQL DDL + indexes + ALTER TABLE column migrations to setup route
+- New API routes:
+  - GET/POST /api/course-materials/[id]/comments — Q&A thread
+  - POST /api/course-materials/[id]/track — view + download tracking
+  - GET /api/course-materials/[id]/analytics — per-material analytics (views, unique viewers, downloads, daily trend, peak hour, per-student breakdown)
+  - POST /api/course-materials/bulk — bulk upload (multiple files, max 30, 10MB each)
+  - POST /api/course-materials/share — share material with another lecturer
+  - GET /api/course-materials/shared — list shared (sent or received)
+  - PATCH /api/course-materials/shared/[id] — accept / reject / copy to my institution
+- Updated API routes:
+  - /api/course-materials (GET) — supports `includeScheduled` param + filters out future-dated materials for students + returns _count for comments/downloads/views
+  - /api/course-materials (POST) — accepts optional `publishAt` for scheduling
+  - /api/course-materials/[id] (GET) — now also upserts MaterialView + MaterialDownload records for per-student tracking
+  - /api/announcements (GET) — filters by targetScope/targetLevel based on viewer's academicRole + studentLevel
+  - /api/announcements (POST) — lecturers can now create announcements + accepts targetScope/targetLevel + sends targeted notifications
+  - /api/auth/me + login page + dashboard layout — now passes academicRole + studentLevel to the auth store
+- UI updates:
+  - Lecturer materials page: completely rewritten — adds scheduling field, bulk upload dialog (with client-side ZIP extraction using DecompressionStream API), analytics dialog (with summary cards + daily trend bar chart + per-student breakdown), share dialog, comments dialog (with threaded replies)
+  - Student materials page: redesigned view dialog with split-screen — material on left (2/3), Q&A comments panel on right (1/3). Adds comments state, comment posting, threaded replies. Now fires tracking events on view + download
+  - Announcements page: adds Target Audience selector (Everyone / Specific Level / Lecturers only / Students only). Shows target badge on announcement cards. Lecturers can now create announcements.
+  - Sidebar: added "Announcements" and "Shared Materials" to Academic section. Shared Materials hidden from students.
+  - Created new page /lecturer/shared — lists sent + received shares with accept/reject/copy actions
+- PWA enhancements:
+  - Bumped service worker cache version to v2
+  - Added /dashboard, /offline.html, /android-chrome-512x512.png to pre-cache list
+  - Updated manifest shortcuts — added Course Materials + Announcements shortcuts, removed CareGrid shortcut
+
+Stage Summary:
+- 8 new features implemented (announcements per level, material comments/Q&A, download tracking, material scheduling, PWA enhancements, bulk ZIP upload, course material analytics, lecturer-to-lecturer sharing)
+- 2 fixes (About page bio, Institution Admin role)
+- Build succeeds with zero errors — all new routes compile: /lecturer/shared, /api/course-materials/[id]/{comments,track,analytics}, /api/course-materials/{bulk,share,shared,shared/[id]}
+- Schema is fully synced: Prisma schema valid, setup route SQL DDL updated, ALTER TABLE column migrations added for backward compat with existing databases
+- All changes pushed to GitHub — Vercel will auto-deploy
+- IMPORTANT: After deployment, the user must visit /api/setup once to create the new tables (MaterialComment, MaterialDownload, MaterialView, SharedMaterial) on the production database
