@@ -42,6 +42,8 @@ import {
   Mail,
   Newspaper,
   MessageCircle,
+  Upload,
+  School,
 } from "lucide-react"
 import Image from "next/image"
 
@@ -88,7 +90,8 @@ interface NavSection {
 // SUPER_ADMIN: sees everything (admin section + all nav sections)
 // ADMIN: sees admin section + all nav sections
 // NURSE/MATRON/DOCTOR: sees NurseAI, CareGrid (limited), NurseID, Academy
-// STUDENT: sees Academy, NurseID (limited)
+// STUDENT: sees Academy, NurseID (limited), Academic
+// LECTURER: sees Academic, NurseID, Academy
 // OTHER: sees NurseAI, CareGrid, NurseID
 const roleNavVisibility: Record<string, string[]> = {
   SUPER_ADMIN: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
@@ -96,7 +99,8 @@ const roleNavVisibility: Record<string, string[]> = {
   NURSE: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
   MATRON: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
   DOCTOR: ['NurseAI', 'CareGrid', 'Analytics', 'NurseID', 'Academy'],
-  STUDENT: ['NurseID', 'Academy'],
+  STUDENT: ['NurseID', 'Academy', 'Academic'],
+  LECTURER: ['Academic', 'NurseID', 'Academy'],
   OTHER: ['NurseAI', 'CareGrid', 'NurseID'],
   PATIENT: [],
 }
@@ -158,10 +162,36 @@ const navSections: NavSection[] = [
       { title: "Certificates", href: "/academy/certificates", icon: Award },
     ],
   },
+  {
+    title: "Academic",
+    icon: School,
+    items: [
+      // For lecturers: "My Materials" → upload & manage. For students: same link shows their level-filtered view.
+      // Default to /lecturer/materials here; the rendering code below swaps the href based on role.
+      { title: "Course Materials", href: "/lecturer/materials", icon: Upload },
+    ],
+  },
 ]
 
-function NavSectionGroup({ section, pathname }: { section: NavSection; pathname: string }) {
-  const isActive = section.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+function NavSectionGroup({
+  section,
+  pathname,
+  academicRole,
+}: {
+  section: NavSection
+  pathname: string
+  academicRole?: string | null
+}) {
+  // For students in the Academic section, redirect "Course Materials" to /student/materials
+  // For lecturers, keep /lecturer/materials
+  const items = section.items.map((item) => {
+    if (section.title === 'Academic' && academicRole === 'STUDENT') {
+      return { ...item, href: '/student/materials' }
+    }
+    return item
+  })
+
+  const isActive = items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
 
   return (
     <Collapsible defaultOpen={isActive} className="group/collapsible">
@@ -178,7 +208,7 @@ function NavSectionGroup({ section, pathname }: { section: NavSection; pathname:
         <CollapsibleContent>
           <SidebarGroupContent>
             <SidebarMenu>
-              {section.items.map((item) => {
+              {items.map((item) => {
                 const isItemActive = pathname === item.href || pathname.startsWith(item.href + "/")
                 return (
                   <SidebarMenuItem key={item.href}>
@@ -388,7 +418,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             return allowedSections.includes(section.title)
           })
           .map((section) => (
-            <NavSectionGroup key={section.title} section={section} pathname={pathname} />
+            <NavSectionGroup
+              key={section.title}
+              section={section}
+              pathname={pathname}
+              academicRole={user?.academicRole}
+            />
           ))}
       </SidebarContent>
 

@@ -7,7 +7,9 @@ import { db } from '@/lib/db'
  */
 export interface AuthUser {
   id: string
-  role: string
+  role: string           // Normalized role: NURSE, DOCTOR, ADMIN, SUPER_ADMIN, etc.
+  academicRole: string | null  // 'LECTURER' | 'STUDENT' | null (for academic institutions)
+  studentLevel: number | null  // 100-500 for students
   facilityId: string | null
   nurseProfileId: string | null
 }
@@ -47,6 +49,8 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<AuthUs
           id: true,
           role: true,
           status: true,
+          academicRole: true,
+          studentLevel: true,
           nurseProfile: {
             select: {
               id: true,
@@ -87,6 +91,8 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<AuthUs
   return {
     id: session.user.id,
     role: normalizedRole,
+    academicRole: session.user.academicRole,
+    studentLevel: session.user.studentLevel,
     facilityId,
     nurseProfileId,
   }

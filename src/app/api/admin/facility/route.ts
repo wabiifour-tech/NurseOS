@@ -98,6 +98,73 @@ export async function GET(req: NextRequest) {
       _count: true,
     })
 
+    // ─── Academic institution stats (if facility is UNIVERSITY or SCHOOL_OF_NURSING) ───
+    let academicStats: {
+      isAcademicInstitution: boolean
+      totalLecturers: number
+      pendingLecturers: number
+      activeLecturers: number
+      totalStudents: number
+      totalMaterials: number
+      materialsByLevel: Array<{ level: number; count: number }>
+      trialEndsAt: string | null
+      trialDaysLeft: number | null
+      trialEnded: boolean
+    } | null = null
+
+    if (['UNIVERSITY', 'SCHOOL_OF_NURSING'].includes(facility.type)) {
+      const [activeLecturers, pendingLecturers, totalStudents, totalMaterials, materialsByLevel] = await Promise.all([
+        db.user.count({
+          where: {
+            facilityId: authUser.facilityId,
+            academicRole: 'LECTURER',
+            status: 'ACTIVE',
+          },
+        }),
+        db.user.count({
+          where: {
+            facilityId: authUser.facilityId,
+            academicRole: 'LECTURER',
+            status: 'PENDING',
+          },
+        }),
+        db.user.count({
+          where: {
+            facilityId: authUser.facilityId,
+            academicRole: 'STUDENT',
+            status: 'ACTIVE',
+          },
+        }),
+        db.courseMaterial.count({
+          where: { facilityId: authUser.facilityId },
+        }),
+        db.courseMaterial.groupBy({
+          by: ['level'],
+          where: { facilityId: authUser.facilityId },
+          _count: true,
+        }),
+      ])
+
+      const trialEndsAt = facility.freeTrialEndsAt
+      const trialEnded = trialEndsAt ? new Date() > trialEndsAt : false
+      const trialDaysLeft = trialEndsAt
+        ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+        : null
+
+      academicStats = {
+        isAcademicInstitution: true,
+        totalLecturers: activeLecturers + pendingLecturers,
+        pendingLecturers,
+        activeLecturers,
+        totalStudents,
+        totalMaterials,
+        materialsByLevel: materialsByLevel.map((m) => ({ level: m.level, count: m._count })),
+        trialEndsAt: trialEndsAt ? trialEndsAt.toISOString() : null,
+        trialDaysLeft,
+        trialEnded,
+      }
+    }
+
     return NextResponse.json({
       facility,
       workers,
@@ -107,6 +174,7 @@ export async function GET(req: NextRequest) {
       subscription: facility.subscription,
       recentActivity,
       admissionTrend,
+      academicStats,
     })
   } catch (error) {
     console.error('Error fetching facility data:', error)

@@ -44,6 +44,7 @@ function getCreateTableSQL(): string[] {
       "isEmergencyCapable" BOOLEAN NOT NULL DEFAULT false,
       "servicesOffered" TEXT NOT NULL DEFAULT '[]',
       "operatingHours" TEXT,
+      "freeTrialEndsAt" TIMESTAMP(3),
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
@@ -71,6 +72,8 @@ function getCreateTableSQL(): string[] {
       "deletedAt" TIMESTAMP(3),
       "facilityId" TEXT,
       "lastLoginAt" TIMESTAMP(3),
+      "studentLevel" INTEGER,
+      "academicRole" TEXT,
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "User_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE SET NULL ON UPDATE CASCADE
@@ -889,6 +892,33 @@ function getCreateTableSQL(): string[] {
       CONSTRAINT "CallSignal_consultationId_fkey" FOREIGN KEY ("consultationId") REFERENCES "Consultation"("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
 
+    // ═══ COURSE MATERIAL (depends on Facility, User) — Student Nurses Module ═══
+    `CREATE TABLE IF NOT EXISTS "CourseMaterial" (
+      "id" TEXT PRIMARY KEY,
+      "facilityId" TEXT NOT NULL,
+      "uploaderId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "description" TEXT,
+      "type" TEXT NOT NULL,
+      "fileUrl" TEXT,
+      "externalUrl" TEXT,
+      "fileName" TEXT,
+      "fileSize" INTEGER,
+      "mimeType" TEXT,
+      "level" INTEGER NOT NULL,
+      "courseCode" TEXT,
+      "courseTitle" TEXT,
+      "isPublished" BOOLEAN NOT NULL DEFAULT true,
+      "downloadCount" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "CourseMaterial_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "CourseMaterial_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS "CourseMaterial_facilityId_level_idx" ON "CourseMaterial"("facilityId", "level")`,
+    `CREATE INDEX IF NOT EXISTS "CourseMaterial_facilityId_level_isPublished_idx" ON "CourseMaterial"("facilityId", "level", "isPublished")`,
+    `CREATE INDEX IF NOT EXISTS "CourseMaterial_uploaderId_idx" ON "CourseMaterial"("uploaderId")`,
+
     // ═══ CALL SIGNAL INDEXES ═══
     `CREATE INDEX IF NOT EXISTS "CallSignal_consultationId_signalType_consumed_idx" ON "CallSignal"("consultationId", "signalType", "consumed")`,
     `CREATE INDEX IF NOT EXISTS "CallSignal_consultationId_createdAt_idx" ON "CallSignal"("consultationId", "createdAt")`,
@@ -1283,6 +1313,27 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Setup] Created ${tablesCreated} tables with ${errors.length} errors.`)
+
+    // ─── Ensure new columns exist on already-deployed databases (idempotent) ───
+    // Each ALTER TABLE runs in a try/catch — fails silently if column already exists.
+    const columnMigrations: Array<{ table: string; column: string; type: string }> = [
+      { table: 'Facility', column: 'freeTrialEndsAt', type: 'TIMESTAMP(3)' },
+      { table: 'User', column: 'studentLevel', type: 'INTEGER' },
+      { table: 'User', column: 'academicRole', type: 'TEXT' },
+    ]
+    for (const m of columnMigrations) {
+      try {
+        await db.$executeRawUnsafe(
+          `ALTER TABLE "${m.table}" ADD COLUMN IF NOT EXISTS "${m.column}" ${m.type}`
+        )
+      } catch (err) {
+        // Older Postgres versions don't support IF NOT EXISTS on ALTER TABLE — fallback
+        const msg = (err as Error)?.message || ''
+        if (!msg.includes('already exists')) {
+          console.warn(`[Setup] Could not add column ${m.table}.${m.column}:`, msg.substring(0, 150))
+        }
+      }
+    }
 
     // Reset cached connection status
     resetDbConnectionStatus()

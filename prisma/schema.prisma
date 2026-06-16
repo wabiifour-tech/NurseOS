@@ -43,6 +43,13 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  // ─── Student / Lecturer academic context ───
+  // Used only when facility.type is UNIVERSITY or SCHOOL_OF_NURSING
+  // studentLevel: 100 | 200 | 300 | 400 | 500 (only for STUDENT role)
+  // academicRole stores the original role ('LECTURER' or 'STUDENT') since both map to NURSE in DB
+  studentLevel     Int?
+  academicRole     String?  // 'LECTURER' | 'STUDENT' | null
+
   nurseProfile           NurseProfile?
   adminProfile           AdminProfile?
   patientProfile         PatientProfile?
@@ -62,6 +69,7 @@ model User {
   sentEmails             EmailLog[]          @relation("SentEmails")
   receivedEmails         EmailLog[]          @relation("ReceivedEmails")
   recordings             Recording[]
+  uploadedMaterials      CourseMaterial[]    @relation("UploadedMaterials")
 
   @@index([email])
 }
@@ -206,6 +214,9 @@ model Facility {
   isEmergencyCapable  Boolean  @default(false)
   servicesOffered     String   @default("[]")
   operatingHours      String?
+  // Auto-set when facility.type is UNIVERSITY or SCHOOL_OF_NURSING at creation
+  // After this date, subscription becomes mandatory (enforced via middleware)
+  freeTrialEndsAt     DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -223,6 +234,7 @@ model Facility {
   diseaseSurveillance DiseaseSurveillance[]
   staffingPredictions StaffingPrediction[]
   announcements       Announcement[]     @relation("AnnouncementFacility")
+  courseMaterials     CourseMaterial[]
 
   @@index([type, city, state])
   @@index([isVerified])
@@ -943,6 +955,43 @@ model Subscription {
 }
 
 // ===== USER SETTINGS =====
+
+// ─── Course Materials (Student Nurses Module) ───
+// Lecturers upload slides / documents / PDFs / links and tag them with a level (100-500).
+// Students can only view materials for their own level within their institution.
+model CourseMaterial {
+  id            String   @id @default(cuid())
+  facilityId    String   // Institution (university / school of nursing)
+  uploaderId    String   // Lecturer (User) who uploaded the file
+  title         String
+  description   String?
+  // Type of material
+  type          String   // SLIDE | DOCUMENT | POWERPOINT | PDF | LINK
+  // For file uploads: relative URL/path (e.g., /uploads/materials/xxx.pdf) — base64 stored externally for now
+  // For links: external URL
+  fileUrl       String?
+  externalUrl   String?
+  fileName      String?  // Original filename
+  fileSize      Int?     // Bytes
+  mimeType      String?
+  // Mandatory level filter — only students at this level can see the material
+  level         Int      // 100 | 200 | 300 | 400 | 500
+  // Optional course/subject tag
+  courseCode    String?
+  courseTitle   String?
+  // Visibility / status
+  isPublished   Boolean  @default(true)
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  facility  Facility  @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  uploader  User      @relation("UploadedMaterials", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([facilityId, level])
+  @@index([facilityId, level, isPublished])
+  @@index([uploaderId])
+}
 
 model NotificationPreference {
   id        String   @id @default(cuid())

@@ -7,6 +7,8 @@ interface User {
   firstName: string;
   lastName: string;
   role: string;
+  academicRole?: string | null;   // 'LECTURER' | 'STUDENT' | null
+  studentLevel?: number | null;   // 100 | 200 | 300 | 400 | 500
   avatarUrl?: string;
   facilityId?: string | null;
   facilityName?: string | null;

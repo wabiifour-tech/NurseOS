@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
         firstName: true,
         lastName: true,
         role: true,
+        academicRole: true,
+        studentLevel: true,
         avatarUrl: true,
         phone: true,
         createdAt: true,

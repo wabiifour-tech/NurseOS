@@ -54,6 +54,16 @@ const FACILITY_TYPES = [
   { value: "REHABILITATION_CENTER", label: "Rehabilitation Center" },
   { value: "COMMUNITY_HEALTH_CENTER", label: "Community Health Center" },
   { value: "PHARMACY", label: "Pharmacy" },
+  { value: "UNIVERSITY", label: "University (Department of Nursing Sciences)" },
+  { value: "SCHOOL_OF_NURSING", label: "School of Nursing" },
+];
+
+const STUDENT_LEVELS = [
+  { value: "100", label: "100 Level (First Year)" },
+  { value: "200", label: "200 Level (Second Year)" },
+  { value: "300", label: "300 Level (Third Year)" },
+  { value: "400", label: "400 Level (Fourth Year)" },
+  { value: "500", label: "500 Level (Final Year)" },
 ];
 
 // New facility schema for admin creating a facility
@@ -78,6 +88,7 @@ const registerSchema = z
     facilityId: z.string().optional(),
     facilityOption: z.enum(["existing", "new"]).optional(), // only for admin
     newFacility: newFacilitySchema.optional(),
+    studentLevel: z.string().optional(), // only for student role
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")
@@ -92,7 +103,7 @@ const registerSchema = z
   .refine(
     (data) => {
       // For non-admin healthcare workers, facilityId is required
-      const workerRoles = ["nurse", "doctor", "matron", "student", "other"];
+      const workerRoles = ["nurse", "doctor", "matron", "student", "other", "lecturer"];
       if (workerRoles.includes(data.role) && !data.facilityId) {
         return false;
       }
@@ -117,6 +128,19 @@ const registerSchema = z
       message: "Please fill in the required facility details including registration number",
       path: ["newFacility"],
     }
+  )
+  .refine(
+    (data) => {
+      // Students must select their level
+      if (data.role === "student" && !data.studentLevel) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Please select your current level (100–500)",
+      path: ["studentLevel"],
+    }
   );
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -124,8 +148,9 @@ type RegisterForm = z.infer<typeof registerSchema>;
 const roles = [
   { value: "nurse", label: "Nurse" },
   { value: "doctor", label: "Doctor" },
-  { value: "admin", label: "Facility Admin" },
+  { value: "admin", label: "Facility / Institution Admin" },
   { value: "matron", label: "Matron" },
+  { value: "lecturer", label: "Lecturer (University / School of Nursing)" },
   { value: "student", label: "Nursing Student" },
   { value: "other", label: "Other Healthcare Worker" },
 ];
@@ -161,6 +186,7 @@ export default function RegisterPage() {
       role: "",
       facilityId: "",
       facilityOption: "existing",
+      studentLevel: "",
       newFacility: {
         name: "",
         type: "HOSPITAL",
@@ -177,6 +203,7 @@ export default function RegisterPage() {
 
   const selectedRole = watch("role");
   const selectedFacilityId = watch("facilityId");
+  const selectedStudentLevel = watch("studentLevel");
 
   // If already authenticated (e.g., Zustand persisted state), redirect to dashboard
   useEffect(() => {
@@ -214,8 +241,10 @@ export default function RegisterPage() {
     clearErrors("newFacility");
   }, [selectedRole, setValue, clearErrors]);
 
-  const isWorkerRole = ["nurse", "doctor", "matron", "student", "other"].includes(selectedRole);
+  const isWorkerRole = ["nurse", "doctor", "matron", "student", "other", "lecturer"].includes(selectedRole);
   const isAdminRole = selectedRole === "admin";
+  const isStudentRole = selectedRole === "student";
+  const isLecturerRole = selectedRole === "lecturer";
 
   async function onSubmit(data: RegisterForm) {
     setIsLoading(true);
@@ -247,6 +276,11 @@ export default function RegisterPage() {
         payload.facilityId = data.facilityId;
       }
 
+      // Students must send their selected level
+      if (isStudentRole && data.studentLevel) {
+        payload.studentLevel = Number(data.studentLevel);
+      }
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -272,8 +306,13 @@ export default function RegisterPage() {
       if (result.requiresApproval || result.status === 'PENDING') {
         // Show appropriate message based on role
         if (result.facilityCreated) {
-          toast.success('Facility application submitted!', {
-            description: 'A NurseOS Super Admin will review and verify your facility. You will be notified once approved. This typically takes 1-2 business days.',
+          toast.success('Institution application submitted!', {
+            description: 'A NurseOS Super Admin will review and verify your institution. You will be notified once approved. This typically takes 1-2 business days.',
+            duration: 8000,
+          })
+        } else if (isLecturerRole) {
+          toast.success('Lecturer account created!', {
+            description: 'Your institution admin must approve your access before you can sign in. You will be notified once approved.',
             duration: 8000,
           })
         } else {
@@ -287,7 +326,7 @@ export default function RegisterPage() {
         return
       }
 
-      // Only SUPER_ADMIN gets auto-login (created by another SUPER_ADMIN)
+      // Auto-login for SUPER_ADMIN (created by another SUPER_ADMIN) and STUDENT (auto-enrolled)
       if (result.token) {
         login({
           id: result.user?.id || crypto.randomUUID(),
@@ -295,12 +334,18 @@ export default function RegisterPage() {
           firstName: result.user?.firstName || data.firstName,
           lastName: result.user?.lastName || data.lastName,
           role: result.originalRole || data.role,
+          academicRole: result.user?.academicRole || (isStudentRole ? 'STUDENT' : isLecturerRole ? 'LECTURER' : null),
+          studentLevel: result.user?.studentLevel ?? (isStudentRole ? Number(data.studentLevel) : null),
           facilityId: result.user?.facilityId || null,
           facilityName: result.user?.facilityName || null,
           nurseProfileId: result.user?.nurseProfileId || null,
         }, result.token);
 
-        toast.success("Account created! Welcome to NurseOS.");
+        if (isStudentRole) {
+          toast.success("Student account created! Welcome to NurseOS.");
+        } else {
+          toast.success("Account created! Welcome to NurseOS.");
+        }
         window.location.href = "/dashboard";
       }
     } catch (error) {
@@ -577,10 +622,12 @@ export default function RegisterPage() {
                 )}
               </>
             ) : isWorkerRole ? (
-              /* ===== HEALTHCARE WORKER: Facility is REQUIRED ===== */
+              /* ===== HEALTHCARE WORKER / STUDENT / LECTURER: Facility/Institution is REQUIRED ===== */
               <>
                 <Label>
-                  Select your healthcare facility <span className="text-destructive">*</span>
+                  {isStudentRole || isLecturerRole
+                    ? <>Select your institution <span className="text-destructive">*</span></>
+                    : <>Select your healthcare facility <span className="text-destructive">*</span></>}
                 </Label>
                 <Select
                   value={selectedFacilityId || ""}
@@ -591,7 +638,15 @@ export default function RegisterPage() {
                 >
                   <SelectTrigger className={`w-full ${errors.facilityId ? "border-destructive" : ""}`}>
                     <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
-                    <SelectValue placeholder={loadingFacilities ? "Loading facilities..." : "Select your facility (required)"} />
+                    <SelectValue
+                      placeholder={
+                        loadingFacilities
+                          ? "Loading institutions..."
+                          : isStudentRole || isLecturerRole
+                          ? "Select your university or school of nursing (required)"
+                          : "Select your facility (required)"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
                     {facilities
@@ -606,11 +661,49 @@ export default function RegisterPage() {
                 {errors.facilityId && (
                   <div className="flex items-center gap-1.5 text-xs text-destructive">
                     <AlertCircle className="w-3.5 h-3.5" />
-                    {errors.facilityId.message || "Please select a facility to continue"}
+                    {errors.facilityId.message || "Please select an institution to continue"}
                   </div>
                 )}
+
+                {/* Student level selector — only shown for students */}
+                {isStudentRole && (
+                  <div className="space-y-2 mt-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50/40">
+                    <Label htmlFor="studentLevel" className="text-sm font-medium">
+                      Current Level <span className="text-destructive">*</span>
+                    </Label>
+                    <Select
+                      value={selectedStudentLevel || ""}
+                      onValueChange={(value) => {
+                        setValue("studentLevel", value, { shouldValidate: true });
+                        clearErrors("studentLevel");
+                      }}
+                    >
+                      <SelectTrigger className={`w-full ${errors.studentLevel ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select your current level (100 — 500)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STUDENT_LEVELS.map((lvl) => (
+                          <SelectItem key={lvl.value} value={lvl.value}>
+                            {lvl.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.studentLevel && (
+                      <p className="text-xs text-destructive">{errors.studentLevel.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      You will only see materials uploaded for your level by your lecturers.
+                    </p>
+                  </div>
+                )}
+
                 <p className="text-xs text-muted-foreground">
-                  Healthcare workers must be assigned to a facility. Your data will be isolated to this facility.
+                  {isStudentRole
+                    ? "You will be enrolled as a student at the selected institution. Lecturers will upload study materials filtered by your level."
+                    : isLecturerRole
+                    ? "Your lecturer account requires approval from your institution admin before you can sign in. You will be notified once approved."
+                    : "Healthcare workers must be assigned to a facility. Your data will be isolated to this facility."}
                 </p>
               </>
             ) : null}

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId, newFacility } = body
+    const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId, newFacility, studentLevel } = body
 
     // Rate limiting
     const rateLimitResult = checkRateLimit(getRateLimitIdentifier(request), AUTH_RATE_LIMIT)
@@ -45,6 +45,24 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: email, password, firstName, lastName, role' },
         { status: 400 }
       )
+    }
+
+    // ─── Academic role handling (LECTURER + STUDENT) ───
+    // Both LECTURER and STUDENT map to NURSE in DB enum, but academicRole stores the original.
+    // LECTURER requires institution selection → status PENDING (institution admin approves)
+    // STUDENT requires level (100-500) + institution selection → status ACTIVE (auto-enrolled)
+    const validAcademicRoles = ['LECTURER', 'STUDENT']
+    const isAcademicRole = validAcademicRoles.includes(role.toUpperCase())
+
+    // Validate student level if STUDENT role
+    if (role.toUpperCase() === 'STUDENT') {
+      const validLevels = [100, 200, 300, 400, 500]
+      if (!studentLevel || !validLevels.includes(Number(studentLevel))) {
+        return NextResponse.json(
+          { error: 'Student level is required and must be one of: 100, 200, 300, 400, 500' },
+          { status: 400 }
+        )
+      }
     }
 
     // Validate email format
@@ -77,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate role - SUPER_ADMIN can only be created by existing SUPER_ADMIN users
-    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER']
+    const validRoles = ['NURSE', 'ADMIN', 'PATIENT', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER']
     const normalizedRole = role.toUpperCase()
     
     // Check if trying to create a SUPER_ADMIN account
@@ -130,7 +148,7 @@ export async function POST(request: NextRequest) {
     }
 
     // For non-admin healthcare workers, facility is required
-    if (['NURSE', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole) && !verifiedFacilityId) {
+    if (['NURSE', 'DOCTOR', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER'].includes(normalizedRole) && !verifiedFacilityId) {
       return NextResponse.json(
         { error: 'Healthcare workers must be assigned to a facility. Please select a facility.' },
         { status: 400 }
@@ -159,7 +177,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Validate facility type
-      const validTypes = ['HOSPITAL', 'CLINIC', 'PRIMARY_HEALTH_CENTER', 'SPECIALIST_CENTER', 'MATERNITY_HOME', 'REHABILITATION_CENTER', 'DIAGNOSTIC_CENTER', 'PHARMACY', 'COMMUNITY_HEALTH_CENTER', 'GENERAL']
+      const validTypes = ['HOSPITAL', 'CLINIC', 'PRIMARY_HEALTH_CENTER', 'SPECIALIST_CENTER', 'MATERNITY_HOME', 'REHABILITATION_CENTER', 'DIAGNOSTIC_CENTER', 'PHARMACY', 'COMMUNITY_HEALTH_CENTER', 'GENERAL', 'UNIVERSITY', 'SCHOOL_OF_NURSING']
       if (newFacility.type && !validTypes.includes(newFacility.type)) {
         return NextResponse.json(
           { error: `Invalid facility type. Must be one of: ${validTypes.join(', ')}` },
@@ -179,6 +197,12 @@ export async function POST(request: NextRequest) {
       }
 
       // Create the new facility — starts as UNVERIFIED and PENDING accreditation
+      // For UNIVERSITY / SCHOOL_OF_NURSING: auto-grant 1-week free trial starting now
+      const isAcademicInstitution = ['UNIVERSITY', 'SCHOOL_OF_NURSING'].includes(newFacility.type || '')
+      const trialEndsAt = isAcademicInstitution
+        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+        : null
+
       const newFac = await db.facility.create({
         data: {
           name: newFacility.name,
@@ -193,6 +217,7 @@ export async function POST(request: NextRequest) {
           accreditingBody: newFacility.accreditingBody || null,
           isVerified: false,
           accreditationStatus: 'PENDING',
+          freeTrialEndsAt: trialEndsAt,
         },
       })
       facilityIdToAssign = newFac.id
@@ -214,9 +239,9 @@ export async function POST(request: NextRequest) {
     // Hash the password using bcrypt (10 salt rounds)
     const passwordHash = await bcrypt.hash(password, 10)
 
-    // Create user - map STUDENT and OTHER to NURSE role for DB enum compatibility
+    // Create user - map STUDENT, LECTURER and OTHER to NURSE role for DB enum compatibility
     // SUPER_ADMIN maps to ADMIN in DB
-    const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole) ? 'NURSE' :
+    const dbRole = ['NURSE', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER'].includes(normalizedRole) ? 'NURSE' :
                    normalizedRole === 'DOCTOR' ? 'DOCTOR' :
                    ['ADMIN', 'SUPER_ADMIN'].includes(normalizedRole) ? 'ADMIN' : 'PATIENT'
 
@@ -225,8 +250,19 @@ export async function POST(request: NextRequest) {
     // - Admins creating NEW facilities → PENDING (requires SUPER_ADMIN to verify facility + approve admin)
     // - Admins joining EXISTING facilities → PENDING (requires existing facility admin approval)
     // - Healthcare workers → PENDING (requires facility admin approval)
+    // - LECTURERS → PENDING (requires institution admin approval)
+    // - STUDENTS → ACTIVE (auto-enrolled, no approval needed — they select their level + institution)
     // - SUPER_ADMIN → ACTIVE only if created by another SUPER_ADMIN
-    const userStatus = normalizedRole === 'SUPER_ADMIN' ? 'ACTIVE' : 'PENDING'
+    const userStatus =
+      normalizedRole === 'SUPER_ADMIN' ? 'ACTIVE' :
+      normalizedRole === 'STUDENT' ? 'ACTIVE' :
+      'PENDING'
+
+    // ── Academic role storage ──
+    // LECTURER and STUDENT both map to NURSE in DB role enum, so we preserve the original
+    // role in `academicRole` for downstream UI/logic differentiation.
+    const academicRoleToStore = ['LECTURER', 'STUDENT'].includes(normalizedRole) ? normalizedRole : null
+    const studentLevelToStore = normalizedRole === 'STUDENT' ? Number(studentLevel) : null
 
     const user = await db.user.create({
       data: {
@@ -241,15 +277,19 @@ export async function POST(request: NextRequest) {
         role: dbRole,
         status: userStatus,
         facilityId: facilityIdToAssign,
+        academicRole: academicRoleToStore,
+        studentLevel: studentLevelToStore,
       },
     })
 
     // If role is nursing-related, create NurseProfile with facility assignment
-    if (['NURSE', 'MATRON', 'STUDENT', 'OTHER'].includes(normalizedRole)) {
+    if (['NURSE', 'MATRON', 'STUDENT', 'OTHER', 'LECTURER'].includes(normalizedRole)) {
       await db.nurseProfile.create({
         data: {
           userId: user.id,
-          licenseNumber: normalizedRole === 'STUDENT' ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}` : `NR/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
+          licenseNumber: normalizedRole === 'STUDENT' ? `STU/${new Date().getFullYear()}/${generateLicenseSuffix()}` :
+                         normalizedRole === 'LECTURER' ? `LEC/${new Date().getFullYear()}/${generateLicenseSuffix()}` :
+                         `NR/${new Date().getFullYear()}/${generateLicenseSuffix()}`,
           licenseIssuingBody: 'Nursing Registration Board',
           licenseExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 2)),
           nursingCouncil: 'Nigeria',
@@ -341,18 +381,19 @@ export async function POST(request: NextRequest) {
         }
       }
     } else if (userStatus === 'PENDING' && facilityIdToAssign) {
-      // Notify facility admin about new pending user
+      // Notify facility admin about new pending user (includes LECTURER signups)
       const facilityAdmin = await db.adminProfile.findFirst({
         where: { facilityId: facilityIdToAssign, accessLevel: { lt: 10 } },
         include: { user: { select: { id: true } } },
       })
 
       if (facilityAdmin?.user?.id) {
+        const roleLabel = normalizedRole === 'LECTURER' ? 'lecturer' : normalizedRole.toLowerCase()
         await db.notification.create({
           data: {
             userId: facilityAdmin.user.id,
             type: 'USER_APPROVAL',
-            title: `New ${normalizedRole.toLowerCase()} requesting access`,
+            title: `New ${roleLabel} requesting access`,
             message: `${firstName} ${lastName} (${email}) has signed up and is requesting access to your facility. Please review and approve or reject their account.`,
             data: JSON.stringify({
               pendingUserId: user.id,
@@ -364,11 +405,35 @@ export async function POST(request: NextRequest) {
           },
         })
       }
+    } else if (normalizedRole === 'STUDENT' && facilityIdToAssign) {
+      // Notify institution admin about new student enrollment (auto-approved, FYI only)
+      const institutionAdmin = await db.adminProfile.findFirst({
+        where: { facilityId: facilityIdToAssign, accessLevel: { lt: 10 } },
+        include: { user: { select: { id: true } } },
+      })
+
+      if (institutionAdmin?.user?.id) {
+        await db.notification.create({
+          data: {
+            userId: institutionAdmin.user.id,
+            type: 'USER_APPROVAL',
+            title: 'New student enrolled',
+            message: `${firstName} ${lastName} (${email}) has enrolled as a ${studentLevel}-level student at your institution. No action required — students are auto-approved.`,
+            data: JSON.stringify({
+              newStudentUserId: user.id,
+              newStudentName: `${firstName} ${lastName}`,
+              newStudentEmail: email,
+              studentLevel: Number(studentLevel),
+              facilityId: facilityIdToAssign,
+            }),
+          },
+        })
+      }
     }
 
     // ── Return response based on status ──
     if (userStatus === 'ACTIVE') {
-      // Only SUPER_ADMIN gets auto-login (created by another SUPER_ADMIN)
+      // Auto-login for SUPER_ADMIN (created by another SUPER_ADMIN) and STUDENT (auto-enrolled)
       const token = randomBytes(32).toString('hex')
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + 7)
@@ -390,17 +455,24 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      const responseMessage = normalizedRole === 'SUPER_ADMIN'
+        ? 'Super Admin account created successfully'
+        : normalizedRole === 'STUDENT'
+        ? 'Student account created! Welcome to NurseOS.'
+        : 'Account created successfully'
+
       const response = NextResponse.json(
         {
-          message: 'Super Admin account created successfully',
+          message: responseMessage,
           user: {
             id: user.id,
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
-            role: 'SUPER_ADMIN',
+            role: normalizedRole === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (academicRoleToStore || dbRole),
             facilityId: facilityIdToAssign,
             facilityName: fullUser?.facility?.name || null,
+            studentLevel: studentLevelToStore,
           },
           token,
           originalRole: normalizedRole,
@@ -425,6 +497,8 @@ export async function POST(request: NextRequest) {
       ? 'Your facility application has been submitted! A NurseOS Super Admin will review and verify your facility. You will be notified once approved. This typically takes 1-2 business days.'
       : normalizedRole === 'ADMIN'
       ? 'Your account has been created. The existing facility admin needs to approve your access before you can sign in.'
+      : normalizedRole === 'LECTURER'
+      ? 'Your lecturer account has been created and is pending approval from your institution admin. You will be notified once approved and can then sign in.'
       : 'Your account has been created and is pending approval from your facility admin. You will be notified once approved.'
 
     return NextResponse.json(

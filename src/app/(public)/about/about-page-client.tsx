@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
+import { motion, useInView, AnimatePresence } from "framer-motion";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Heart,
   Users,
@@ -21,6 +22,66 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+const founderPhotos = [
+  "/founder/wabi-1.jpg",
+  "/founder/wabi-2.jpg",
+  "/founder/wabi-3.jpg",
+];
+
+function FounderPhotoCarousel() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((prev) => (prev + 1) % founderPhotos.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="relative w-48 h-48 md:w-56 md:h-56 rounded-2xl overflow-hidden shadow-2xl shadow-emerald-500/20 ring-4 ring-white/10">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={index}
+          initial={{ opacity: 0, scale: 1.08 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98] }}
+          className="absolute inset-0"
+        >
+          <Image
+            src={founderPhotos[index]}
+            alt={`Wabi — The Tech Nurse (photo ${index + 1})`}
+            fill
+            sizes="(max-width: 768px) 192px, 224px"
+            className="object-cover"
+            priority={index === 0}
+          />
+        </motion.div>
+      </AnimatePresence>
+      {/* Photo indicator dots */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+        {founderPhotos.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIndex(i);
+            }}
+            className={`h-1.5 rounded-full transition-all ${
+              i === index ? "w-6 bg-white" : "w-1.5 bg-white/50 hover:bg-white/80"
+            }`}
+            aria-label={`View photo ${i + 1}`}
+          />
+        ))}
+      </div>
+      {/* Soft gradient overlay for legibility */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
+    </div>
+  );
+}
 
 function FadeIn({
   children,
@@ -181,13 +242,7 @@ export default function AboutPageClient() {
             <div className="grid md:grid-cols-5 gap-8 items-center">
               <div className="md:col-span-2 flex justify-center">
                 <div className="relative">
-                  <div className="w-48 h-48 md:w-56 md:h-56 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/20">
-                    <div className="text-center text-white">
-                      <Stethoscope className="w-12 h-12 mx-auto mb-2 opacity-80" />
-                      <p className="text-lg font-bold">Wabi</p>
-                      <p className="text-xs opacity-80">The Tech Nurse</p>
-                    </div>
-                  </div>
+                  <FounderPhotoCarousel />
                   <div className="absolute -bottom-3 -right-3 w-16 h-16 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
                     <Code2 className="w-8 h-8 text-white" />
                   </div>
