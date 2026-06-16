@@ -830,6 +830,8 @@ function getCreateTableSQL(): string[] {
       "priority" TEXT NOT NULL DEFAULT 'NORMAL',
       "isPinned" BOOLEAN NOT NULL DEFAULT false,
       "isGlobal" BOOLEAN NOT NULL DEFAULT false,
+      "targetScope" TEXT NOT NULL DEFAULT 'ALL',
+      "targetLevel" INTEGER,
       "expiresAt" TIMESTAMP(3),
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -909,7 +911,9 @@ function getCreateTableSQL(): string[] {
       "courseCode" TEXT,
       "courseTitle" TEXT,
       "isPublished" BOOLEAN NOT NULL DEFAULT true,
+      "publishAt" TIMESTAMP(3),
       "downloadCount" INTEGER NOT NULL DEFAULT 0,
+      "viewCount" INTEGER NOT NULL DEFAULT 0,
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "CourseMaterial_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -918,6 +922,80 @@ function getCreateTableSQL(): string[] {
     `CREATE INDEX IF NOT EXISTS "CourseMaterial_facilityId_level_idx" ON "CourseMaterial"("facilityId", "level")`,
     `CREATE INDEX IF NOT EXISTS "CourseMaterial_facilityId_level_isPublished_idx" ON "CourseMaterial"("facilityId", "level", "isPublished")`,
     `CREATE INDEX IF NOT EXISTS "CourseMaterial_uploaderId_idx" ON "CourseMaterial"("uploaderId")`,
+    `CREATE INDEX IF NOT EXISTS "CourseMaterial_publishAt_idx" ON "CourseMaterial"("publishAt")`,
+
+    // ═══ MATERIAL COMMENT (depends on CourseMaterial, User) — Q&A thread ═══
+    `CREATE TABLE IF NOT EXISTS "MaterialComment" (
+      "id" TEXT PRIMARY KEY,
+      "materialId" TEXT NOT NULL,
+      "authorId" TEXT NOT NULL,
+      "parentId" TEXT,
+      "content" TEXT NOT NULL,
+      "isLecturerResponse" BOOLEAN NOT NULL DEFAULT false,
+      "isResolved" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "MaterialComment_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "CourseMaterial"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "MaterialComment_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "MaterialComment_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "MaterialComment"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS "MaterialComment_materialId_createdAt_idx" ON "MaterialComment"("materialId", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "MaterialComment_parentId_idx" ON "MaterialComment"("parentId")`,
+    `CREATE INDEX IF NOT EXISTS "MaterialComment_authorId_idx" ON "MaterialComment"("authorId")`,
+
+    // ═══ MATERIAL DOWNLOAD (depends on CourseMaterial, User) — per-student tracking ═══
+    `CREATE TABLE IF NOT EXISTS "MaterialDownload" (
+      "id" TEXT PRIMARY KEY,
+      "materialId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "eventType" TEXT NOT NULL DEFAULT 'VIEW',
+      "ipAddress" TEXT,
+      "userAgent" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "MaterialDownload_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "CourseMaterial"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "MaterialDownload_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS "MaterialDownload_materialId_createdAt_idx" ON "MaterialDownload"("materialId", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "MaterialDownload_userId_createdAt_idx" ON "MaterialDownload"("userId", "createdAt")`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "MaterialDownload_materialId_userId_eventType_key" ON "MaterialDownload"("materialId", "userId", "eventType")`,
+
+    // ═══ MATERIAL VIEW (depends on CourseMaterial, User) — unique view counter ═══
+    `CREATE TABLE IF NOT EXISTS "MaterialView" (
+      "id" TEXT PRIMARY KEY,
+      "materialId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "viewCount" INTEGER NOT NULL DEFAULT 1,
+      "lastViewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "firstViewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "MaterialView_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "CourseMaterial"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "MaterialView_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "MaterialView_materialId_userId_key" ON "MaterialView"("materialId", "userId")`,
+    `CREATE INDEX IF NOT EXISTS "MaterialView_materialId_lastViewedAt_idx" ON "MaterialView"("materialId", "lastViewedAt")`,
+    `CREATE INDEX IF NOT EXISTS "MaterialView_userId_idx" ON "MaterialView"("userId")`,
+
+    // ═══ SHARED MATERIAL (depends on CourseMaterial, User) — lecturer-to-lecturer sharing ═══
+    `CREATE TABLE IF NOT EXISTS "SharedMaterial" (
+      "id" TEXT PRIMARY KEY,
+      "materialId" TEXT NOT NULL,
+      "senderId" TEXT NOT NULL,
+      "recipientId" TEXT NOT NULL,
+      "recipientEmail" TEXT NOT NULL,
+      "message" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'PENDING',
+      "copiedToMaterialId" TEXT,
+      "expiresAt" TIMESTAMP(3),
+      "acceptedAt" TIMESTAMP(3),
+      "rejectedAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "SharedMaterial_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "CourseMaterial"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "SharedMaterial_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "SharedMaterial_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS "SharedMaterial_senderId_createdAt_idx" ON "SharedMaterial"("senderId", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "SharedMaterial_recipientId_status_idx" ON "SharedMaterial"("recipientId", "status")`,
+    `CREATE INDEX IF NOT EXISTS "SharedMaterial_materialId_idx" ON "SharedMaterial"("materialId")`,
 
     // ═══ CALL SIGNAL INDEXES ═══
     `CREATE INDEX IF NOT EXISTS "CallSignal_consultationId_signalType_consumed_idx" ON "CallSignal"("consultationId", "signalType", "consumed")`,
@@ -976,6 +1054,7 @@ function getCreateTableSQL(): string[] {
     `CREATE INDEX IF NOT EXISTS "Announcement_facilityId_createdAt_idx" ON "Announcement"("facilityId", "createdAt")`,
     `CREATE INDEX IF NOT EXISTS "Announcement_isGlobal_createdAt_idx" ON "Announcement"("isGlobal", "createdAt")`,
     `CREATE INDEX IF NOT EXISTS "Announcement_priority_createdAt_idx" ON "Announcement"("priority", "createdAt")`,
+    `CREATE INDEX IF NOT EXISTS "Announcement_targetScope_targetLevel_idx" ON "Announcement"("targetScope", "targetLevel")`,
     `CREATE INDEX IF NOT EXISTS "AnnouncementRead_userId_idx" ON "AnnouncementRead"("userId")`,
     `CREATE INDEX IF NOT EXISTS "EmailLog_senderId_createdAt_idx" ON "EmailLog"("senderId", "createdAt")`,
     `CREATE INDEX IF NOT EXISTS "EmailLog_recipientId_createdAt_idx" ON "EmailLog"("recipientId", "createdAt")`,
@@ -1320,6 +1399,11 @@ export async function POST(request: NextRequest) {
       { table: 'Facility', column: 'freeTrialEndsAt', type: 'TIMESTAMP(3)' },
       { table: 'User', column: 'studentLevel', type: 'INTEGER' },
       { table: 'User', column: 'academicRole', type: 'TEXT' },
+      // Academic module enhancements — new columns on CourseMaterial + Announcement
+      { table: 'CourseMaterial', column: 'publishAt', type: 'TIMESTAMP(3)' },
+      { table: 'CourseMaterial', column: 'viewCount', type: 'INTEGER' },
+      { table: 'Announcement', column: 'targetScope', type: 'TEXT' },
+      { table: 'Announcement', column: 'targetLevel', type: 'INTEGER' },
     ]
     for (const m of columnMigrations) {
       try {

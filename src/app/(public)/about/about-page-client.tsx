@@ -18,6 +18,8 @@ import {
   GraduationCap,
   Monitor,
   Brain,
+  BarChart3,
+  Presentation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -227,8 +229,10 @@ export default function AboutPageClient() {
               </span>
             </h1>
             <p className="text-lg sm:text-xl text-emerald-100/70 max-w-2xl mx-auto">
-              NurseOS was born from the frontline — created by Wabi, a 500-level nursing student
-              and Registered Nurse from Redeemer&apos;s University, who saw the gaps in healthcare
+              NurseOS was born from the frontline — created by Wabi, a Registered Nurse from
+              Redeemer&apos;s University, a certified BLS (Basic Life Support) Provider, a certified
+              Full Stack Web Developer and AI Engineer/Developer, a Data Analyst, and a premium
+              PowerPoint slides and presentations developer — who saw the gaps in healthcare
               technology and decided to build the solution the world&apos;s nurses deserve.
             </p>
           </motion.div>
@@ -256,10 +260,13 @@ export default function AboutPageClient() {
                   Wabi — The Tech Nurse
                 </h2>
                 <p className="text-muted-foreground leading-relaxed mb-4">
-                  Wabi is a 500-level nursing student (Registered Nurse) at Redeemer&apos;s University, Ede,
-                  Osun State, Nigeria. As both a clinically-trained nurse and a full-stack developer,
-                  Wabi occupies a rare intersection — someone who has lived the challenges of Nigerian
-                  healthcare delivery and has the technical skills to build solutions.
+                  Wabi is a Registered Nurse from Redeemer&apos;s University, Ede, Osun State, Nigeria,
+                  and a certified BLS (Basic Life Support) Provider. Beyond clinical practice, Wabi is
+                  a certified Full Stack Web Developer and AI Engineer/Developer, a Data Analyst, and
+                  a premium PowerPoint slides and presentations developer. This rare intersection of
+                  clinical expertise, engineering depth, and design craft is exactly what allows
+                  NurseOS to feel like it was built by someone who has stood at the bedside — because
+                  it was.
                 </p>
                 <p className="text-muted-foreground leading-relaxed mb-4">
                   Healthcare technology worldwide is built by engineers who have never stood at a bedside.
@@ -269,16 +276,22 @@ export default function AboutPageClient() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <GraduationCap className="w-3 h-3 mr-1" /> 500-Level Nursing Student
+                    <Stethoscope className="w-3 h-3 mr-1" /> Registered Nurse, Redeemer&apos;s University
                   </Badge>
                   <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Stethoscope className="w-3 h-3 mr-1" /> Registered Nurse
+                    <Heart className="w-3 h-3 mr-1" /> Certified BLS Provider
                   </Badge>
                   <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Code2 className="w-3 h-3 mr-1" /> Full Stack Developer
+                    <Code2 className="w-3 h-3 mr-1" /> Full Stack Web Developer
                   </Badge>
                   <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Monitor className="w-3 h-3 mr-1" /> AI Developer
+                    <Monitor className="w-3 h-3 mr-1" /> AI Engineer / Developer
+                  </Badge>
+                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
+                    <BarChart3 className="w-3 h-3 mr-1" /> Data Analyst
+                  </Badge>
+                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
+                    <Presentation className="w-3 h-3 mr-1" /> Premium PPT Developer
                   </Badge>
                 </div>
               </div>

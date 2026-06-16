@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const levelFilter = url.searchParams.get('level')
     const search = url.searchParams.get('search')
+    const includeScheduled = url.searchParams.get('includeScheduled') === 'true'
 
     // Build where clause
     const where: any = {
@@ -77,18 +78,40 @@ export async function GET(request: NextRequest) {
         )
       }
       where.level = authUser.studentLevel
+      // Students don't see scheduled (future-dated) materials
+      // A material is visible if publishAt is null OR publishAt <= now
+      where.OR = [
+        { publishAt: null },
+        { publishAt: { lte: new Date() } },
+      ]
     } else if (levelFilter && VALID_LEVELS.includes(Number(levelFilter))) {
       // Lecturers / admins can filter by level
       where.level = Number(levelFilter)
+      // Lecturers / admins can optionally include scheduled materials (default: yes for them)
+      if (!includeScheduled) {
+        where.OR = [
+          { publishAt: null },
+          { publishAt: { lte: new Date() } },
+        ]
+      }
+    } else if (!includeScheduled) {
+      // Lecturers / admins without level filter — by default exclude scheduled unless explicitly requested
+      where.OR = [
+        { publishAt: null },
+        { publishAt: { lte: new Date() } },
+      ]
     }
 
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { courseCode: { contains: search, mode: 'insensitive' } },
-        { courseTitle: { contains: search, mode: 'insensitive' } },
-      ]
+      where.AND = where.AND || []
+      where.AND.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { courseCode: { contains: search, mode: 'insensitive' } },
+          { courseTitle: { contains: search, mode: 'insensitive' } },
+        ]
+      })
     }
 
     const materials = await db.courseMaterial.findMany({
@@ -100,6 +123,13 @@ export async function GET(request: NextRequest) {
             id: true,
             firstName: true,
             lastName: true,
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+            downloads: true,
+            views: true,
           },
         },
       },
@@ -200,6 +230,7 @@ export async function POST(request: NextRequest) {
       fileName,
       fileSize,
       mimeType,
+      publishAt,
     } = body
 
     // Validate required fields
@@ -290,6 +321,8 @@ export async function POST(request: NextRequest) {
         courseCode: courseCode || null,
         courseTitle: courseTitle || null,
         isPublished: true,
+        // Optional scheduled publish date — if set in the future, students won't see it until that date
+        publishAt: publishAt ? new Date(publishAt) : null,
       },
     })
 

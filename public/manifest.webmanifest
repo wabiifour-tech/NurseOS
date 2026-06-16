@@ -69,17 +69,24 @@
       "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
     },
     {
+      "name": "Course Materials",
+      "short_name": "Materials",
+      "url": "/lecturer/materials",
+      "description": "View and upload course materials (lecturer) or browse your materials (student)",
+      "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Announcements",
+      "short_name": "News",
+      "url": "/announcements",
+      "description": "View institutional announcements",
+      "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
+    },
+    {
       "name": "NurseAI Charting",
       "short_name": "Charting",
       "url": "/nurseai/charting",
       "description": "AI-powered nursing charting",
-      "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "CareGrid Facilities",
-      "short_name": "Facilities",
-      "url": "/caregrid/facilities",
-      "description": "Healthcare facility management",
       "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
     }
   ]

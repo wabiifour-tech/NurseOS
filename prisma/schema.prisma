@@ -70,6 +70,11 @@ model User {
   receivedEmails         EmailLog[]          @relation("ReceivedEmails")
   recordings             Recording[]
   uploadedMaterials      CourseMaterial[]    @relation("UploadedMaterials")
+  materialComments       MaterialComment[]   @relation("AuthoredMaterialComments")
+  materialDownloads      MaterialDownload[]
+  materialViews          MaterialView[]
+  sharedMaterialsSent    SharedMaterial[]    @relation("SharedMaterialsSent")
+  sharedMaterialsReceived SharedMaterial[]   @relation("SharedMaterialsReceived")
 
   @@index([email])
 }
@@ -981,16 +986,118 @@ model CourseMaterial {
   courseTitle   String?
   // Visibility / status
   isPublished   Boolean  @default(true)
+  // Optional scheduled publish date — if set, the material is hidden from students until this date
+  // (lecturer can pre-load materials and have them auto-publish on the semester start date)
+  publishAt     DateTime?
   downloadCount Int      @default(0)
+  viewCount     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  facility  Facility  @relation(fields: [facilityId], references: [id], onDelete: Cascade)
-  uploader  User      @relation("UploadedMaterials", fields: [uploaderId], references: [id], onDelete: Cascade)
+  facility   Facility           @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  uploader   User               @relation("UploadedMaterials", fields: [uploaderId], references: [id], onDelete: Cascade)
+  comments   MaterialComment[]
+  downloads  MaterialDownload[]
+  views      MaterialView[]
+  shares     SharedMaterial[]
 
   @@index([facilityId, level])
   @@index([facilityId, level, isPublished])
   @@index([uploaderId])
+  @@index([publishAt])
+}
+
+// ─── Material Comments / Q&A Thread ───
+// Students can ask questions on a material; lecturers (or any academic user) can respond.
+// Threaded via optional parentId (a comment with parentId=null is a top-level question).
+model MaterialComment {
+  id          String   @id @default(cuid())
+  materialId  String
+  authorId    String
+  parentId    String?  // null = top-level comment/question; non-null = reply
+  content     String
+  // Lecturer flag — set to true when the comment author is a lecturer (for highlighting "official answer")
+  isLecturerResponse Boolean @default(false)
+  // Soft-resolution flag — students can mark their question as answered
+  isResolved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  material CourseMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  author   User           @relation("AuthoredMaterialComments", fields: [authorId], references: [id], onDelete: Cascade)
+  parent   MaterialComment? @relation("MaterialCommentReply", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  MaterialComment[] @relation("MaterialCommentReply")
+
+  @@index([materialId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+}
+
+// ─── Material Download Tracking ───
+// Records each download/view event with the student who triggered it.
+// Used for: institution admin "who accessed what" dashboard + lecturer analytics.
+model MaterialDownload {
+  id          String   @id @default(cuid())
+  materialId  String
+  userId      String   // Student who downloaded/viewed the material
+  eventType   String   @default("VIEW")  // VIEW | DOWNLOAD
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  material CourseMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([materialId, createdAt])
+  @@index([userId, createdAt])
+  @@unique([materialId, userId, eventType])  // One record per user/event-type/material (for "first access" tracking)
+}
+
+// ─── Material View Tracking (separate from download) ───
+// Lightweight view counter — one row per unique (user, material) pair.
+// Updated timestamp = "last viewed at" for analytics.
+model MaterialView {
+  id          String   @id @default(cuid())
+  materialId  String
+  userId      String
+  viewCount   Int      @default(1)
+  lastViewedAt DateTime @default(now())
+  firstViewedAt DateTime @default(now())
+
+  material CourseMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([materialId, userId])
+  @@index([materialId, lastViewedAt])
+  @@index([userId])
+}
+
+// ─── Lecturer-to-Lecturer Material Sharing ───
+// A lecturer can share one of their materials with another lecturer (cross-institution).
+// The recipient gets read-only access to the material's file/url.
+model SharedMaterial {
+  id            String   @id @default(cuid())
+  materialId    String   // The original material being shared
+  senderId      String   // Lecturer sharing the material
+  recipientId   String   // Lecturer receiving the material
+  recipientEmail String  // Email at time of sharing (in case recipient hasn't signed up yet)
+  message       String?  // Optional note from sender
+  status        String   @default("PENDING")  // PENDING | ACCEPTED | REJECTED | EXPIRED
+  // If accepted, recipient can copy this material into their own institution
+  copiedToMaterialId String?  // ID of the new material created in recipient's facility (if copied)
+  expiresAt     DateTime?
+  acceptedAt    DateTime?
+  rejectedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  material  CourseMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  sender    User           @relation("SharedMaterialsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User           @relation("SharedMaterialsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createdAt])
+  @@index([recipientId, status])
+  @@index([materialId])
 }
 
 model NotificationPreference {
@@ -1074,6 +1181,13 @@ model Announcement {
   priority    String   @default("NORMAL")   // LOW, NORMAL, HIGH, URGENT, CRITICAL
   isPinned    Boolean  @default(false)
   isGlobal    Boolean  @default(false)
+  // ─── Level-targeted announcements (academic module) ───
+  // When targetScope is ALL, everyone in the facility sees the announcement.
+  // When targetScope is LEVEL, only students/lecturers matching targetLevel see it.
+  // When targetScope is LECTURERS, only lecturers at the facility see it.
+  // When targetScope is STUDENTS, only students at the facility see it.
+  targetScope String   @default("ALL")  // ALL | LEVEL | LECTURERS | STUDENTS
+  targetLevel Int?     // 100 | 200 | 300 | 400 | 500 (only used when targetScope = LEVEL)
   expiresAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1085,6 +1199,7 @@ model Announcement {
   @@index([facilityId, createdAt])
   @@index([isGlobal, createdAt])
   @@index([priority, createdAt])
+  @@index([targetScope, targetLevel])
 }
 
 model AnnouncementRead {

@@ -87,6 +87,8 @@ function LoginForm() {
         firstName: result.user.firstName,
         lastName: result.user.lastName,
         role: result.user.role,
+        academicRole: result.user.academicRole || null,
+        studentLevel: result.user.studentLevel ?? null,
         facilityId: result.facilityId || null,
         facilityName: result.facilityName || null,
         nurseProfileId: result.nurseProfileId || null,
