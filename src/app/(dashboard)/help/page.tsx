@@ -290,10 +290,10 @@ export default function HelpSupportPage() {
           })
         }, 3000)
       } else {
-        toast.error('Failed to send message. Please email support@nurseos.com directly.')
+        toast.error('Failed to send message. Please email support@nurseos.digital directly.')
       }
     } catch {
-      toast.error('Failed to send message. Please try again or email support@nurseos.com')
+      toast.error('Failed to send message. Please try again or email support@nurseos.digital')
     } finally {
       setIsSending(false)
     }
@@ -339,7 +339,7 @@ export default function HelpSupportPage() {
               </a>
               <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Mail className="size-3" /> support@nurseos.com
+                  <Mail className="size-3" /> support@nurseos.digital
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" /> 24hr response
