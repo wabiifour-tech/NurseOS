@@ -17,6 +17,8 @@ import {
   Server,
   Table,
   Sparkles,
+  FlaskConical,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -378,6 +380,9 @@ export default function SetupPage() {
           </CardFooter>
         </Card>
 
+        {/* Test Accounts card — wipe + create test accounts (for testing role-based dashboards) */}
+        <TestAccountsCard />
+
         {/* Info card — what setup does */}
         <Card className="mt-6 border-emerald-500/10">
           <CardHeader>
@@ -414,5 +419,117 @@ export default function SetupPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+/* ─── Test Accounts Card — wipe + create test accounts ─── */
+function TestAccountsCard() {
+  const [isWiping, setIsWiping] = React.useState(false)
+  const [result, setResult] = React.useState<any>(null)
+
+  async function handleCreateTestAccounts() {
+    if (!confirm('⚠️ WARNING: This will WIPE ALL existing users, facilities, and related data, then create 3 test accounts (institution admin, lecturer, student). This cannot be undone. Continue?')) {
+      return
+    }
+    setIsWiping(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/setup/test-accounts', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to create test accounts')
+        return
+      }
+      setResult(data)
+      toast.success('Test accounts created! All previous data was wiped.', { duration: 8000 })
+    } catch (err: any) {
+      toast.error('Network error: ' + (err.message || 'Unknown'))
+    } finally {
+      setIsWiping(false)
+    }
+  }
+
+  return (
+    <Card className="mt-6 border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10">
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2">
+          <FlaskConical className="size-4 text-amber-600" />
+          Test Accounts (For Testing Only)
+        </CardTitle>
+        <CardDescription>
+          Wipe all existing data and create 3 fresh test accounts to verify role-based dashboards
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+          <p className="text-xs text-amber-800 dark:text-amber-300 font-medium flex items-start gap-1.5">
+            <AlertTriangle className="size-3.5 mt-0.5 flex-shrink-0" />
+            <span>
+              <strong>Destructive operation:</strong> Clicking the button below will DELETE ALL existing users,
+              facilities, materials, and related data, then create 3 test accounts. Use this only for testing.
+            </span>
+          </p>
+        </div>
+
+        {result ? (
+          <div className="space-y-3">
+            <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle2 className="size-4" />
+                Test accounts created successfully!
+              </p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+                Institution: {result.institution?.name}
+              </p>
+            </div>
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left p-2 font-medium">Role</th>
+                    <th className="text-left p-2 font-medium">Email</th>
+                    <th className="text-left p-2 font-medium">Password</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.accounts?.map((acc: any, i: number) => (
+                    <tr key={i} className="border-t">
+                      <td className="p-2 font-medium">{acc.role}</td>
+                      <td className="p-2 font-mono">{acc.email}</td>
+                      <td className="p-2 font-mono">{acc.password}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Link href="/test-login">
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
+                Go to Test Login
+                <ArrowRight className="size-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <Button
+            onClick={handleCreateTestAccounts}
+            disabled={isWiping}
+            variant="outline"
+            className="w-full border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/30"
+          >
+            {isWiping ? (
+              <>
+                <Loader2 className="size-4 mr-2 animate-spin" />
+                Wiping + Creating Test Accounts...
+              </>
+            ) : (
+              <>
+                <Trash2 className="size-4 mr-2" />
+                Wipe All Data & Create Test Accounts
+              </>
+            )}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   )
 }

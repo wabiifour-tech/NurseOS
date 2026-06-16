@@ -56,6 +56,7 @@ const publicApiRoutes = [
   '/api/facilities/public',
   '/api/health',
   '/api/setup',
+  '/api/setup/test-accounts',
   '/api/seed',
   '/api/email/webhook',
   '/api/news',
