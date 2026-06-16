@@ -1220,7 +1220,7 @@ function InstitutionAdminDashboard({
         </Link>
       </div>
 
-      {/* ── Subscription / Trial card ── */}
+      {/* ── Subscription card — FREE FOREVER ── */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -1228,69 +1228,31 @@ function InstitutionAdminDashboard({
             Subscription
           </CardTitle>
           <CardDescription>
-            Your institution&apos;s current plan and billing status
+            Your institution&apos;s plan
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {subscription ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Current Plan</p>
-                <p className="text-lg font-semibold">{subscription.plan}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Status</p>
-                <Badge variant="outline" className={statusColorMap[subscription.status] || ''}>
-                  {subscription.status}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Period End</p>
-                <p className="text-lg font-semibold">
-                  {subscription.currentPeriodEnd ? formatDate(subscription.currentPeriodEnd) : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Free Trial</p>
-                {trialEnded ? (
-                  <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20">
-                    <AlertTriangle className="size-3 mr-1" />Expired
-                  </Badge>
-                ) : trialDaysLeft !== null && trialDaysLeft !== undefined ? (
-                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20">
-                    <Clock className="size-3 mr-1" />{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left
-                  </Badge>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
-              </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Current Plan</p>
+              <p className="text-lg font-semibold">Free</p>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No subscription record found.</p>
-          )}
-
-          {trialEnded && (
-            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
-              <p className="text-sm text-red-700 dark:text-red-300 font-medium">
-                Your free trial has ended. Lecturers can no longer upload materials until you subscribe.
-              </p>
-              <Link href="/subscription" className="inline-block mt-2">
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
-                  Subscribe Now
-                </Button>
-              </Link>
+            <div>
+              <p className="text-xs text-muted-foreground">Status</p>
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                <Check className="size-3 mr-1" />Active
+              </Badge>
             </div>
-          )}
-          {!trialEnded && trialDaysLeft !== null && trialDaysLeft !== undefined && trialDaysLeft <= 3 && (
-            <div className="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-              <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
-                Your free trial ends in {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}. Subscribe now to avoid disruption.
-              </p>
-              <Link href="/subscription" className="inline-block mt-2">
-                <Button size="sm" variant="outline">View Plans</Button>
-              </Link>
+            <div>
+              <p className="text-xs text-muted-foreground">Billing</p>
+              <p className="text-lg font-semibold text-emerald-600">Free Forever</p>
             </div>
-          )}
+          </div>
+          <div className="mt-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+            <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">
+              ✓ Your institution is free forever. Lecturers can upload unlimited materials — no payment required.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

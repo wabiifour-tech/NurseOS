@@ -91,22 +91,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Subscription enforcement
-    const subscription = await db.subscription.findUnique({
-      where: { facilityId: facility.id },
-    })
-    const trialEnded = facility.freeTrialEndsAt && new Date() > facility.freeTrialEndsAt
-    const hasActiveSubscription = subscription && subscription.status === 'ACTIVE' && subscription.isActive
-    if (trialEnded && !hasActiveSubscription) {
-      return NextResponse.json(
-        {
-          error: 'Free trial has ended. Your institution must subscribe to continue uploading materials.',
-          errorType: 'SUBSCRIPTION_REQUIRED',
-          trialEnded: true,
-        },
-        { status: 402 }
-      )
-    }
+    // ─── Subscription enforcement REMOVED ───
+    // Institutions are FREE FOREVER. No trial expiry, no payment required.
 
     let body: any
     try {

@@ -571,11 +571,13 @@ export default function SettingsPage() {
   }
 
   const [deletePassword, setDeletePassword] = React.useState('')
+  const [deleteConfirmation, setDeleteConfirmation] = React.useState('')
   const [isDeleting, setIsDeleting] = React.useState(false)
 
   const handleDeleteAccount = async () => {
-    if (!deletePassword) {
-      toast.error('Please enter your password to confirm account deletion')
+    // User can confirm via password OR by typing "DELETE" (for Google OAuth users who don't have a password)
+    if (!deletePassword && deleteConfirmation !== 'DELETE') {
+      toast.error('Please enter your password OR type DELETE to confirm account deletion')
       return
     }
     setIsDeleting(true)
@@ -583,7 +585,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/settings/delete-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: deletePassword }),
+        body: JSON.stringify({ password: deletePassword || undefined, confirmation: deleteConfirmation || undefined }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -1254,6 +1256,7 @@ export default function SettingsPage() {
                       onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                       placeholder="Enter current password"
                       className="h-9 pr-10"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -1436,27 +1439,42 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">Permanently delete your account and all associated data. This action cannot be undone.</p>
               </div>
               {showDeleteConfirm ? (
-                <div className="flex flex-col items-end gap-3">
-                  <p className="text-xs text-destructive font-medium">This will permanently erase all your data. Enter your password to confirm.</p>
+                <div className="flex flex-col items-end gap-3 w-full max-w-md">
+                  <p className="text-xs text-destructive font-medium text-right">
+                    This will permanently erase all your data.
+                  </p>
+                  <p className="text-xs text-muted-foreground text-right">
+                    If you signed up with a password, enter it below. If you signed up with Google, type <strong>DELETE</strong> in the confirmation field instead.
+                  </p>
                   <div className="flex items-center gap-2 w-full">
                     <Input
                       type="password"
                       value={deletePassword}
                       onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder="Enter your password"
+                      placeholder="Your password (if you have one)"
+                      className="h-9 flex-1"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 w-full">
+                    <Input
+                      type="text"
+                      value={deleteConfirmation}
+                      onChange={(e) => setDeleteConfirmation(e.target.value)}
+                      placeholder='Type DELETE to confirm'
                       className="h-9 flex-1"
                     />
                     <Button
                       variant="destructive"
                       size="sm"
                       onClick={handleDeleteAccount}
-                      disabled={isDeleting || !deletePassword}
+                      disabled={isDeleting || (!deletePassword && deleteConfirmation !== 'DELETE')}
                     >
                       {isDeleting ? <Loader2 className="size-4 mr-1 animate-spin" /> : <AlertTriangle className="size-4 mr-1" />}
                       Confirm Delete
                     </Button>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => { setShowDeleteConfirm(false); setDeletePassword('') }}>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteConfirmation('') }}>
                     Cancel
                   </Button>
                 </div>

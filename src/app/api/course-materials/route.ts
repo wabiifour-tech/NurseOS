@@ -191,24 +191,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Subscription enforcement: if trial ended and no active subscription, block uploads
-    const subscription = await db.subscription.findUnique({
-      where: { facilityId: facility.id },
-    })
-
-    const trialEnded = facility.freeTrialEndsAt && new Date() > facility.freeTrialEndsAt
-    const hasActiveSubscription = subscription && subscription.status === 'ACTIVE' && subscription.isActive
-
-    if (trialEnded && !hasActiveSubscription) {
-      return NextResponse.json(
-        {
-          error: 'Free trial has ended. Your institution must subscribe to continue uploading materials.',
-          errorType: 'SUBSCRIPTION_REQUIRED',
-          trialEnded: true,
-        },
-        { status: 402 }
-      )
-    }
+    // ─── Subscription enforcement REMOVED ───
+    // Institutions are FREE FOREVER. Lecturers can upload materials without any subscription
+    // or trial restrictions. The subscription/trial UI is kept for display purposes only.
 
     // Parse body — JSON with possible large base64 payload
     let body: any

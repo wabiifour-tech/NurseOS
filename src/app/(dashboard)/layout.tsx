@@ -519,22 +519,19 @@ export default function DashboardLayout({
     checkHydration()
   }, [])
 
-  // Step 2: After hydration, if Zustand says NOT authenticated, verify with server
+  // Step 2: After hydration, ALWAYS refresh auth data from server
+  // This is critical because:
+  //   - facilityType may have been added to the schema AFTER the user's persisted Zustand state was saved
+  //   - role / academicRole / studentLevel may have changed server-side (e.g., admin approved a lecturer)
+  //   - We can't trust the persisted state alone for routing decisions in the sidebar + dashboard
   React.useEffect(() => {
     if (!hydrated) return
-
-    // If already authenticated via Zustand, no need for server check
-    if (isAuthenticated || isLoggingOut) {
-      setAuthChecked(true)
-      return
-    }
-
-    // Zustand says NOT authenticated — but the middleware already let us through,
-    // which means the HttpOnly cookie likely exists. Verify with /api/auth/me.
-    console.warn('[NurseOS] Zustand says unauthenticated after hydration. Verifying with /api/auth/me...')
+    if (isLoggingOut) return
 
     let cancelled = false
 
+    // Always call /api/auth/me — even if Zustand says authenticated.
+    // The server is the source of truth for the user's current role, facilityType, etc.
     fetch('/api/auth/me', {
       method: 'GET',
       credentials: 'include', // Send HttpOnly cookie
@@ -548,8 +545,8 @@ export default function DashboardLayout({
         if (cancelled || !data) return
 
         if (data.user && data.token) {
-          // Server confirms authenticated — re-populate Zustand from server data
-          console.info('[NurseOS] Server auth verified. Restoring Zustand state.')
+          // Server confirms authenticated — re-populate Zustand from server data (always fresh)
+          console.info('[NurseOS] Server auth verified. Refreshing Zustand state with latest user data.')
           const { login } = useAuthStore.getState()
           login({
             id: data.user.id,
@@ -573,13 +570,19 @@ export default function DashboardLayout({
       })
       .catch(() => {
         if (cancelled) return
-        // Network error or auth failed — redirect to login
-        console.warn('[NurseOS] /api/auth/me request failed. Redirecting to login.')
-        window.location.href = "/login"
+        // If the user was already authenticated via Zustand, don't redirect on network error —
+        // just use the persisted state. Only redirect if they were NOT authenticated.
+        if (!isAuthenticated) {
+          console.warn('[NurseOS] /api/auth/me request failed and no persisted auth. Redirecting to login.')
+          window.location.href = "/login"
+        } else {
+          console.warn('[NurseOS] /api/auth/me request failed, but using persisted auth state.')
+          setAuthChecked(true)
+        }
       })
 
     return () => { cancelled = true }
-  }, [hydrated, isAuthenticated, isLoggingOut])
+  }, [hydrated, isLoggingOut])
 
   // Show logging out state
   if (hydrated && isLoggingOut) {

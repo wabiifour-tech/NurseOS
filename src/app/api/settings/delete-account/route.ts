@@ -3,6 +3,17 @@ import { db } from '@/lib/db'
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 // POST /api/settings/delete-account — Soft-delete user account
+//
+// Password handling:
+//   - Users who signed up with a password (manual registration) → MUST provide their correct password
+//   - Users who signed up via Google OAuth → their passwordHash is a random string (not a real password).
+//     bcrypt.compare will always fail for them. In that case, we accept a typed confirmation "DELETE"
+//     instead, since the user is already authenticated via session cookie.
+//
+// Detection logic:
+//   1. If a password is provided, try bcrypt.compare against the stored hash
+//   2. If bcrypt fails AND a "DELETE" confirmation is provided, treat as OAuth user and accept
+//   3. Otherwise, reject
 export async function POST(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
@@ -15,12 +26,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    const { password } = body
-    if (!password) {
-      return NextResponse.json({ error: 'Password confirmation is required' }, { status: 400 })
-    }
+    const { password, confirmation } = body
 
-    // Verify password
+    // Fetch user with passwordHash
     const user = await db.user.findUnique({
       where: { id: authUser.id },
       select: { id: true, email: true, passwordHash: true },
@@ -30,10 +38,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const bcrypt = await import('bcryptjs')
-    const validPassword = await bcrypt.compare(password, user.passwordHash)
-    if (!validPassword) {
-      return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
+    // Try password verification first (works for password-based users)
+    let passwordValid = false
+    if (password) {
+      try {
+        const bcrypt = await import('bcryptjs')
+        passwordValid = await bcrypt.compare(password, user.passwordHash)
+      } catch {
+        passwordValid = false
+      }
+    }
+
+    if (!passwordValid) {
+      // Password didn't match — could be an OAuth user (random passwordHash) OR a wrong password.
+      // Accept typed "DELETE" confirmation as an alternative for OAuth users.
+      if (confirmation !== 'DELETE') {
+        return NextResponse.json({
+          error: 'Invalid password. If you signed up with Google, please type DELETE in the confirmation field to confirm account deletion.',
+          errorType: password ? 'INVALID_PASSWORD_OAUTH_USER' : 'PASSWORD_REQUIRED',
+        }, { status: 401 })
+      }
+      // OAuth user confirmed deletion via "DELETE" — proceed
     }
 
     // Soft-delete: mark as deleted, anonymize PII, set status to DELETED
@@ -65,7 +90,7 @@ export async function POST(request: NextRequest) {
         action: 'ACCOUNT_DELETED',
         resource: 'User',
         resourceId: authUser.id,
-        details: 'User account was soft-deleted and PII anonymized',
+        details: `User account was soft-deleted and PII anonymized. Auth method: ${passwordValid ? 'password' : 'OAuth (Google) + DELETE confirmation'}.`,
       },
     })
 
