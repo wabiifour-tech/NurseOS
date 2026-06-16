@@ -205,3 +205,42 @@ Stage Summary:
 - Schema is fully synced: Prisma schema valid, setup route SQL DDL updated, ALTER TABLE column migrations added for backward compat with existing databases
 - All changes pushed to GitHub — Vercel will auto-deploy
 - IMPORTANT: After deployment, the user must visit /api/setup once to create the new tables (MaterialComment, MaterialDownload, MaterialView, SharedMaterial) on the production database
+
+---
+Task ID: institution-admin-fixes
+Agent: Main Agent
+Task: Strip institution admin dashboard to ONLY academic features + add matric number + fix dropdown bug + remove seeded facilities
+
+Work Log:
+- Added `matricNumber` field to User schema (Prisma) + SQL DDL + ALTER TABLE migration
+- Updated onboarding page: matric number is COMPULSORY for students (validated client + server)
+- Updated /api/auth/oauth/complete route: accepts + validates + stores matricNumber for students
+- CRITICAL BUG FIX: /api/facilities/public was filtering `isVerified=true AND accreditationStatus IN ['VERIFIED','ACCREDITED']`
+  which meant newly-created institutions (isVerified=false, accreditationStatus='PENDING') never appeared
+  in the dropdown for students/lecturers to select. Fixed by adding an OR branch: academic institutions
+  (UNIVERSITY / SCHOOL_OF_NURSING) are always visible regardless of verification status, because the
+  institution admin who created them is ACTIVE and the 1-week free trial starts at creation.
+- Disabled /api/seed route — it no longer creates demo facilities. Returns a helpful message instead.
+  (User explicitly requested NO seeded facilities in production — only real user-created ones.)
+- Rewrote /api/admin/facility route to return detailed `lecturers`, `students`, and `studentsByLevel`
+  arrays (scoped STRICTLY to authUser.facilityId — no cross-facility data leakage). Also excluded
+  lecturers/students from the generic `workers` list (they get their own dedicated sections).
+- Added new `InstitutionAdminDashboard` component to /admin page. When the admin's facility is
+  UNIVERSITY or SCHOOL_OF_NURSING, it renders ONLY:
+    1. Subscription / trial status card
+    2. Quick stats (active lecturers, pending lecturers, total students, course materials)
+    3. Pending lecturer approvals (with approve/reject buttons)
+    4. Lecturers list (name, email, phone, status, joined date) — searchable
+    5. Students list (name, email, matric number, level, joined date) — searchable + level filter
+    6. Students grouped by level (100/200/300/400/500) with names + matric numbers
+    7. "Send Announcement" button linking to /announcements
+  Hospital widgets (workers, patients, medical records, referrals, analytics) are HIDDEN for
+  institution admins. Regular facility admins (Hospital/Clinic/PHC) still see the original dashboard.
+
+Stage Summary:
+- Institution admin dashboard is now stripped to ONLY academic features (lecturers, students, subscription, announcements)
+- Matric number is compulsory for students at signup (client + server validation)
+- Newly created institutions now appear in the dropdown for students/lecturers immediately
+- Seed route is disabled — no more demo facilities
+- All academic data is scoped to the admin's facilityId — no cross-facility leakage
+- Build succeeds with zero errors

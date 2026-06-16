@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       newFacilityPhone, newFacilityEmail,
       newFacilityRegistrationNumber,
       // Academic module
-      studentLevel, adminType,
+      studentLevel, adminType, matricNumber,
     } = body
 
     if (!email || !firstName || !lastName || !role) {
@@ -50,12 +50,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    // Validate student level if STUDENT role
+    // Validate student level + matric number if STUDENT role
     if (isStudent) {
       const validLevels = [100, 200, 300, 400, 500]
       if (!studentLevel || !validLevels.includes(Number(studentLevel))) {
         return NextResponse.json(
           { error: 'Student level is required and must be one of: 100, 200, 300, 400, 500' },
+          { status: 400 }
+        )
+      }
+      if (!matricNumber || !String(matricNumber).trim()) {
+        return NextResponse.json(
+          { error: 'Matriculation number is required for students' },
           { status: 400 }
         )
       }
@@ -184,6 +190,7 @@ export async function POST(request: NextRequest) {
     // ── Academic role storage ──
     const academicRoleToStore = ['LECTURER', 'STUDENT'].includes(effectiveRole) ? effectiveRole : null
     const studentLevelToStore = isStudent ? Number(studentLevel) : null
+    const matricNumberToStore = isStudent ? String(matricNumber).trim() : null
 
     // ── Determine status ──
     // The admin who CREATES a new facility/institution IS the admin — they should be ACTIVE immediately.
@@ -218,6 +225,7 @@ export async function POST(request: NextRequest) {
           phone: phone ? String(phone).trim() : null,
           academicRole: academicRoleToStore,
           studentLevel: studentLevelToStore,
+          matricNumber: matricNumberToStore,
         },
       })
 
@@ -420,6 +428,7 @@ export async function POST(request: NextRequest) {
           role: clientRole,
           academicRole: academicRoleToStore,
           studentLevel: studentLevelToStore,
+          matricNumber: matricNumberToStore,
           facilityId: resolvedFacilityId,
           facilityName,
         },

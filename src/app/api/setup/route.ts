@@ -74,6 +74,7 @@ function getCreateTableSQL(): string[] {
       "lastLoginAt" TIMESTAMP(3),
       "studentLevel" INTEGER,
       "academicRole" TEXT,
+      "matricNumber" TEXT,
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "User_facilityId_fkey" FOREIGN KEY ("facilityId") REFERENCES "Facility"("id") ON DELETE SET NULL ON UPDATE CASCADE
@@ -1399,6 +1400,7 @@ export async function POST(request: NextRequest) {
       { table: 'Facility', column: 'freeTrialEndsAt', type: 'TIMESTAMP(3)' },
       { table: 'User', column: 'studentLevel', type: 'INTEGER' },
       { table: 'User', column: 'academicRole', type: 'TEXT' },
+      { table: 'User', column: 'matricNumber', type: 'TEXT' },
       // Academic module enhancements — new columns on CourseMaterial + Announcement
       { table: 'CourseMaterial', column: 'publishAt', type: 'TIMESTAMP(3)' },
       { table: 'CourseMaterial', column: 'viewCount', type: 'INTEGER' },

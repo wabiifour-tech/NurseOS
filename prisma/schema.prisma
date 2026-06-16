@@ -49,6 +49,8 @@ model User {
   // academicRole stores the original role ('LECTURER' or 'STUDENT') since both map to NURSE in DB
   studentLevel     Int?
   academicRole     String?  // 'LECTURER' | 'STUDENT' | null
+  // Matriculation / registration number assigned by the institution (compulsory for STUDENT)
+  matricNumber     String?
 
   nurseProfile           NurseProfile?
   adminProfile           AdminProfile?

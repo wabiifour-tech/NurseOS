@@ -2,283 +2,39 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 /**
- * POST /api/seed — Seed the database with initial data (facilities + super admin).
- * This is a one-time setup endpoint. It only runs if no facilities exist.
- * Protected: requires a secret key to prevent unauthorized seeding.
+ * POST /api/seed — DEPRECATED. Previously seeded demo facilities into the database.
+ *
+ * This endpoint is now a NO-OP for facility seeding. The user explicitly requested that
+ * NO seeded facilities / institutions be present in the production database — only
+ * real user-created facilities should exist.
+ *
+ * The endpoint still accepts requests for backward compatibility but does NOT create
+ * any facilities. If you need to create a facility, use the normal signup flow
+ * (Facility Admin or Institution Admin role on the /register page).
+ *
+ * If you have existing seeded facilities in your database that you want to remove,
+ * run this SQL against your Postgres database:
+ *
+ *   DELETE FROM "Facility" WHERE "isVerified" = true AND "registrationNumber" LIKE 'FAC/%';
+ *
+ * (This deletes only seeded demo facilities — real user-created facilities use
+ * registrationNumber = NULL or have a real registration number that doesn't match the pattern.)
  */
 export async function POST(request: NextRequest) {
   try {
-    // Simple auth: require a secret query param to prevent abuse
     const { searchParams } = new URL(request.url)
     const secret = searchParams.get('secret')
     if (secret !== process.env.NEXTAUTH_SECRET && secret !== 'nurseos-seed-2024') {
       return NextResponse.json({ error: 'Invalid seed secret' }, { status: 403 })
     }
 
-    // Only seed if no facilities exist (unless force=true)
-    const force = searchParams.get('force') === 'true'
     const existingCount = await db.facility.count()
-    if (existingCount > 0 && !force) {
-      return NextResponse.json({
-        message: `Database already has ${existingCount} facilities. Skipping seed. Use ?force=true to override.`,
-        status: 'already_seeded',
-      })
-    }
-
-    // Seed facilities
-    const facilities = [
-      {
-        name: 'Lagos University Teaching Hospital',
-        type: 'HOSPITAL',
-        level: 'TERTIARY',
-        address: 'Idi-Araba, Mushin',
-        city: 'Lagos',
-        state: 'Lagos',
-        country: 'Nigeria',
-        phone: '+234-1-493-3710',
-        email: 'info@luth.gov.ng',
-        bedCapacity: 750,
-        staffCount: 1200,
-        registrationNumber: 'FAC/LAG/TH/001',
-        accreditingBody: 'Medical and Dental Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","Surgery","Pediatrics","Obstetrics","Internal Medicine","Radiology","Laboratory"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'National Hospital Abuja',
-        type: 'HOSPITAL',
-        level: 'TERTIARY',
-        address: 'Central District, Garki',
-        city: 'Abuja',
-        state: 'FCT',
-        country: 'Nigeria',
-        phone: '+234-9-523-3111',
-        email: 'info@nationalhospital.gov.ng',
-        bedCapacity: 500,
-        staffCount: 800,
-        registrationNumber: 'FAC/FCT/TH/001',
-        accreditingBody: 'Medical and Dental Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","Surgery","Cardiology","Neurosurgery","Oncology","Nephrology"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'University College Hospital Ibadan',
-        type: 'HOSPITAL',
-        level: 'TERTIARY',
-        address: 'Queen Elizabeth Road, Mokola',
-        city: 'Ibadan',
-        state: 'Oyo',
-        country: 'Nigeria',
-        phone: '+234-2-241-0088',
-        email: 'info@uch-ibadan.org',
-        bedCapacity: 600,
-        staffCount: 950,
-        registrationNumber: 'FAC/OYO/TH/001',
-        accreditingBody: 'Medical and Dental Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","Surgery","Pediatrics","Obstetrics","Ophthalmology","ENT","Psychiatry"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Ahmadu Bello University Teaching Hospital',
-        type: 'HOSPITAL',
-        level: 'TERTIARY',
-        address: 'Shika-Zaria',
-        city: 'Zaria',
-        state: 'Kaduna',
-        country: 'Nigeria',
-        phone: '+234-62-301-111',
-        email: 'info@abuth.gov.ng',
-        bedCapacity: 500,
-        staffCount: 750,
-        registrationNumber: 'FAC/KAD/TH/001',
-        accreditingBody: 'Medical and Dental Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","Surgery","Pediatrics","Internal Medicine","Obstetrics"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Lagos Island Maternity Hospital',
-        type: 'MATERNITY_HOME',
-        level: 'SECONDARY',
-        address: '10 Campbell Street, Lagos Island',
-        city: 'Lagos',
-        state: 'Lagos',
-        country: 'Nigeria',
-        phone: '+234-1-263-4567',
-        email: 'info@lagosmaternity.gov.ng',
-        bedCapacity: 120,
-        staffCount: 350,
-        registrationNumber: 'FAC/LAG/MH/001',
-        accreditingBody: 'Nursing and Midwifery Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Antenatal Care","Delivery Services","Postnatal Care","Neonatal Care","Family Planning"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Primary Health Center Ikoyi',
-        type: 'PRIMARY_HEALTH_CENTER',
-        level: 'PRIMARY',
-        address: 'Ikoyi-Obalende LCDA',
-        city: 'Lagos',
-        state: 'Lagos',
-        country: 'Nigeria',
-        phone: '+234-1-461-2233',
-        email: 'phc.ikoyi@lagosstate.gov.ng',
-        bedCapacity: 30,
-        staffCount: 45,
-        registrationNumber: 'FAC/LAG/PHC/002',
-        accreditingBody: 'Primary Health Care Development Agency',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: false,
-        servicesOffered: '["Outpatient Care","Vaccination","Antenatal","Family Planning","Health Education"]',
-        operatingHours: 'Mon-Fri 8am-6pm',
-      },
-      {
-        name: 'Adeoyo Maternity Hospital Ibadan',
-        type: 'MATERNITY_HOME',
-        level: 'SECONDARY',
-        address: 'Adeoyo Road, Yemetu',
-        city: 'Ibadan',
-        state: 'Oyo',
-        country: 'Nigeria',
-        phone: '+234-2-241-2233',
-        email: 'info@adeoyomaternity.gov.ng',
-        bedCapacity: 100,
-        staffCount: 280,
-        registrationNumber: 'FAC/OYO/MH/001',
-        accreditingBody: 'Nursing and Midwifery Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Antenatal Care","Delivery","Postnatal Care","Neonatal Intensive Care","Family Planning"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Federal Medical Centre Abeokuta',
-        type: 'HOSPITAL',
-        level: 'SECONDARY',
-        address: 'Idi-Aba, Abeokuta',
-        city: 'Abeokuta',
-        state: 'Ogun',
-        country: 'Nigeria',
-        phone: '+234-39-240-271',
-        email: 'info@fmcabeokuta.org',
-        bedCapacity: 350,
-        staffCount: 500,
-        registrationNumber: 'FAC/OGN/FMC/001',
-        accreditingBody: 'Medical and Dental Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","Surgery","Pediatrics","Obstetrics","Internal Medicine","Laboratory"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Asokoro District Hospital',
-        type: 'HOSPITAL',
-        level: 'SECONDARY',
-        address: 'Asokoro District',
-        city: 'Abuja',
-        state: 'FCT',
-        country: 'Nigeria',
-        phone: '+234-9-314-1234',
-        email: 'info@asokorohospital.gov.ng',
-        bedCapacity: 200,
-        staffCount: 300,
-        registrationNumber: 'FAC/FCT/SH/002',
-        accreditingBody: 'Hospital Management Board',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","General Surgery","Pediatrics","Obstetrics","Radiology"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Rivers State University Teaching Hospital',
-        type: 'HOSPITAL',
-        level: 'TERTIARY',
-        address: '1 Boro Street, Port Harcourt',
-        city: 'Port Harcourt',
-        state: 'Rivers',
-        country: 'Nigeria',
-        phone: '+234-84-233-321',
-        email: 'info@rsuth.gov.ng',
-        bedCapacity: 450,
-        staffCount: 700,
-        registrationNumber: 'FAC/RIV/TH/001',
-        accreditingBody: 'Medical and Dental Council of Nigeria',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","Surgery","Cardiology","Pediatrics","Obstetrics","Burns & Plastic"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Kano Specialist Hospital',
-        type: 'HOSPITAL',
-        level: 'SECONDARY',
-        address: 'Murtala Mohammed Way, Kano',
-        city: 'Kano',
-        state: 'Kano',
-        country: 'Nigeria',
-        phone: '+234-64-641-221',
-        email: 'info@kanospecialist.gov.ng',
-        bedCapacity: 300,
-        staffCount: 450,
-        registrationNumber: 'FAC/KAN/SH/001',
-        accreditingBody: 'Hospital Management Board',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: true,
-        servicesOffered: '["Emergency","Surgery","Pediatrics","Obstetrics","Orthopedics"]',
-        operatingHours: '24/7',
-      },
-      {
-        name: 'Community Health Center Enugu',
-        type: 'COMMUNITY_HEALTH_CENTER',
-        level: 'PRIMARY',
-        address: 'Ogui New Layout, Enugu',
-        city: 'Enugu',
-        state: 'Enugu',
-        country: 'Nigeria',
-        phone: '+234-42-256-789',
-        email: 'chc.enugu@en.gov.ng',
-        bedCapacity: 25,
-        staffCount: 35,
-        registrationNumber: 'FAC/ENU/CHC/001',
-        accreditingBody: 'Primary Health Care Development Agency',
-        accreditationStatus: 'ACCREDITED',
-        isVerified: true,
-        isEmergencyCapable: false,
-        servicesOffered: '["Outpatient Care","Vaccination","Maternal Care","Health Education","Malaria Treatment"]',
-        operatingHours: 'Mon-Fri 8am-5pm',
-      },
-    ]
-
-    const createdFacilities = []
-    for (const facility of facilities) {
-      const created = await db.facility.create({ data: facility })
-      createdFacilities.push(created.id)
-    }
-
     return NextResponse.json({
-      message: `Seeded ${createdFacilities.length} facilities successfully.`,
-      facilityCount: createdFacilities.length,
-      status: 'seeded',
+      message: 'Facility seeding is disabled. The database should only contain real user-created facilities. ' +
+        `Current facility count: ${existingCount}. ` +
+        'To remove leftover demo facilities, run: DELETE FROM "Facility" WHERE "registrationNumber" LIKE \'FAC/%\';',
+      status: 'seeding_disabled',
+      currentFacilityCount: existingCount,
     })
   } catch (error: any) {
     console.error('Seed error:', error)

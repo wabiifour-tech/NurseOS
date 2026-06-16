@@ -91,6 +91,7 @@ export default function OnboardingPage() {
   const [selectedRole, setSelectedRole] = useState("")
   const [selectedFacilityId, setSelectedFacilityId] = useState("")
   const [selectedStudentLevel, setSelectedStudentLevel] = useState("")
+  const [studentMatricNumber, setStudentMatricNumber] = useState("")
   const [facilityMode, setFacilityMode] = useState<FacilityMode>("existing")
   const [customFirstName, setCustomFirstName] = useState("")
   const [customLastName, setCustomLastName] = useState("")
@@ -198,9 +199,13 @@ export default function OnboardingPage() {
       }
     }
 
-    // Students must select their level
+    // Students must select their level + provide matric number
     if (isStudent && !selectedStudentLevel) {
       toast.error("Please select your current level (100 — 500)")
+      return
+    }
+    if (isStudent && !studentMatricNumber.trim()) {
+      toast.error("Please enter your matriculation number")
       return
     }
 
@@ -220,9 +225,10 @@ export default function OnboardingPage() {
       if (isAdminRole) payload.adminType = "FACILITY"
       if (isInstitutionAdminRole) payload.adminType = "INSTITUTION"
 
-      // Pass student level for students
+      // Pass student level + matric number for students
       if (isStudent && selectedStudentLevel) {
         payload.studentLevel = selectedStudentLevel
+        payload.matricNumber = studentMatricNumber.trim()
       }
 
       if (facilityMode === "existing") {
@@ -426,25 +432,43 @@ export default function OnboardingPage() {
               </Select>
             </div>
 
-            {/* Student level selector — only for students */}
+            {/* Student level + matric number — only for students */}
             {isStudent && (
-              <div className="space-y-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50/40">
-                <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <GraduationCap className="size-3.5" />
-                  Current Level <span className="text-destructive">*</span>
-                </Label>
-                <Select value={selectedStudentLevel} onValueChange={setSelectedStudentLevel}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select your current level (100 — 500)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STUDENT_LEVELS.map((lvl) => (
-                      <SelectItem key={lvl.value} value={lvl.value}>
-                        {lvl.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50/40">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <GraduationCap className="size-3.5" />
+                    Current Level <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={selectedStudentLevel} onValueChange={setSelectedStudentLevel}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select your current level (100 — 500)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STUDENT_LEVELS.map((lvl) => (
+                        <SelectItem key={lvl.value} value={lvl.value}>
+                          {lvl.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="matricNumber" className="text-sm font-medium flex items-center gap-1.5">
+                    <GraduationCap className="size-3.5" />
+                    Matriculation Number <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="matricNumber"
+                    value={studentMatricNumber}
+                    onChange={(e) => setStudentMatricNumber(e.target.value)}
+                    placeholder="e.g. NUR/2021/001 or RU/2023/00456"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your institution-issued matriculation / registration number. This is required
+                    so your institution admin can verify your enrollment.
+                  </p>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   You&apos;ll only see materials uploaded for your level by your lecturers.
                 </p>
@@ -705,7 +729,7 @@ export default function OnboardingPage() {
                 (facilityMode === "new" && (!newFacilityName.trim() || !newFacilityState.trim())) ||
                 // Regular Facility Admin must provide registration number
                 (facilityMode === "new" && isAdminRole && !isInstitutionAdminRole && !newFacilityRegistrationNumber.trim()) ||
-                (isStudent && !selectedStudentLevel)
+                (isStudent && (!selectedStudentLevel || !studentMatricNumber.trim()))
               }
             >
               {isLoading ? (

@@ -33,6 +33,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Users,
   Building2,
   CreditCard,
@@ -113,6 +120,39 @@ interface FacilityData {
     trialDaysLeft: number | null
     trialEnded: boolean
   } | null
+  // Detailed academic rosters — only populated for UNIVERSITY / SCHOOL_OF_NURSING facilities
+  lecturers?: Array<{
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string | null
+    status: string
+    createdAt: string
+  }>
+  students?: Array<{
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string | null
+    studentLevel: number | null
+    matricNumber: string | null
+    status: string
+    createdAt: string
+  }>
+  studentsByLevel?: Array<{
+    level: number
+    count: number
+    students: Array<{
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+      matricNumber: string | null
+      status: string
+    }>
+  }>
   recentActivity: {
     id: string
     action: string
@@ -355,6 +395,18 @@ export default function FacilityAdminDashboard() {
         </div>
       </div>
     )
+  }
+
+  /* ─── Route: ACADEMIC institution admin → dedicated dashboard ─── */
+  // If the admin's facility is UNIVERSITY or SCHOOL_OF_NURSING, render ONLY the academic
+  // admin dashboard (lecturers, students, subscription, announcements). Hide all the
+  // hospital-style widgets (workers, patients, referrals, medical records).
+  // This is a HARD route — institution admins never see the regular facility admin UI.
+  const isAcademicInstitution =
+    data?.facility?.type === 'UNIVERSITY' || data?.facility?.type === 'SCHOOL_OF_NURSING'
+
+  if (isAcademicInstitution && data) {
+    return <InstitutionAdminDashboard data={data} token={token} onRefresh={fetchData} onRefreshPending={fetchPendingUsers} />
   }
 
   return (
@@ -1021,6 +1073,523 @@ export default function FacilityAdminDashboard() {
         </DialogContent>
       </Dialog>
 
+    </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* ─── InstitutionAdminDashboard — for UNIVERSITY / SCHOOL_OF_NURSING admins ── */
+/* ────────────────────────────────────────────────────────────────────────── */
+//
+// SCOPE: This dashboard renders ONLY:
+//   1. Lecturers under this institution (names + emails + approval status)
+//   2. Students under this institution (names + levels + matric numbers, grouped by level)
+//   3. Current subscription pricing / plan + free trial status
+//   4. Pending lecturer approvals
+//   5. A link to send announcements (which already supports level-targeting)
+//
+// It deliberately does NOT render:
+//   - Other facilities (no cross-facility data ever — all queries are scoped to the admin's facility)
+//   - Hospital widgets (patients, medical records, referrals, etc.) — irrelevant for an institution
+//   - Analytics dashboards, disease surveillance, staffing, etc.
+//
+// SECURITY: All data passed in via `data` prop is already scoped server-side to the admin's facilityId.
+//           No client-side filtering is needed for isolation — the server enforces it.
+//
+function InstitutionAdminDashboard({
+  data,
+  token,
+  onRefresh,
+  onRefreshPending,
+}: {
+  data: FacilityData
+  token: string | null
+  onRefresh: () => Promise<void>
+  onRefreshPending: () => Promise<void>
+}) {
+  const [approvingId, setApprovingId] = React.useState<string | null>(null)
+  const [rejectingId, setRejectingId] = React.useState<string | null>(null)
+  const [studentSearch, setStudentSearch] = React.useState('')
+  const [lecturerSearch, setLecturerSearch] = React.useState('')
+  const [levelFilter, setLevelFilter] = React.useState<string>('all')
+
+  const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  })
+
+  async function handleApproveLecturer(userId: string) {
+    setApprovingId(userId)
+    try {
+      const res = await fetch('/api/admin/workers', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ userId, action: 'approve' }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        toast.error(result.error || 'Failed to approve lecturer')
+        return
+      }
+      toast.success('Lecturer approved')
+      await onRefresh()
+      await onRefreshPending()
+    } catch {
+      toast.error('Failed to approve lecturer')
+    } finally {
+      setApprovingId(null)
+    }
+  }
+
+  async function handleRejectLecturer(userId: string) {
+    setRejectingId(userId)
+    try {
+      const res = await fetch('/api/admin/workers', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ userId, action: 'reject' }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        toast.error(result.error || 'Failed to reject lecturer')
+        return
+      }
+      toast.success('Lecturer rejected')
+      await onRefresh()
+      await onRefreshPending()
+    } catch {
+      toast.error('Failed to reject lecturer')
+    } finally {
+      setRejectingId(null)
+    }
+  }
+
+  // Filter students by search + level
+  const filteredStudents = React.useMemo(() => {
+    let list = data.students || []
+    if (studentSearch.trim()) {
+      const q = studentSearch.toLowerCase()
+      list = list.filter((s) =>
+        `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q) ||
+        (s.matricNumber || '').toLowerCase().includes(q)
+      )
+    }
+    if (levelFilter !== 'all') {
+      list = list.filter((s) => String(s.studentLevel) === levelFilter)
+    }
+    return list
+  }, [data.students, studentSearch, levelFilter])
+
+  // Filter lecturers by search
+  const filteredLecturers = React.useMemo(() => {
+    let list = data.lecturers || []
+    if (lecturerSearch.trim()) {
+      const q = lecturerSearch.toLowerCase()
+      list = list.filter((l) =>
+        `${l.firstName} ${l.lastName}`.toLowerCase().includes(q) ||
+        l.email.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [data.lecturers, lecturerSearch])
+
+  const trialEnded = data.academicStats?.trialEnded
+  const trialDaysLeft = data.academicStats?.trialDaysLeft
+  const subscription = data.subscription
+  const facility = data.facility
+  const pendingLecturers = filteredLecturers.filter((l) => l.status === 'PENDING')
+
+  return (
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1200px] mx-auto">
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {facility?.type === 'UNIVERSITY' ? 'University Admin' : 'School of Nursing Admin'}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {facility?.name} · {facility?.city}, {facility?.state}
+          </p>
+        </div>
+        <Link href="/announcements">
+          <Button className="bg-emerald-600 hover:bg-emerald-700">
+            <MessageCircle className="size-4 mr-2" />
+            Send Announcement
+          </Button>
+        </Link>
+      </div>
+
+      {/* ── Subscription / Trial card ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="size-5 text-emerald-600" />
+            Subscription
+          </CardTitle>
+          <CardDescription>
+            Your institution&apos;s current plan and billing status
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {subscription ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Current Plan</p>
+                <p className="text-lg font-semibold">{subscription.plan}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Status</p>
+                <Badge variant="outline" className={statusColorMap[subscription.status] || ''}>
+                  {subscription.status}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Period End</p>
+                <p className="text-lg font-semibold">
+                  {subscription.currentPeriodEnd ? formatDate(subscription.currentPeriodEnd) : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Free Trial</p>
+                {trialEnded ? (
+                  <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20">
+                    <AlertTriangle className="size-3 mr-1" />Expired
+                  </Badge>
+                ) : trialDaysLeft !== null && trialDaysLeft !== undefined ? (
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20">
+                    <Clock className="size-3 mr-1" />{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left
+                  </Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No subscription record found.</p>
+          )}
+
+          {trialEnded && (
+            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+              <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+                Your free trial has ended. Lecturers can no longer upload materials until you subscribe.
+              </p>
+              <Link href="/subscription" className="inline-block mt-2">
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                  Subscribe Now
+                </Button>
+              </Link>
+            </div>
+          )}
+          {!trialEnded && trialDaysLeft !== null && trialDaysLeft !== undefined && trialDaysLeft <= 3 && (
+            <div className="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+              <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                Your free trial ends in {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}. Subscribe now to avoid disruption.
+              </p>
+              <Link href="/subscription" className="inline-block mt-2">
+                <Button size="sm" variant="outline">View Plans</Button>
+              </Link>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Quick stats ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Active Lecturers</p>
+                <p className="text-2xl font-bold">{data.academicStats?.activeLecturers ?? 0}</p>
+              </div>
+              <School className="size-5 text-emerald-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Pending Lecturers</p>
+                <p className="text-2xl font-bold">{data.academicStats?.pendingLecturers ?? 0}</p>
+              </div>
+              <Clock className="size-5 text-amber-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Students</p>
+                <p className="text-2xl font-bold">{data.academicStats?.totalStudents ?? 0}</p>
+              </div>
+              <GraduationCap className="size-5 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Course Materials</p>
+                <p className="text-2xl font-bold">{data.academicStats?.totalMaterials ?? 0}</p>
+              </div>
+              <BookOpen className="size-5 text-purple-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Pending lecturer approvals ── */}
+      {pendingLecturers.length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-800">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="size-5 text-amber-500" />
+              Pending Lecturer Approvals
+            </CardTitle>
+            <CardDescription>
+              Lecturers who signed up and are waiting for your approval to access the institution
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingLecturers.map((l) => (
+                <div key={l.id} className="flex items-center justify-between p-3 rounded-lg border bg-amber-50/40 dark:bg-amber-950/10">
+                  <div>
+                    <p className="font-medium">{l.firstName} {l.lastName}</p>
+                    <p className="text-xs text-muted-foreground">{l.email}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Signed up {formatDate(l.createdAt)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() => handleApproveLecturer(l.id)}
+                      disabled={approvingId === l.id}
+                    >
+                      {approvingId === l.id ? (
+                        <Loader2 className="size-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <Check className="size-3.5 mr-1" />
+                      )}
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRejectLecturer(l.id)}
+                      disabled={rejectingId === l.id}
+                    >
+                      {rejectingId === l.id ? (
+                        <Loader2 className="size-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <X className="size-3.5 mr-1" />
+                      )}
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Lecturers list ── */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <School className="size-5 text-emerald-600" />
+                Lecturers ({filteredLecturers.length})
+              </CardTitle>
+              <CardDescription>All lecturers at your institution</CardDescription>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={lecturerSearch}
+                onChange={(e) => setLecturerSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredLecturers.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No lecturers found. Lecturers who sign up and select your institution will appear here.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLecturers.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell className="font-medium">
+                        {l.firstName} {l.lastName}
+                      </TableCell>
+                      <TableCell className="text-sm">{l.email}</TableCell>
+                      <TableCell className="text-sm">{l.phone || '—'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusColorMap[l.status] || ''}>
+                          {l.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{formatDate(l.createdAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Students list (with matric number + level grouping) ── */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <GraduationCap className="size-5 text-blue-600" />
+                Students ({filteredStudents.length})
+              </CardTitle>
+              <CardDescription>
+                All students enrolled at your institution with their matric numbers and levels
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1 sm:w-56">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search name, email, or matric..."
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={levelFilter} onValueChange={setLevelFilter}>
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="100">100 Level</SelectItem>
+                  <SelectItem value="200">200 Level</SelectItem>
+                  <SelectItem value="300">300 Level</SelectItem>
+                  <SelectItem value="400">400 Level</SelectItem>
+                  <SelectItem value="500">500 Level</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredStudents.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No students found. Students who sign up and select your institution will appear here.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Matric Number</TableHead>
+                    <TableHead>Level</TableHead>
+                    <TableHead>Joined</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-medium">
+                        {s.firstName} {s.lastName}
+                      </TableCell>
+                      <TableCell className="text-sm">{s.email}</TableCell>
+                      <TableCell className="text-sm font-mono">{s.matricNumber || '—'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-emerald-600 border-emerald-500/30">
+                          {s.studentLevel || '—'} Level
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{formatDate(s.createdAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Students grouped by level (only when no search/filter is active) ── */}
+      {(!studentSearch.trim() && levelFilter === 'all') && (data.studentsByLevel || []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="size-5 text-purple-600" />
+              Students by Level
+            </CardTitle>
+            <CardDescription>
+              Breakdown of enrolled students by academic level
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(data.studentsByLevel || []).map((lvl) => (
+                <div key={lvl.level} className="p-4 rounded-lg border bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold">{lvl.level} Level</h4>
+                    <Badge variant="outline" className="text-emerald-600 border-emerald-500/30">
+                      {lvl.count} {lvl.count === 1 ? 'student' : 'students'}
+                    </Badge>
+                  </div>
+                  {lvl.students.length > 0 ? (
+                    <ul className="space-y-1 text-sm">
+                      {lvl.students.slice(0, 8).map((s) => (
+                        <li key={s.id} className="flex items-center justify-between gap-2">
+                          <span className="truncate">
+                            {s.firstName} {s.lastName}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {s.matricNumber || '—'}
+                          </span>
+                        </li>
+                      ))}
+                      {lvl.students.length > 8 && (
+                        <li className="text-xs text-muted-foreground italic">
+                          + {lvl.students.length - 8} more
+                        </li>
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No students in this level.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
