@@ -250,23 +250,23 @@ export default function FacilityAdminDashboard() {
     fetchData()
   }, [fetchData])
 
-  // Fetch pending users for approval
-  React.useEffect(() => {
-    async function fetchPending() {
-      try {
-        const res = await fetch('/api/admin/pending-users', { headers: getHeaders() })
-        if (res.ok) {
-          const data = await res.json()
-          setPendingUsers(data.pendingUsers || [])
-        }
-      } catch {
-        // silently fail
+  /* ─── Fetch pending users (lecturers waiting for approval) ─── */
+  const fetchPendingUsers = React.useCallback(async () => {
+    if (!token) return
+    try {
+      const res = await fetch('/api/admin/pending-users', { headers: getHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setPendingUsers(data.pendingUsers || [])
       }
+    } catch {
+      // silently fail
     }
-    if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
-      fetchPending()
-    }
-  }, [user?.role, token])
+  }, [token])
+
+  React.useEffect(() => {
+    fetchPendingUsers()
+  }, [fetchPendingUsers])
 
   /* ─── Remove worker ─── */
   const handleRemoveWorker = async () => {
