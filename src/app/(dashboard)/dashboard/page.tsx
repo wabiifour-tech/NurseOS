@@ -374,36 +374,20 @@ export default function DashboardPage() {
   const academicRole = user?.academicRole
   const facilityType = user?.facilityType
 
-  // ─── Institution Admin (ADMIN at UNIVERSITY / SCHOOL_OF_NURSING) → redirect to /admin ───
-  // The /admin page already routes to InstitutionAdminDashboard for academic facilities.
-  if (role === 'ADMIN' && (facilityType === 'UNIVERSITY' || facilityType === 'SCHOOL_OF_NURSING')) {
-    React.useEffect(() => {
-      router.replace('/admin')
-    }, [router])
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="size-8 animate-spin text-emerald-500" />
-      </div>
-    )
-  }
-
-  // ─── Super Admin → redirect to /superadmin ───
-  if (role === 'SUPER_ADMIN') {
-    React.useEffect(() => {
+  // ─── Single useEffect for ALL redirects (Rules of Hooks: hooks must not be conditional) ───
+  // Admins (any kind) → /admin or /superadmin. Everyone else stays on /dashboard.
+  React.useEffect(() => {
+    if (role === 'SUPER_ADMIN') {
       router.replace('/superadmin')
-    }, [router])
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="size-8 animate-spin text-emerald-500" />
-      </div>
-    )
-  }
-
-  // ─── Regular Facility Admin (ADMIN at hospital/clinic/PHC) → redirect to /admin ───
-  if (role === 'ADMIN') {
-    React.useEffect(() => {
+    } else if (role === 'ADMIN') {
+      // Both institution admin and hospital admin go to /admin — the /admin page itself
+      // routes to InstitutionAdminDashboard vs RegularFacilityAdminDashboard based on facilityType.
       router.replace('/admin')
-    }, [router])
+    }
+  }, [role, router])
+
+  // ─── Admins: show loading spinner while redirect happens ───
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="size-8 animate-spin text-emerald-500" />
