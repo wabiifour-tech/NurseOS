@@ -7,18 +7,15 @@
  * It authenticates the user and generates a token that allows the client to upload
  * directly to Vercel Blob storage (bypassing Vercel's 4.5 MB serverless body limit).
  *
- * The actual file bytes NEVER go through this route — they go directly from the
- * browser to Vercel Blob's servers. This route only handles auth + token generation.
- *
  * Required env var: BLOB_READ_WRITE_TOKEN (from Vercel → Storage → Blob → Create)
- *
- * After the client-side upload completes, the client sends the resulting blob URL
- * to /api/course-materials (POST) to create the material record with fileUrl.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { handleUpload } from '@vercel/blob/client'
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+
+// Force dynamic — this route must never be cached or statically rendered
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,46 +30,83 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check that Vercel Blob token is configured
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    // ─── Check that Vercel Blob token is configured ───
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+    if (!blobToken) {
       return NextResponse.json(
         {
-          error: 'Vercel Blob storage is not configured. The administrator must enable Vercel Blob and set BLOB_READ_WRITE_TOKEN.',
+          error: 'Vercel Blob storage is not configured. Steps: 1) Go to Vercel → Storage → Create Blob Store. 2) Connect it to your project. 3) Make sure BLOB_READ_WRITE_TOKEN is in your env vars. 4) Redeploy.',
           errorType: 'STORAGE_NOT_CONFIGURED',
+          envCheck: {
+            BLOB_READ_WRITE_TOKEN: 'missing',
+            NODE_ENV: process.env.NODE_ENV || 'unknown',
+          },
         },
         { status: 503 }
       )
     }
 
+    // Log token presence (not the token itself) for debugging
+    console.log('[Blob Upload] Token present, length:', blobToken.length, 'starts with:', blobToken.substring(0, 10) + '...')
+
     const body = await request.json()
 
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname: string, clientPayload: any) => {
-        // Auth is already verified above — just return allowed payload types
-        return {
-          allowedPayloadTypes: ['default'],
-          // Store metadata for the onUploadCompleted callback
-          tokenPayload: JSON.stringify({
-            userId: authUser.id,
-            facilityId: authUser.facilityId,
-          }),
-        }
-      },
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // This callback runs after the upload is complete (may run on a different serverless instance)
-        // We don't need to do anything here — the client will send the blob URL to /api/course-materials
-        console.log('[Blob Upload] Completed:', blob.url)
-      },
-    })
+    let jsonResponse
+    try {
+      jsonResponse = await handleUpload({
+        body,
+        request,
+        onBeforeGenerateToken: async (pathname: string, clientPayload: any) => {
+          return {
+            allowedPayloadTypes: ['default'],
+            tokenPayload: JSON.stringify({
+              userId: authUser.id,
+              facilityId: authUser.facilityId,
+            }),
+          }
+        },
+        onUploadCompleted: async ({ blob, tokenPayload }) => {
+          console.log('[Blob Upload] Completed:', blob.url)
+        },
+      })
+    } catch (uploadError: any) {
+      console.error('[Blob Upload] handleUpload error:', uploadError)
+      return NextResponse.json(
+        {
+          error: 'Vercel Blob handleUpload failed',
+          details: uploadError.message || 'Unknown error',
+          errorType: 'BLOB_HANDLE_UPLOAD_ERROR',
+          tokenPresent: true,
+          tokenLength: blobToken.length,
+          suggestion: 'The BLOB_READ_WRITE_TOKEN exists but may be invalid or the Blob store is not connected to this project. Go to Vercel → your project → Storage tab → make sure the Blob store is connected.',
+        },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(jsonResponse)
   } catch (error: any) {
-    console.error('Blob upload handler error:', error)
+    console.error('[Blob Upload] Route error:', error)
     return NextResponse.json(
       { error: 'Failed to handle upload', details: error.message },
       { status: 500 }
     )
   }
+}
+
+// Also support GET for debugging — shows if the token is configured
+export async function GET(request: NextRequest) {
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+  return NextResponse.json({
+    configured: !!blobToken,
+    tokenLength: blobToken?.length || 0,
+    tokenPrefix: blobToken ? blobToken.substring(0, 15) + '...' : null,
+    env: process.env.NODE_ENV,
+    message: blobToken
+      ? 'BLOB_READ_WRITE_TOKEN is configured. Large file uploads should work.'
+      : 'BLOB_READ_WRITE_TOKEN is NOT set. Go to Vercel → Storage → Create Blob Store → connect to project → redeploy.',
+  })
 }
