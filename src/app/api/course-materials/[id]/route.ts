@@ -55,66 +55,13 @@ export async function GET(
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
-    // Increment download count (only when a student accesses)
-    if (authUser.academicRole === 'STUDENT') {
-      await db.courseMaterial.update({
-        where: { id },
-        data: { downloadCount: { increment: 1 } },
-      })
-
-      // Per-student download tracking (unique per user/material/eventType=DOWNLOAD)
-      try {
-        await db.materialDownload.upsert({
-          where: {
-            materialId_userId_eventType: {
-              materialId: id,
-              userId: authUser.id,
-              eventType: 'DOWNLOAD',
-            },
-          },
-          create: {
-            materialId: id,
-            userId: authUser.id,
-            eventType: 'DOWNLOAD',
-            ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
-            userAgent: request.headers.get('user-agent')?.substring(0, 255) || null,
-          },
-          update: {},
-        })
-      } catch {
-        // Tracking is best-effort — don't fail the request if it errors
-      }
-
-      // Also track unique view (upsert the MaterialView row)
-      try {
-        await db.materialView.upsert({
-          where: {
-            materialId_userId: {
-              materialId: id,
-              userId: authUser.id,
-            },
-          },
-          create: {
-            materialId: id,
-            userId: authUser.id,
-            viewCount: 1,
-            firstViewedAt: new Date(),
-            lastViewedAt: new Date(),
-          },
-          update: {
-            viewCount: { increment: 1 },
-            lastViewedAt: new Date(),
-          },
-        })
-        // Also increment the material's denormalized viewCount
-        await db.courseMaterial.update({
-          where: { id },
-          data: { viewCount: { increment: 1 } },
-        })
-      } catch {
-        // best-effort
-      }
-    }
+    // ─── NO tracking increments here ───
+    // Tracking (viewCount, downloadCount, MaterialView, MaterialDownload) is handled
+    // EXCLUSIVELY by the dedicated /api/course-materials/[id]/track endpoint.
+    // Previously this route ALSO incremented counts, causing every view to be double-counted.
+    // The student dashboard calls both this route (to fetch the material) AND the /track route
+    // (to log the view), so incrementing here would double the count.
+    // This route now ONLY returns the material data — no side effects.
 
     return NextResponse.json({ material })
   } catch (error: any) {

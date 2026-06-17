@@ -216,6 +216,7 @@ export async function POST(request: NextRequest) {
       courseTitle,
       externalUrl,
       fileDataUrl,
+      fileUrl,        // NEW: URL from presigned S3/R2 upload (for large files >4 MB)
       fileName,
       fileSize,
       mimeType,
@@ -266,31 +267,41 @@ export async function POST(request: NextRequest) {
       }
       storedExternalUrl = externalUrl
     } else {
-      // File types require fileDataUrl
-      if (!fileDataUrl) {
+      // File types require EITHER fileDataUrl (small files, base64) OR fileUrl (large files, from presigned S3 upload)
+      if (!fileDataUrl && !fileUrl) {
         return NextResponse.json(
-          { error: `fileDataUrl is required for ${type} type materials` },
+          { error: `Either fileDataUrl (for files <4 MB) or fileUrl (from presigned upload, for files >4 MB) is required for ${type} type materials` },
           { status: 400 }
         )
       }
 
-      // Validate it's a data URL
-      if (!fileDataUrl.startsWith('data:')) {
-        return NextResponse.json(
-          { error: 'fileDataUrl must be a base64 data URL (e.g. "data:application/pdf;base64,...")' },
-          { status: 400 }
-        )
+      if (fileDataUrl) {
+        // Small file path — base64 data URL (Vercel 4.5 MB limit applies)
+        if (!fileDataUrl.startsWith('data:')) {
+          return NextResponse.json(
+            { error: 'fileDataUrl must be a base64 data URL (e.g. "data:application/pdf;base64,...")' },
+            { status: 400 }
+          )
+        }
+        if (fileSize && fileSize > MAX_FILE_SIZE_BYTES) {
+          return NextResponse.json(
+            { error: `File too large for base64 upload. Maximum is ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB. For larger files, use the presigned upload flow (fileUrl).` },
+            { status: 400 }
+          )
+        }
+        storedFileUrl = fileDataUrl
+      } else if (fileUrl) {
+        // Large file path — URL from presigned S3/R2 upload (no size limit beyond S3's 5 GB)
+        try {
+          new URL(fileUrl)
+        } catch {
+          return NextResponse.json(
+            { error: 'fileUrl must be a valid URL' },
+            { status: 400 }
+          )
+        }
+        storedFileUrl = fileUrl
       }
-
-      // Validate size
-      if (fileSize && fileSize > MAX_FILE_SIZE_BYTES) {
-        return NextResponse.json(
-          { error: `File too large. Maximum size is ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB` },
-          { status: 400 }
-        )
-      }
-
-      storedFileUrl = fileDataUrl
     }
 
     // Create the material

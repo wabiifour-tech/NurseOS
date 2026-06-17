@@ -294,17 +294,65 @@ export default function LecturerMaterialsPage() {
       if (form.type === 'LINK') {
         payload.externalUrl = form.externalUrl.trim()
       } else if (file) {
-        // Convert file to base64 data URL
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = (err) => reject(err)
-          reader.readAsDataURL(file)
-        })
-        payload.fileDataUrl = dataUrl
-        payload.fileName = file.name
-        payload.fileSize = file.size
-        payload.mimeType = file.type
+        const SMALL_FILE_LIMIT = 4 * 1024 * 1024  // 4 MB
+        if (file.size <= SMALL_FILE_LIMIT) {
+          // Small file — upload as base64 data URL (fits within Vercel's 4.5 MB body limit)
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = (err) => reject(err)
+            reader.readAsDataURL(file)
+          })
+          payload.fileDataUrl = dataUrl
+          payload.fileName = file.name
+          payload.fileSize = file.size
+          payload.mimeType = file.type
+        } else {
+          // Large file (>4 MB) — use presigned S3/R2 upload (bypasses Vercel's body limit, supports up to 5 GB)
+          toast.info(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) to object storage...`)
+          // 1. Request presigned URL from server
+          const presignRes = await fetch('/api/course-materials/presign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileType: file.type || 'application/octet-stream',
+              fileSize: file.size,
+            }),
+            credentials: 'include',
+          })
+          const presignData = await presignRes.json()
+          if (!presignRes.ok) {
+            if (presignData.errorType === 'STORAGE_NOT_CONFIGURED') {
+              toast.error('Large file uploads not configured', {
+                description: 'The administrator must set up S3/R2 storage to upload files larger than 4 MB.',
+                duration: 10000,
+              })
+            } else {
+              toast.error(presignData.error || 'Failed to get upload URL')
+            }
+            setIsUploading(false)
+            return
+          }
+          // 2. Upload file directly to S3/R2 via PUT (bypasses Vercel serverless)
+          const uploadRes = await fetch(presignData.uploadUrl, {
+            method: 'PUT',
+            body: file,
+            headers: {
+              'Content-Type': file.type || 'application/octet-stream',
+            },
+          })
+          if (!uploadRes.ok) {
+            toast.error(`Failed to upload file to storage (HTTP ${uploadRes.status})`)
+            setIsUploading(false)
+            return
+          }
+          // 3. Use the resulting fileUrl in the material creation payload
+          payload.fileUrl = presignData.fileUrl
+          payload.fileName = file.name
+          payload.fileSize = file.size
+          payload.mimeType = file.type
+        }
       }
 
       const res = await fetch('/api/course-materials', {
@@ -743,7 +791,9 @@ export default function LecturerMaterialsPage() {
                   }
                   required
                 />
-                <p className="text-xs text-muted-foreground">Max size: 4 MB per file (Vercel serverless limit).</p>
+                <p className="text-xs text-muted-foreground">
+                  Max size: 4 MB (small files) or up to 5 GB with S3/R2 storage configured.
+                </p>
               </div>
             )}
             <DialogFooter>
