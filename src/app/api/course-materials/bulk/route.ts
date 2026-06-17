@@ -44,8 +44,10 @@ const FILE_TYPE_MAP: Record<string, { type: string; valid: boolean }> = {
   'image/jpg': { type: 'SLIDE', valid: true },
 }
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  // 10 MB per file
-const MAX_FILES_PER_UPLOAD = 30  // hard cap to keep request size reasonable
+// Vercel serverless has a 4.5 MB request body limit. Base64 inflates by ~33%, so max raw file is ~3.4 MB.
+// For larger files, use Vercel Blob / S3 (presigned URL uploads that bypass the server).
+const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024  // 4 MB per file
+const MAX_FILES_PER_UPLOAD = 10  // hard cap to keep total request size under Vercel's 4.5 MB limit
 
 export async function POST(request: NextRequest) {
   try {

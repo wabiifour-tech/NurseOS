@@ -32,7 +32,11 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 const VALID_TYPES = ['SLIDE', 'DOCUMENT', 'POWERPOINT', 'PDF', 'LINK']
 const VALID_LEVELS = [100, 200, 300, 400, 500]
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB limit for base64-encoded uploads
+// Vercel serverless has a 4.5 MB request body limit. Base64 encoding inflates file size by ~33%,
+// so the maximum raw file size that fits is ~3.4 MB. We use 4 MB as the displayed limit and reject
+// anything larger to give a clear error message instead of a silent Vercel failure.
+// For larger files, implement Vercel Blob / S3 presigned uploads (see docs/course-materials-upload.md).
+const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024 // 4 MB
 
 export async function GET(request: NextRequest) {
   try {

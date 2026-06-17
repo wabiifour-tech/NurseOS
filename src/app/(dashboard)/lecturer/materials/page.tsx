@@ -361,8 +361,8 @@ export default function LecturerMaterialsPage() {
       // Convert each file to base64
       const materialsPayload = []
       for (const f of bulkFiles) {
-        if (f.size > 10 * 1024 * 1024) {
-          toast.error(`"${f.name}" is too large (max 10 MB) — skipping`)
+        if (f.size > 4 * 1024 * 1024) {
+          toast.error(`"${f.name}" is too large (max 4 MB) — skipping`)
           continue
         }
         const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -743,7 +743,7 @@ export default function LecturerMaterialsPage() {
                   }
                   required
                 />
-                <p className="text-xs text-muted-foreground">Max size: 10 MB.</p>
+                <p className="text-xs text-muted-foreground">Max size: 4 MB per file (Vercel serverless limit).</p>
               </div>
             )}
             <DialogFooter>

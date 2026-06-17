@@ -40,6 +40,9 @@ import {
   MapPin,
   Key,
   Copy,
+  BellRing,
+  Smartphone,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from 'next-themes'
@@ -1005,6 +1008,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Device Push Notifications */}
+      <DevicePushNotificationsCard />
+
       {/* Appearance */}
       <Card>
         <CardHeader>
@@ -1496,5 +1502,164 @@ export default function SettingsPage() {
       {/* Footer spacer */}
       <div className="h-4" />
     </div>
+  )
+}
+
+/* ─── Device Push Notifications Card ─── */
+function DevicePushNotificationsCard() {
+  const [permission, setPermission] = React.useState<NotificationPermission | 'unsupported' | 'unknown'>('unknown')
+  const [isRequesting, setIsRequesting] = React.useState(false)
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPermission('unsupported')
+      return
+    }
+    setPermission(Notification.permission)
+  }, [])
+
+  async function handleEnable() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      toast.error('Push notifications are not supported in this browser')
+      return
+    }
+    setIsRequesting(true)
+    try {
+      const result = await Notification.requestPermission()
+      setPermission(result)
+      if (result === 'granted') {
+        toast.success('Device push notifications enabled', {
+          description: 'You will now receive notifications on your device even when the app is in the background.',
+        })
+        // Send a test notification
+        new Notification('NurseOS notifications enabled', {
+          body: 'You will now receive real-time notifications on this device.',
+          icon: '/nurseos-icon-1024.png',
+          badge: '/favicon-32x32.png',
+        })
+      } else if (result === 'denied') {
+        toast.error('Push notifications blocked', {
+          description: 'You denied permission. To enable later, click the lock icon in your browser address bar and allow notifications.',
+        })
+      } else {
+        toast.info('Permission dismissed — no changes made')
+      }
+    } catch (e: any) {
+      toast.error('Failed to request permission: ' + (e.message || 'Unknown'))
+    } finally {
+      setIsRequesting(false)
+    }
+  }
+
+  function handleTest() {
+    if (permission !== 'granted') {
+      toast.error('Enable push notifications first')
+      return
+    }
+    new Notification('Test notification from NurseOS', {
+      body: 'If you can see this, push notifications are working correctly.',
+      icon: '/nurseos-icon-1024.png',
+      badge: '/favicon-32x32.png',
+    })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <BellRing className="size-5 text-emerald-600" />
+          <CardTitle>Device Push Notifications</CardTitle>
+        </div>
+        <CardDescription>
+          Receive notifications on your device even when NurseOS is in another tab or minimized
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Status badge */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Status:</span>
+          {permission === 'granted' && (
+            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+              <Check className="size-3 mr-1" />Enabled
+            </Badge>
+          )}
+          {permission === 'denied' && (
+            <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/30">
+              <X className="size-3 mr-1" />Blocked
+            </Badge>
+          )}
+          {permission === 'default' && (
+            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+              Not configured
+            </Badge>
+          )}
+          {permission === 'unsupported' && (
+            <Badge variant="outline" className="bg-slate-500/10 text-slate-600 border-slate-500/30">
+              Not supported
+            </Badge>
+          )}
+          {permission === 'unknown' && (
+            <Badge variant="outline">
+              <Loader2 className="size-3 mr-1 animate-spin" />Checking...
+            </Badge>
+          )}
+        </div>
+
+        {/* Description */}
+        <div className="p-3 rounded-lg bg-muted/30 border text-xs text-muted-foreground space-y-1">
+          <p className="flex items-start gap-1.5">
+            <Smartphone className="size-3.5 mt-0.5 flex-shrink-0" />
+            <span>
+              <strong>How it works:</strong> When enabled, NurseOS will show system-level notifications
+              on your device whenever you receive a new in-app notification (announcements, Q&A replies,
+              material shares, etc.). This works on desktop (Chrome, Edge, Firefox) and mobile (Android Chrome).
+            </span>
+          </p>
+          <p className="text-[11px] mt-2 text-muted-foreground/70">
+            Note: iOS Safari does not support web push notifications. iPhone users will still see in-app toast popups.
+          </p>
+        </div>
+
+        {/* Denied — show instructions */}
+        {permission === 'denied' && (
+          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
+            <p className="font-medium">Push notifications are blocked in your browser.</p>
+            <p className="mt-1">
+              To re-enable: Click the lock/info icon in your browser address bar → Site settings →
+              Notifications → Allow. Then refresh this page.
+            </p>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          {permission !== 'granted' && permission !== 'unsupported' && permission !== 'unknown' && (
+            <Button
+              onClick={handleEnable}
+              disabled={isRequesting || permission === 'denied'}
+              className="bg-emerald-600 hover:bg-emerald-700"
+              size="sm"
+            >
+              {isRequesting ? (
+                <>
+                  <Loader2 className="size-4 mr-1.5 animate-spin" />
+                  Requesting...
+                </>
+              ) : (
+                <>
+                  <BellRing className="size-4 mr-1.5" />
+                  Enable Push Notifications
+                </>
+              )}
+            </Button>
+          )}
+          {permission === 'granted' && (
+            <Button onClick={handleTest} variant="outline" size="sm">
+              Send Test Notification
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
