@@ -308,47 +308,36 @@ export default function LecturerMaterialsPage() {
           payload.fileSize = file.size
           payload.mimeType = file.type
         } else {
-          // Large file (>4 MB) — use presigned S3/R2 upload (bypasses Vercel's body limit, supports up to 5 GB)
-          toast.info(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) to object storage...`)
-          // 1. Request presigned URL from server
-          const presignRes = await fetch('/api/course-materials/presign', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileName: file.name,
-              fileType: file.type || 'application/octet-stream',
-              fileSize: file.size,
-            }),
-            credentials: 'include',
-          })
-          const presignData = await presignRes.json()
-          if (!presignRes.ok) {
-            if (presignData.errorType === 'STORAGE_NOT_CONFIGURED') {
+          // Large file (>4 MB) — upload directly to Vercel Blob via client-side upload
+          // This bypasses Vercel's 4.5 MB serverless body limit entirely
+          toast.info(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) to Vercel Blob...`)
+
+          const { upload } = await import('@vercel/blob/client')
+
+          let blobUrl: string
+          try {
+            const blob = await upload(file.name, file, {
+              access: 'public',
+              handleUploadUrl: '/api/course-materials/upload',
+            })
+            blobUrl = blob.url
+          } catch (err: any) {
+            // Check if it's a storage-not-configured error
+            const errorMsg = err?.message || ''
+            if (errorMsg.includes('BLOB_READ_WRITE_TOKEN') || errorMsg.includes('not configured') || errorMsg.includes('STORAGE_NOT_CONFIGURED')) {
               toast.error('Large file uploads not configured', {
-                description: 'The administrator must set up S3/R2 storage to upload files larger than 4 MB.',
-                duration: 10000,
+                description: 'The administrator must enable Vercel Blob storage to upload files larger than 4 MB. Go to Vercel → Storage → Create Blob Store, then add BLOB_READ_WRITE_TOKEN to env vars.',
+                duration: 12000,
               })
             } else {
-              toast.error(presignData.error || 'Failed to get upload URL')
+              toast.error('Upload failed: ' + (errorMsg || 'Unknown error'))
             }
             setIsUploading(false)
             return
           }
-          // 2. Upload file directly to S3/R2 via PUT (bypasses Vercel serverless)
-          const uploadRes = await fetch(presignData.uploadUrl, {
-            method: 'PUT',
-            body: file,
-            headers: {
-              'Content-Type': file.type || 'application/octet-stream',
-            },
-          })
-          if (!uploadRes.ok) {
-            toast.error(`Failed to upload file to storage (HTTP ${uploadRes.status})`)
-            setIsUploading(false)
-            return
-          }
-          // 3. Use the resulting fileUrl in the material creation payload
-          payload.fileUrl = presignData.fileUrl
+
+          // Use the blob URL in the material creation payload
+          payload.fileUrl = blobUrl
           payload.fileName = file.name
           payload.fileSize = file.size
           payload.mimeType = file.type
@@ -792,7 +781,7 @@ export default function LecturerMaterialsPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Max size: 4 MB (small files) or up to 5 GB with S3/R2 storage configured.
+                  Max size: 4 MB (small files) or up to 500 MB with Vercel Blob configured.
                 </p>
               </div>
             )}
