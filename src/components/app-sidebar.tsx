@@ -287,8 +287,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // Override nav visibility for institution admin — they get ONLY the Academic section (no 5 modules)
   // Hospital admins keep the 5 modules (they manage a healthcare facility)
+  //
+  // CRITICAL: Students and lecturers have DB role 'NURSE' (they're mapped from STUDENT/LECTURER to NURSE
+  // in the database). So we MUST check academicRole FIRST, before falling back to userRole.
+  // Without this check, students/lecturers would get roleNavVisibility['NURSE'] = all 5 modules.
   const effectiveNavVisibility = isInstitutionAdmin
     ? ['Academic']  // institution admin: ONLY academic section
+    : academicRole === 'STUDENT'
+    ? roleNavVisibility['STUDENT']  // ['Academic']
+    : academicRole === 'LECTURER'
+    ? roleNavVisibility['LECTURER']  // ['Academic']
     : roleNavVisibility[userRole] || roleNavVisibility['NURSE']
 
   // For institution roles (student, lecturer, institution admin), the "Dashboard Home" link
