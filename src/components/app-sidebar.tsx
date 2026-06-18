@@ -377,22 +377,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          {/* News link — only for hospital roles (not academic roles) */}
-          {!isAcademicRole && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={false}
-                tooltip="Healthcare News"
-                className="text-slate-300 hover:bg-slate-800 hover:text-slate-100"
-              >
-                <Link href="/dashboard#news">
-                  <Newspaper className="size-4" />
-                  <span>News</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          {/* News link removed from all dashboards */}
         </SidebarMenu>
 
         <SidebarSeparator className="bg-slate-700/50" />

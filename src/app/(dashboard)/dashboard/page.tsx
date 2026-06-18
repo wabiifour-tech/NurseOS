@@ -32,7 +32,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/auth-store"
-import HealthcareNews from "@/components/healthcare-news"
+// HealthcareNews removed from all dashboards
 import { Loader2 } from "lucide-react"
 
 const quickActions = [
@@ -184,8 +184,7 @@ function HospitalDashboard({ firstName, role }: { firstName: string; role: strin
         </CardContent>
       </Card>
 
-      {/* Healthcare News */}
-      <HealthcareNews />
+      {/* Healthcare News removed */}
 
       {/* Module Overview */}
       <div>
@@ -284,7 +283,7 @@ function StudentDashboard({ firstName, facilityName, studentLevel }: { firstName
       </Card>
 
       {/* Healthcare News */}
-      <HealthcareNews />
+      {/* Healthcare News removed */}
     </div>
   )
 }
@@ -359,8 +358,7 @@ function LecturerDashboard({ firstName, facilityName }: { firstName: string; fac
         </CardContent>
       </Card>
 
-      {/* Healthcare News */}
-      <HealthcareNews />
+      {/* Healthcare News removed */}
     </div>
   )
 }

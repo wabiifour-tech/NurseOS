@@ -70,6 +70,9 @@ interface KeyboardShortcut {
 export default function HelpSupportPage() {
   const { user, token } = useAuthStore()
 
+  // Academic users don't see hospital-specific help sections
+  const isAcademicUser = user?.academicRole === 'STUDENT' || user?.academicRole === 'LECTURER' || (user?.role === 'ADMIN' && (user?.facilityType === 'UNIVERSITY' || user?.facilityType === 'SCHOOL_OF_NURSING'))
+
   // Contact form state
   const [contactForm, setContactForm] = React.useState({
     name: user ? `${user.firstName} ${user.lastName}` : '',
@@ -350,7 +353,8 @@ export default function HelpSupportPage() {
         </CardContent>
       </Card>
 
-      {/* FAQ Section */}
+      {/* FAQ Section — hidden for academic users */}
+      {!isAcademicUser && (
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -414,6 +418,7 @@ export default function HelpSupportPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Contact Our Team / Support Section */}
       <Card>
@@ -536,6 +541,9 @@ export default function HelpSupportPage() {
         </CardContent>
       </Card>
 
+      {/* Quick Links + Keyboard Shortcuts — hidden for academic users */}
+      {!isAcademicUser && (
+      <>
       {/* Quick Links Section */}
       <Card>
         <CardHeader>
@@ -632,6 +640,8 @@ export default function HelpSupportPage() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
 
       {/* Footer spacer */}
       <div className="h-4" />

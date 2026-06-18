@@ -117,13 +117,19 @@ export default function SettingsPage() {
   // Hospital roles (nurse, doctor, matron, other, facility admin) see patient/clinical notifications.
   const isAcademicUser = user?.academicRole === 'STUDENT' || user?.academicRole === 'LECTURER' || (user?.role === 'ADMIN' && (user?.facilityType === 'UNIVERSITY' || user?.facilityType === 'SCHOOL_OF_NURSING'))
 
+  // Build academic notification preferences based on SPECIFIC academic role
+  const isLecturer = user?.academicRole === 'LECTURER'
+  const isStudentNotif = user?.academicRole === 'STUDENT'
+  const isInstitutionAdminNotif = isAcademicUser && !isLecturer && !isStudentNotif
+
   const academicNotifications: NotificationPreference[] = [
-    {
+    // Students get notified about new materials; lecturers + admins don't need this
+    ...(isStudentNotif ? [{
       id: 'new-materials',
       label: 'New Course Materials',
       description: 'Get notified when lecturers upload new materials for your level',
       enabled: true,
-    },
+    }] : []),
     {
       id: 'qa-replies',
       label: 'Q&A Replies',
@@ -136,18 +142,20 @@ export default function SettingsPage() {
       description: 'Get notified about new announcements from your institution admin or lecturers',
       enabled: true,
     },
-    {
+    // Only lecturers get material share notifications
+    ...(isLecturer ? [{
       id: 'material-shares',
       label: 'Material Shares',
       description: 'Receive notifications when another lecturer shares a material with you',
       enabled: true,
-    },
-    {
+    }] : []),
+    // Only institution admins get lecturer approval notifications
+    ...(isInstitutionAdminNotif ? [{
       id: 'lecturer-approvals',
       label: 'Lecturer Approval Requests',
-      description: 'Get notified when a new lecturer signs up and needs approval (institution admins only)',
+      description: 'Get notified when a new lecturer signs up and needs approval',
       enabled: true,
-    },
+    }] : []),
     {
       id: 'system-updates',
       label: 'System Updates',

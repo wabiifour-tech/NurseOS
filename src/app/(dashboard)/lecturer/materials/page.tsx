@@ -778,9 +778,6 @@ export default function LecturerMaterialsPage() {
                   }
                   required
                 />
-                <p className="text-xs text-muted-foreground">
-                  Max size: 4 MB (inline) or up to 512 MB with UploadThing.
-                </p>
               </div>
             )}
             <DialogFooter>
