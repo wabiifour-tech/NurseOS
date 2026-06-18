@@ -100,3 +100,115 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to manage worker' }, { status: 500 })
   }
 }
+
+// POST /api/admin/workers — Approve or reject a pending user (lecturer/nurse/etc.)
+// Body: { userId: string, action: 'approve' | 'reject' }
+export async function POST(req: NextRequest) {
+  try {
+    const authUser = await getAuthenticatedUser(req)
+    if (!authUser) return unauthorizedResponse()
+    if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
+    }
+    if (!authUser.facilityId) return noFacilityResponse()
+
+    const { userId, action } = await req.json()
+
+    if (!userId || !action) {
+      return NextResponse.json({ error: 'userId and action required' }, { status: 400 })
+    }
+
+    if (!['approve', 'reject'].includes(action)) {
+      return NextResponse.json({ error: 'Invalid action. Must be "approve" or "reject".' }, { status: 400 })
+    }
+
+    // Verify user belongs to this facility and is PENDING
+    const user = await db.user.findFirst({
+      where: {
+        id: userId,
+        facilityId: authUser.facilityId,
+        status: 'PENDING',
+      },
+      select: { id: true, firstName: true, lastName: true, email: true, academicRole: true, role: true },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'Pending user not found in your facility' }, { status: 404 })
+    }
+
+    if (action === 'approve') {
+      // Set status to ACTIVE
+      await db.user.update({
+        where: { id: userId },
+        data: { status: 'ACTIVE' },
+      })
+
+      // Create audit log
+      await db.auditLog.create({
+        data: {
+          userId: authUser.id,
+          action: 'USER_APPROVED',
+          resource: 'User',
+          resourceId: userId,
+          details: `Approved ${user.academicRole || user.role} ${user.firstName} ${user.lastName} (${user.email})`,
+        },
+      })
+
+      // Notify the approved user
+      await db.notification.create({
+        data: {
+          userId: userId,
+          type: 'ACCOUNT_APPROVED',
+          title: 'Your account has been approved!',
+          message: `Your ${user.academicRole === 'LECTURER' ? 'lecturer' : user.role.toLowerCase()} account at has been approved. You can now sign in to NurseOS.`,
+          data: JSON.stringify({ facilityId: authUser.facilityId }),
+        },
+      })
+
+      return NextResponse.json({ message: 'User approved successfully' })
+    } else {
+      // action === 'reject'
+      // Set status to REJECTED and remove from facility
+      await db.user.update({
+        where: { id: userId },
+        data: {
+          status: 'REJECTED',
+          facilityId: null,
+        },
+      })
+
+      // Also remove from nurse profile
+      await db.nurseProfile.updateMany({
+        where: { userId },
+        data: { currentFacilityId: null },
+      })
+
+      // Create audit log
+      await db.auditLog.create({
+        data: {
+          userId: authUser.id,
+          action: 'USER_REJECTED',
+          resource: 'User',
+          resourceId: userId,
+          details: `Rejected ${user.academicRole || user.role} ${user.firstName} ${user.lastName} (${user.email})`,
+        },
+      })
+
+      // Notify the rejected user
+      await db.notification.create({
+        data: {
+          userId: userId,
+          type: 'ACCOUNT_REJECTED',
+          title: 'Your account application was not approved',
+          message: `Your application to join was not approved. If you believe this is an error, please contact support.`,
+          data: JSON.stringify({ facilityId: authUser.facilityId }),
+        },
+      })
+
+      return NextResponse.json({ message: 'User rejected successfully' })
+    }
+  } catch (error) {
+    console.error('Error approving/rejecting worker:', error)
+    return NextResponse.json({ error: 'Failed to process action' }, { status: 500 })
+  }
+}

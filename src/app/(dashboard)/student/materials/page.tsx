@@ -65,6 +65,7 @@ interface Material {
   courseTitle: string | null
   fileName: string | null
   fileSize: number | null
+  mimeType: string | null
   externalUrl: string | null
   fileUrl: string | null
   downloadCount: number
@@ -251,14 +252,20 @@ export default function StudentMaterialsPage() {
       toast.error('File not available')
       return
     }
-    // fileUrl is a data URL — open in new tab
-    const win = window.open()
-    if (win) {
-      win.document.write(
-        `<iframe src="${m.fileUrl}" style="width:100%;height:100vh;border:0;" allowfullscreen></iframe>`
-      )
+    // Handle both data URLs (base64) and http URLs (Vercel Blob / S3)
+    if (m.fileUrl.startsWith('http')) {
+      // External URL — open directly
+      window.open(m.fileUrl, '_blank', 'noopener,noreferrer')
     } else {
-      toast.error('Please allow pop-ups to view this material.')
+      // Data URL — open in new tab via iframe
+      const win = window.open()
+      if (win) {
+        win.document.write(
+          `<iframe src="${m.fileUrl}" style="width:100%;height:100vh;border:0;" allowfullscreen></iframe>`
+        )
+      } else {
+        toast.error('Please allow pop-ups to view this material.')
+      }
     }
   }
 
@@ -533,18 +540,30 @@ export default function StudentMaterialsPage() {
             <div className="flex-1 overflow-auto bg-muted/20 grid md:grid-cols-3 gap-0">
               {/* Material view (left, 2/3 width) */}
               <div className="md:col-span-2 overflow-auto">
-                {viewingMaterial.fileUrl && viewingMaterial.fileUrl.startsWith('data:application/pdf') ? (
+                {viewingMaterial.fileUrl && (viewingMaterial.fileUrl.startsWith('data:application/pdf') || (viewingMaterial.fileUrl.startsWith('http') && viewingMaterial.mimeType === 'application/pdf') || (viewingMaterial.fileUrl.startsWith('http') && viewingMaterial.fileUrl.endsWith('.pdf'))) ? (
                   <iframe
                     src={viewingMaterial.fileUrl}
                     className="w-full h-[70vh] border-0"
                     title={viewingMaterial.title}
                   />
-                ) : viewingMaterial.fileUrl && viewingMaterial.fileUrl.startsWith('data:image/') ? (
+                ) : viewingMaterial.fileUrl && (viewingMaterial.fileUrl.startsWith('data:image/') || (viewingMaterial.fileUrl.startsWith('http') && viewingMaterial.mimeType && viewingMaterial.mimeType.startsWith('image/'))) ? (
                   <img
                     src={viewingMaterial.fileUrl}
                     alt={viewingMaterial.title}
                     className="max-w-full max-h-[70vh] mx-auto"
                   />
+                ) : viewingMaterial.fileUrl && viewingMaterial.fileUrl.startsWith('http') ? (
+                  /* External URL (Vercel Blob / S3) — open in iframe for preview, or show download button */
+                  <div className="p-8 text-center">
+                    <File className="size-12 mx-auto mb-3 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground mb-4">
+                      This file is stored in cloud storage. Click below to open or download it.
+                    </p>
+                    <Button onClick={() => window.open(viewingMaterial.fileUrl!, '_blank', 'noopener,noreferrer')}>
+                      <Download className="size-4 mr-2" />
+                      Open File
+                    </Button>
+                  </div>
                 ) : viewingMaterial.fileUrl ? (
                   <div className="p-8 text-center">
                     <File className="size-12 mx-auto mb-3 text-muted-foreground/50" />

@@ -66,7 +66,6 @@ import {
   Upload,
   BookOpen,
 } from 'lucide-react'
-import { PLAN_LIMITS, PLAN_COLORS, type PlanType } from '@/lib/plan-limits'
 import Link from 'next/link'
 
 /* ─── Types ─── */
@@ -345,9 +344,7 @@ export default function FacilityAdminDashboard() {
   }
 
   /* ─── Derived data ─── */
-  const currentPlan = (data?.subscription?.plan || 'FREE') as PlanType
-  const currentLimits = PLAN_LIMITS[currentPlan]
-  const planStatus = data?.subscription?.status || 'ACTIVE'
+  // Subscription feature removed — NurseOS is free forever
   const filteredWorkers = (data?.workers || []).filter((w) => {
     if (!workerSearch) return true
     const q = workerSearch.toLowerCase()
@@ -422,17 +419,14 @@ export default function FacilityAdminDashboard() {
               Facility Admin Dashboard
             </h1>
             <p className="text-muted-foreground text-sm">
-              Manage your facility, workers, and subscription
+              Manage your facility and workers
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={`text-xs ${PLAN_COLORS[currentPlan]}`}>
-            <Crown className="size-3 mr-1" />
-            {currentLimits.name}
-          </Badge>
-          <Badge variant="outline" className={`text-xs ${statusColorMap[planStatus] || ''}`}>
-            {planStatus}
+          <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+            <Check className="size-3 mr-1" />
+            Free Forever
           </Badge>
         </div>
       </div>
@@ -485,8 +479,8 @@ export default function FacilityAdminDashboard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Current Plan</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{currentLimits.price}{currentLimits.period}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Plan</p>
+                <p className="text-2xl font-bold text-emerald-600 mt-1">Free Forever</p>
               </div>
               <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 shadow-lg shadow-emerald-600/20">
                 <Crown className="size-6 text-white" />
