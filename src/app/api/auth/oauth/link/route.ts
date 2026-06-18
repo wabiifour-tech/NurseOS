@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
             role,
             academicRole: existingUser.academicRole || null,
             studentLevel: existingUser.studentLevel ?? null,
+            matricNumber: (existingUser as any).matricNumber || null,
             facilityId,
             facilityName,
             facilityType,

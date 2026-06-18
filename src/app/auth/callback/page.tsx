@@ -56,6 +56,7 @@ export default function AuthCallbackPage() {
                   role: data.user.role,
                   academicRole: data.user.academicRole || null,
                   studentLevel: data.user.studentLevel ?? null,
+                  matricNumber: (data.user as any).matricNumber || null,
                   avatarUrl: data.user.avatarUrl || null,
                   facilityId: data.user.facilityId || null,
                   facilityName: data.user.facilityName || null,

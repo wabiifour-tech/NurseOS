@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
         role,
         academicRole: user.academicRole || null,
         studentLevel: user.studentLevel ?? null,
+        matricNumber: (user as any).matricNumber || null,
         avatarUrl: user.avatarUrl,
       },
       token,

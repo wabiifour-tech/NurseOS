@@ -120,7 +120,7 @@ function HospitalDashboard({ firstName, role }: { firstName: string; role: strin
         </div>
         <Badge variant="outline" className="gap-1.5 text-emerald-600 border-emerald-500/30 bg-emerald-500/5 w-fit">
           <Sparkles className="size-3" />
-          {role}
+          {role === 'DOCTOR' ? 'Doctor' : role === 'MATRON' ? 'Matron' : role === 'OTHER' ? 'Healthcare Worker' : role === 'NURSE' ? 'Nurse' : role}
         </Badge>
       </div>
 

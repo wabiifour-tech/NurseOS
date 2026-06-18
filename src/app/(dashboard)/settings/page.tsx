@@ -36,6 +36,7 @@ import {
   Camera,
   Save,
   Building2,
+  GraduationCap,
   AlertTriangle,
   MapPin,
   Key,
@@ -111,8 +112,51 @@ export default function SettingsPage() {
     }
   }, [user, loadProfileData])
 
-  // Notification preferences state
-  const [notifications, setNotifications] = React.useState<NotificationPreference[]>([
+  // Notification preferences state — ROLE-AWARE
+  // Academic roles (lecturer, student, institution admin) see academic-relevant notifications.
+  // Hospital roles (nurse, doctor, matron, other, facility admin) see patient/clinical notifications.
+  const isAcademicUser = user?.academicRole === 'STUDENT' || user?.academicRole === 'LECTURER' || (user?.role === 'ADMIN' && (user?.facilityType === 'UNIVERSITY' || user?.facilityType === 'SCHOOL_OF_NURSING'))
+
+  const academicNotifications: NotificationPreference[] = [
+    {
+      id: 'new-materials',
+      label: 'New Course Materials',
+      description: 'Get notified when lecturers upload new materials for your level',
+      enabled: true,
+    },
+    {
+      id: 'qa-replies',
+      label: 'Q&A Replies',
+      description: 'Receive notifications when someone replies to your questions on materials',
+      enabled: true,
+    },
+    {
+      id: 'announcements',
+      label: 'Announcements',
+      description: 'Get notified about new announcements from your institution admin or lecturers',
+      enabled: true,
+    },
+    {
+      id: 'material-shares',
+      label: 'Material Shares',
+      description: 'Receive notifications when another lecturer shares a material with you',
+      enabled: true,
+    },
+    {
+      id: 'lecturer-approvals',
+      label: 'Lecturer Approval Requests',
+      description: 'Get notified when a new lecturer signs up and needs approval (institution admins only)',
+      enabled: true,
+    },
+    {
+      id: 'system-updates',
+      label: 'System Updates',
+      description: 'Updates about NurseOS features, maintenance, and improvements',
+      enabled: false,
+    },
+  ]
+
+  const hospitalNotifications: NotificationPreference[] = [
     {
       id: 'patient-alerts',
       label: 'Patient Alerts',
@@ -143,13 +187,11 @@ export default function SettingsPage() {
       description: 'Updates about NurseOS features, maintenance, and improvements',
       enabled: false,
     },
-    {
-      id: 'email-digest',
-      label: 'Email Digest',
-      description: 'Receive a daily summary email of your NurseOS activity',
-      enabled: false,
-    },
-  ])
+  ]
+
+  const [notifications, setNotifications] = React.useState<NotificationPreference[]>(
+    isAcademicUser ? academicNotifications : hospitalNotifications
+  )
 
   // Theme - managed by next-themes
   const { theme, setTheme } = useTheme()
@@ -782,10 +824,43 @@ export default function SettingsPage() {
                     variant="secondary"
                     className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20"
                   >
-                    {user?.role || 'Nurse'}
+                    {user?.academicRole === 'STUDENT' ? 'Nursing Student'
+                      : user?.academicRole === 'LECTURER' ? 'Lecturer'
+                      : user?.role === 'SUPER_ADMIN' ? 'Super Admin'
+                      : user?.role === 'ADMIN' ? (user?.facilityType === 'UNIVERSITY' || user?.facilityType === 'SCHOOL_OF_NURSING' ? 'Institution Admin' : 'Facility Admin')
+                      : user?.role === 'DOCTOR' ? 'Doctor'
+                      : user?.role === 'MATRON' ? 'Matron'
+                      : user?.role === 'OTHER' ? 'Healthcare Worker'
+                      : user?.role || 'Nurse'}
                   </Badge>
                 </div>
               </div>
+              {/* Student-specific fields — matric number + level */}
+              {user?.academicRole === 'STUDENT' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="matricNumber" className="text-xs text-muted-foreground">
+                      <GraduationCap className="size-3 inline mr-1" />Matric Number
+                    </Label>
+                    <p className="text-sm font-medium font-mono">{(user as any)?.matricNumber || 'Not set'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="studentLevel" className="text-xs text-muted-foreground">
+                      <GraduationCap className="size-3 inline mr-1" />Current Level
+                    </Label>
+                    <p className="text-sm font-medium">{user?.studentLevel ? `${user.studentLevel} Level` : 'Not set'}</p>
+                  </div>
+                </>
+              )}
+              {/* Lecturer-specific field — show their institution */}
+              {user?.academicRole === 'LECTURER' && (
+                <div className="space-y-2">
+                  <Label htmlFor="institution" className="text-xs text-muted-foreground">
+                    <Building2 className="size-3 inline mr-1" />Institution
+                  </Label>
+                  <p className="text-sm font-medium">{user?.facilityName || 'Not assigned'}</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-xs text-muted-foreground">
                   <Phone className="size-3 inline mr-1" />Phone
@@ -985,7 +1060,11 @@ export default function SettingsPage() {
             <Bell className="size-5 text-emerald-600" />
             <CardTitle>Notification Preferences</CardTitle>
           </div>
-          <CardDescription>Choose which notifications you want to receive</CardDescription>
+          <CardDescription>
+            {isAcademicUser
+              ? 'Choose which academic notifications you want to receive'
+              : 'Choose which clinical notifications you want to receive'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">

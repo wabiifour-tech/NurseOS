@@ -89,6 +89,7 @@ function LoginForm() {
         role: result.user.role,
         academicRole: result.user.academicRole || null,
         studentLevel: result.user.studentLevel ?? null,
+        matricNumber: (result.user as any).matricNumber || null,
         facilityId: result.facilityId || null,
         facilityName: result.facilityName || null,
         facilityType: result.facilityType || result.user.facilityType || null,

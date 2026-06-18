@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
         role: normalizedRole,
         academicRole: user.academicRole || null,
         studentLevel: user.studentLevel ?? null,
+        matricNumber: (user as any).matricNumber || null,
         nurseProfile: user.nurseProfile ? {
           id: user.nurseProfile.id,
           currentFacilityId: user.nurseProfile.currentFacilityId,

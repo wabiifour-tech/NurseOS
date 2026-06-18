@@ -9,10 +9,11 @@ interface User {
   role: string;
   academicRole?: string | null;   // 'LECTURER' | 'STUDENT' | null
   studentLevel?: number | null;   // 100 | 200 | 300 | 400 | 500
+  matricNumber?: string | null;   // Student matriculation number
   avatarUrl?: string;
   facilityId?: string | null;
   facilityName?: string | null;
-  facilityType?: string | null;   // HOSPITAL | UNIVERSITY | SCHOOL_OF_NURSING | etc. — used to differentiate institution admin from hospital admin
+  facilityType?: string | null;   // HOSPITAL | UNIVERSITY | SCHOOL_OF_NURSING | etc.
   nurseProfileId?: string | null;
   subscriptionPlan?: string;
   subscriptionStatus?: string;

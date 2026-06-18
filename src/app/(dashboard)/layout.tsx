@@ -403,17 +403,27 @@ function DashboardHeader() {
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium leading-none">{firstName} {lastName}</p>
                 <p className="text-xs text-muted-foreground leading-none">
-                  {user?.role || "Nurse"} — NurseOS
+                  {user?.academicRole === 'STUDENT' ? 'Nursing Student'
+                    : user?.academicRole === 'LECTURER' ? 'Lecturer'
+                    : user?.role === 'SUPER_ADMIN' ? 'Super Admin'
+                    : user?.role === 'ADMIN' ? (user?.facilityType === 'UNIVERSITY' || user?.facilityType === 'SCHOOL_OF_NURSING' ? 'Institution Admin' : 'Facility Admin')
+                    : user?.role === 'DOCTOR' ? 'Doctor'
+                    : user?.role === 'MATRON' ? 'Matron'
+                    : user?.role === 'OTHER' ? 'Healthcare Worker'
+                    : user?.role || 'Nurse'} — NurseOS
                 </p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/nurseid/profile">
-                <User className="mr-2 size-4" />
-                My Profile
-              </Link>
-            </DropdownMenuItem>
+            {/* Academic users don't have NurseID profiles — link to Settings instead */}
+            {!(user?.academicRole === 'STUDENT' || user?.academicRole === 'LECTURER' || (user?.role === 'ADMIN' && (user?.facilityType === 'UNIVERSITY' || user?.facilityType === 'SCHOOL_OF_NURSING'))) && (
+              <DropdownMenuItem asChild>
+                <Link href="/nurseid/profile">
+                  <User className="mr-2 size-4" />
+                  My Profile
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href="/settings">
                 <Settings className="mr-2 size-4" />
@@ -556,6 +566,7 @@ export default function DashboardLayout({
             role: data.user.role,
             academicRole: data.user.academicRole || null,
             studentLevel: data.user.studentLevel ?? null,
+            matricNumber: (data.user as any).matricNumber || null,
             facilityId: data.facilityId || data.user.nurseProfile?.currentFacilityId || data.user.adminProfile?.facilityId || null,
             facilityName: data.facilityName || data.user.nurseProfile?.facility?.name || data.user.adminProfile?.facility?.name || null,
             facilityType: data.facilityType || null,

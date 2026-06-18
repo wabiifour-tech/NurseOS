@@ -540,6 +540,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               : userRole === 'ADMIN' ? 'Facility Admin'
               : academicRole === 'STUDENT' ? 'Nursing Student'
               : academicRole === 'LECTURER' ? 'Lecturer'
+              : userRole === 'DOCTOR' ? 'Doctor'
+              : userRole === 'MATRON' ? 'Matron'
+              : userRole === 'OTHER' ? 'Healthcare Worker'
+              : userRole === 'NURSE' ? 'Nurse'
               : userRole
             } — NurseOS</p>
           </div>
