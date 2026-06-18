@@ -60,6 +60,7 @@ const publicApiRoutes = [
   '/api/seed',
   '/api/email/webhook',
   '/api/news',
+  '/api/uploadthing',
 ]
 
 // NextAuth.js catch-all route prefix — any request to /api/auth/* must be public

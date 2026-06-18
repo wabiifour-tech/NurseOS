@@ -316,24 +316,21 @@ export default function LecturerMaterialsPage() {
           payload.fileSize = file.size
           payload.mimeType = file.type
         } else {
-          // Large file (>4 MB) — try Vercel Blob client upload
-          toast.info(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
+          // Large file (>4 MB) — use UploadThing
+          toast.info(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) to cloud storage...`)
 
           try {
-            const { upload } = await import('@vercel/blob/client')
-            const blob = await upload(file.name, file, {
-              access: 'public',
-              handleUploadUrl: '/api/course-materials/upload',
-            })
-            payload.fileUrl = blob.url
+            const { uploadToUploadThing } = await import('@/lib/uploadthing-client')
+            const fileUrl = await uploadToUploadThing(file)
+            payload.fileUrl = fileUrl
             payload.fileName = file.name
             payload.fileSize = file.size
             payload.mimeType = file.type
           } catch (err: any) {
             const errorMsg = err?.message || ''
-            if (errorMsg.includes('BLOB_READ_WRITE_TOKEN') || errorMsg.includes('not configured') || errorMsg.includes('STORAGE_NOT_CONFIGURED') || errorMsg.includes('404') || errorMsg.includes('500')) {
-              toast.error('Large file upload requires Vercel Blob storage', {
-                description: 'Files >4 MB need Vercel Blob. Go to Vercel → Storage → Create Blob Store → connect to project. Or compress the file to under 4 MB.',
+            if (errorMsg.includes('UPLOADTHING') || errorMsg.includes('not configured') || errorMsg.includes('404') || errorMsg.includes('500') || errorMsg.includes('Unauthorized')) {
+              toast.error('Large file upload requires UploadThing setup', {
+                description: 'Files >4 MB need UploadThing. Go to uploadthing.com → create project → add UPLOADTHING_SECRET env var in Vercel. Or compress the file to under 4 MB.',
                 duration: 12000,
               })
             } else {
@@ -782,7 +779,7 @@ export default function LecturerMaterialsPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Max size: 4 MB (inline) or up to 500 MB with Vercel Blob configured.
+                  Max size: 4 MB (inline) or up to 512 MB with UploadThing.
                 </p>
               </div>
             )}
