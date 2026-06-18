@@ -157,8 +157,11 @@ export function ScreenRecorder({ onRecordingComplete, showTrigger = true }: Scre
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: "monitor",
+          width: { max: 1920 },
+          height: { max: 1080 },
+          frameRate: { max: 30 },
         },
-        audio: false, // No audio for privacy/HIPAA
+        audio: false,
       })
 
       streamRef.current = stream
@@ -219,7 +222,7 @@ export function ScreenRecorder({ onRecordingComplete, showTrigger = true }: Scre
         }
       })
 
-      recorder.start(1000) // Collect data every second
+      recorder.start(2000) // Collect data every 2 seconds for reliability
       startTimeRef.current = Date.now()
       pausedDurationRef.current = 0
       setTimer(0)

@@ -380,8 +380,10 @@ function DashboardHeader() {
         )}
         <OnlineStatus />
 
-        {/* Screen Recorder */}
-        <ScreenRecorder showTrigger={true} />
+        {/* Screen Recorder — only for hospital roles (not academic users) */}
+        {!(user?.academicRole === 'STUDENT' || user?.academicRole === 'LECTURER' || (user?.role === 'ADMIN' && (user?.facilityType === 'UNIVERSITY' || user?.facilityType === 'SCHOOL_OF_NURSING'))) && (
+          <ScreenRecorder showTrigger={true} />
+        )}
 
         {/* Notifications */}
         <NotificationBell />

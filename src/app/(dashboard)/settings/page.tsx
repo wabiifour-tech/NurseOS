@@ -911,9 +911,13 @@ export default function SettingsPage() {
             )}
           </div>
           <CardDescription>
-            {!user?.facilityId
-              ? 'You must select a facility to access patient data, records, and clinical tools. Your data will be isolated to this facility.'
-              : 'Your data is isolated to this facility. You can only see patients and records from your assigned facility.'}
+            {isAcademicUser
+              ? (!user?.facilityId
+                ? 'You must select your institution to access course materials and academic tools. Your data is isolated to your institution.'
+                : 'Your data is isolated to your institution. You can only see materials and users from your assigned institution.')
+              : (!user?.facilityId
+                ? 'You must select a facility to access patient data, records, and clinical tools. Your data will be isolated to this facility.'
+                : 'Your data is isolated to this facility. You can only see patients and records from your assigned facility.')}
           </CardDescription>
         </CardHeader>
         <CardContent>

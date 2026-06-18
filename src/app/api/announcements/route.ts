@@ -35,8 +35,11 @@ export async function GET(request: NextRequest) {
       whereConditions.push({ authorId: authUser.id })
     }
 
+    // NOTE: Do NOT filter by isGlobal — it excludes facility-specific announcements.
+    // isGlobal is only true for system-wide announcements (facilityId = null).
+    // Facility-specific announcements have isGlobal = false but should still be visible
+    // to users in that facility.
     const where: Record<string, unknown> = {
-      isGlobal: true,
       OR: whereConditions.length > 0 ? whereConditions : [{ facilityId: null }],
     }
 

@@ -294,28 +294,55 @@ export default function LecturerMaterialsPage() {
       if (form.type === 'LINK') {
         payload.externalUrl = form.externalUrl.trim()
       } else if (file) {
-        const MAX_FILE_SIZE = 4 * 1024 * 1024  // 4 MB hard limit (Vercel serverless body limit)
+        const MAX_BASE64_SIZE = 4 * 1024 * 1024  // 4 MB for base64 (Vercel limit)
+        const MAX_BLOB_SIZE = 500 * 1024 * 1024  // 500 MB for Vercel Blob
 
-        if (file.size > MAX_FILE_SIZE) {
-          toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 4 MB.`, {
-            description: 'Compress the file or split it into smaller parts, then upload each part separately.',
-            duration: 8000,
-          })
+        if (file.size > MAX_BLOB_SIZE) {
+          toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 500 MB.`)
           setIsUploading(false)
           return
         }
 
-        // Upload as base64 data URL (fits within Vercel's 4.5 MB body limit)
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = (err) => reject(err)
-          reader.readAsDataURL(file)
-        })
-        payload.fileDataUrl = dataUrl
-        payload.fileName = file.name
-        payload.fileSize = file.size
-        payload.mimeType = file.type
+        if (file.size <= MAX_BASE64_SIZE) {
+          // Small file (≤4 MB) — base64 data URL
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = (err) => reject(err)
+            reader.readAsDataURL(file)
+          })
+          payload.fileDataUrl = dataUrl
+          payload.fileName = file.name
+          payload.fileSize = file.size
+          payload.mimeType = file.type
+        } else {
+          // Large file (>4 MB) — try Vercel Blob client upload
+          toast.info(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
+
+          try {
+            const { upload } = await import('@vercel/blob/client')
+            const blob = await upload(file.name, file, {
+              access: 'public',
+              handleUploadUrl: '/api/course-materials/upload',
+            })
+            payload.fileUrl = blob.url
+            payload.fileName = file.name
+            payload.fileSize = file.size
+            payload.mimeType = file.type
+          } catch (err: any) {
+            const errorMsg = err?.message || ''
+            if (errorMsg.includes('BLOB_READ_WRITE_TOKEN') || errorMsg.includes('not configured') || errorMsg.includes('STORAGE_NOT_CONFIGURED') || errorMsg.includes('404') || errorMsg.includes('500')) {
+              toast.error('Large file upload requires Vercel Blob storage', {
+                description: 'Files >4 MB need Vercel Blob. Go to Vercel → Storage → Create Blob Store → connect to project. Or compress the file to under 4 MB.',
+                duration: 12000,
+              })
+            } else {
+              toast.error('Upload failed: ' + (errorMsg || 'Unknown error'))
+            }
+            setIsUploading(false)
+            return
+          }
+        }
       }
 
       const res = await fetch('/api/course-materials', {
@@ -755,7 +782,7 @@ export default function LecturerMaterialsPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Max size: 4 MB per file.
+                  Max size: 4 MB (inline) or up to 500 MB with Vercel Blob configured.
                 </p>
               </div>
             )}
