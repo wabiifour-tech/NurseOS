@@ -474,7 +474,7 @@ export default function StudentMaterialsPage() {
                     )}
                     <div className="flex items-center gap-1">
                       <Download className="size-3" />
-                      {m.downloadCount} views
+                      {m.downloadCount} downloads
                     </div>
                     {(m._count?.comments ?? 0) > 0 && (
                       <div className="flex items-center gap-1">

@@ -226,6 +226,11 @@ export default function FacilityAdminDashboard() {
 
   /* ─── Fetch facility data ─── */
   const fetchData = React.useCallback(async () => {
+    // Skip fetch for SUPER_ADMIN — they don't have a facility and shouldn't be on this page
+    if (user?.role === 'SUPER_ADMIN') {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     try {
       const res = await fetch('/api/admin/facility', { headers: getHeaders() })
@@ -243,7 +248,7 @@ export default function FacilityAdminDashboard() {
     } finally {
       setIsLoading(false)
     }
-  }, [token])
+  }, [token, user?.role])
 
   React.useEffect(() => {
     fetchData()
@@ -374,12 +379,20 @@ export default function FacilityAdminDashboard() {
     )
   }
 
-  // Role checks (after all hooks)
-  if (user?.role === 'SUPER_ADMIN') {
-    if (typeof window !== 'undefined') {
+  // Redirect SUPER_ADMIN to their dashboard (in useEffect, not during render)
+  React.useEffect(() => {
+    if (user?.role === 'SUPER_ADMIN') {
       window.location.href = '/superadmin'
     }
-    return null
+  }, [user?.role])
+
+  // Show loading for SUPER_ADMIN while redirecting
+  if (user?.role === 'SUPER_ADMIN') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+      </div>
+    )
   }
 
   if (user?.role !== 'ADMIN') {

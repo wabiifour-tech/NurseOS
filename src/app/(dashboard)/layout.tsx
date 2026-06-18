@@ -245,7 +245,7 @@ function NotificationBell() {
                 return (
                   <div
                     key={notification.id}
-                    className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-muted/50 ${
+                    className={`group flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-muted/50 ${
                       !notification.isRead ? "bg-emerald-50/50 hover:bg-emerald-50/70" : ""
                     }`}
                     onClick={() => handleClickNotification(notification.id, notification.isRead, notification.data, notification.type)}
@@ -569,6 +569,7 @@ export default function DashboardLayout({
             academicRole: data.user.academicRole || null,
             studentLevel: data.user.studentLevel ?? null,
             matricNumber: (data.user as any).matricNumber || null,
+            avatarUrl: (data.user as any).avatarUrl || null,
             facilityId: data.facilityId || data.user.nurseProfile?.currentFacilityId || data.user.adminProfile?.facilityId || null,
             facilityName: data.facilityName || data.user.nurseProfile?.facility?.name || data.user.adminProfile?.facility?.name || null,
             facilityType: data.facilityType || null,

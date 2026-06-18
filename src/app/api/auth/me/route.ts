@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
         academicRole: user.academicRole || null,
         studentLevel: user.studentLevel ?? null,
         matricNumber: (user as any).matricNumber || null,
+        avatarUrl: user.avatarUrl || null,
         nurseProfile: user.nurseProfile ? {
           id: user.nurseProfile.id,
           currentFacilityId: user.nurseProfile.currentFacilityId,

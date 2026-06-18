@@ -638,9 +638,12 @@ export default function SettingsPage() {
         setIsDeleting(false)
         return
       }
-      // Clear local auth state
+      // Clear local auth state synchronously before redirect
       const { logout } = useAuthStore.getState()
-      logout()
+      // Clear state synchronously to avoid stale data
+      useAuthStore.setState({ user: null, token: null, isAuthenticated: false, isSuperAdmin: false, isLoggingOut: false })
+      // Fire logout API call (fire-and-forget — we already cleared local state)
+      logout().catch(() => {})
       toast.success('Account deleted successfully')
       // Redirect to landing page
       window.location.href = '/'
