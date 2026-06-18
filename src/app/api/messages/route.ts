@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Create notification for the recipient
-    const senderName = `${authUser.firstName || ''} ${authUser.lastName || ''}`.trim() || 'A user'
+    // authUser doesn't have firstName/lastName, so use the sender data from the created message
+    const senderName = `${message.sender.firstName || ''} ${message.sender.lastName || ''}`.trim() || 'A user'
     await createNotification({
       userId: recipientId,
       type: 'DM',

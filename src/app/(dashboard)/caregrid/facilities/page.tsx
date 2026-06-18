@@ -227,12 +227,15 @@ export default function FacilitiesPage() {
                   <Select value={facilityForm.type} onValueChange={(v) => setFacilityForm({ ...facilityForm, type: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="HOSPITAL">Hospital</SelectItem>
                       <SelectItem value="PRIMARY_HEALTH_CENTER">Primary Health Center</SelectItem>
-                      <SelectItem value="GENERAL_HOSPITAL">General Hospital</SelectItem>
-                      <SelectItem value="TEACHING_HOSPITAL">Teaching Hospital</SelectItem>
-                      <SelectItem value="SPECIALIST_HOSPITAL">Specialist Hospital</SelectItem>
-                      <SelectItem value="FEDERAL_MEDICAL_CENTER">Federal Medical Center</SelectItem>
-                      <SelectItem value="PRIVATE_CLINIC">Private Clinic</SelectItem>
+                      <SelectItem value="CLINIC">Clinic</SelectItem>
+                      <SelectItem value="SPECIALIST_CENTER">Specialist Center</SelectItem>
+                      <SelectItem value="MATERNITY_HOME">Maternity Home</SelectItem>
+                      <SelectItem value="DIAGNOSTIC_CENTER">Diagnostic Center</SelectItem>
+                      <SelectItem value="REHABILITATION_CENTER">Rehabilitation Center</SelectItem>
+                      <SelectItem value="COMMUNITY_HEALTH_CENTER">Community Health Center</SelectItem>
+                      <SelectItem value="PHARMACY">Pharmacy</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

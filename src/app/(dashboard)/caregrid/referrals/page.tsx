@@ -218,7 +218,7 @@ export default function ReferralsPage() {
         toFacilityId: formToFacility,
         urgency: formUrgency,
       }
-      if (formFromFacility) payload.fromFacilityId = formFromFacility
+      if (formFromFacility && formFromFacility !== '__none') payload.fromFacilityId = formFromFacility
       if (formReason) payload.reason = formReason
       if (formClinicalSummary) payload.clinicalSummary = formClinicalSummary
       if (formNotes) payload.notes = formNotes

@@ -106,7 +106,13 @@ export async function POST(request: NextRequest) {
         where: { availableForConsult: true },
         select: { id: true },
       })
-      consultingNurseId = supportNurse?.id || 'system-support'
+      if (!supportNurse) {
+        return NextResponse.json(
+          { error: 'No nurse is currently available for consultation. Please try again later or select a specific nurse.' },
+          { status: 404 }
+        )
+      }
+      consultingNurseId = supportNurse.id
     }
 
     if (!nurseId) {

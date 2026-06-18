@@ -180,11 +180,10 @@ export default function MedicationsPage() {
           'metoprolol': ['verapamil', 'diltiazem', 'clonidine', 'insulin', 'paroxetine', 'fluoxetine'],
           'digoxin': ['amiodarone', 'verapamil', 'quinidine', 'spironolactone', 'carvedilol'],
           'insulin': ['alcohol', 'beta-blockers', 'oral hypoglycemics'],
-          'ciprofloxacin': ['warfarin', 'theophylline', 'antacids', 'dairy', 'sucralfate'],
+          'ciprofloxacin': ['warfarin', 'theophylline', 'antacids', 'dairy', 'sucralfate', 'tizanidine'],
           'artesunate': ['quinine', 'mefloquine', 'halofantrine'],
           'artemether': ['quinine', 'mefloquine', 'halofantrine'],
           'amoxicillin': ['methotrexate', 'allopurinol', 'warfarin'],
-          'ciprofloxacin': ['warfarin', 'theophylline', 'tizanidine'],
           'omeprazole': ['clopidogrel', 'diazepam', 'warfarin', 'phenytoin', 'methotrexate'],
           'furosemide': ['lithium', 'digoxin', 'aminoglycosides', 'nsaids', 'cisplatin'],
         }

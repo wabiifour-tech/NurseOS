@@ -370,16 +370,7 @@ export default function FacilityAdminDashboard() {
     )
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="size-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-muted-foreground">Loading facility data...</span>
-      </div>
-    )
-  }
-
-  // Redirect SUPER_ADMIN to their dashboard (in useEffect, not during render)
+  // Redirect SUPER_ADMIN to their dashboard (MUST be before any early returns — Rules of Hooks)
   React.useEffect(() => {
     if (user?.role === 'SUPER_ADMIN') {
       window.location.href = '/superadmin'
@@ -391,6 +382,15 @@ export default function FacilityAdminDashboard() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="size-8 animate-spin text-emerald-500" />
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-muted-foreground">Loading facility data...</span>
       </div>
     )
   }

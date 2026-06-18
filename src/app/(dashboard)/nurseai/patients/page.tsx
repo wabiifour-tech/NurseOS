@@ -88,7 +88,13 @@ export default function PatientsPage() {
     }
     setSubmitting(true)
     try {
-      const dob = formAge ? new Date(new Date().getFullYear() - parseInt(formAge), 0, 1).toISOString() : null
+      const parsedAge = formAge ? parseInt(formAge) : NaN
+      if (formAge && (isNaN(parsedAge) || parsedAge < 0 || parsedAge > 150)) {
+        toast.error('Please enter a valid age (0-150)')
+        setSubmitting(false)
+        return
+      }
+      const dob = formAge ? new Date(new Date().getFullYear() - parsedAge, 0, 1).toISOString() : null
 
       const res = await fetch('/api/nurseai/patients', {
         method: 'POST',

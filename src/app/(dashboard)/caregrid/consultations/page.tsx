@@ -136,7 +136,7 @@ function formatTime(iso: string | null): string {
 
 export default function ConsultationsPage() {
   const { user, token } = useAuthStore()
-  const currentUserId = user?.id ?? ""
+  const currentUserId = user?.nurseProfileId ?? user?.id ?? ""
   const searchParams = useSearchParams()
 
   // Data state
@@ -526,6 +526,10 @@ function ConsultationCard({ consultation, isIncoming, currentUserId, token }: { 
   }
 
   const handleStartCall = async (callType: 'VIDEO' | 'PHONE') => {
+    if (!otherNurse) {
+      toast.error('The other party is not available for a call.')
+      return
+    }
     setInitiatingCall(true)
     try {
       await initiateCall(
