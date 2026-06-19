@@ -3,9 +3,16 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Menu, X } from "lucide-react";
+import { ArrowRight, Menu, X, Smartphone, Apple, Monitor, Download, Check } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const fadeUp = {
   initial: { opacity: 0, y: 20 },
@@ -13,15 +20,106 @@ const fadeUp = {
   transition: { duration: 0.5 },
 };
 
+type Platform = "android" | "ios" | "windows" | "mac" | "linux";
+
+const platformInfo: Record<Platform, { name: string; icon: typeof Smartphone; steps: string[] }> = {
+  android: {
+    name: "Android",
+    icon: Smartphone,
+    steps: [
+      "Open NurseOS in Chrome browser",
+      "Tap the menu (three dots) in the top right",
+      "Tap 'Add to Home screen'",
+      "Tap 'Install' — NurseOS appears on your home screen",
+      "Launch it like any other app",
+    ],
+  },
+  ios: {
+    name: "iPhone / iPad",
+    icon: Apple,
+    steps: [
+      "Open NurseOS in Safari",
+      "Tap the Share button (square with up arrow)",
+      "Scroll down and tap 'Add to Home Screen'",
+      "Tap 'Add' — NurseOS appears on your home screen",
+      "Launch it like any other app",
+    ],
+  },
+  windows: {
+    name: "Windows",
+    icon: Monitor,
+    steps: [
+      "Open NurseOS in Chrome or Edge",
+      "Click the install icon (⊕) in the address bar",
+      "Click 'Install' — NurseOS opens in its own window",
+      "Find it in your Start menu or desktop shortcut",
+      "Launch it like any other desktop app",
+    ],
+  },
+  mac: {
+    name: "Mac",
+    icon: Apple,
+    steps: [
+      "Open NurseOS in Chrome or Edge",
+      "Click the install icon (⊕) in the address bar",
+      "Click 'Install' — NurseOS opens in its own window",
+      "Find it in your Launchpad or Applications",
+      "Launch it like any other Mac app",
+    ],
+  },
+  linux: {
+    name: "Linux",
+    icon: Monitor,
+    steps: [
+      "Open NurseOS in Chrome or Edge",
+      "Click the install icon (⊕) in the address bar",
+      "Click 'Install' — NurseOS opens in its own window",
+      "Find it in your app menu",
+      "Launch it like any other Linux app",
+    ],
+  },
+};
+
 export default function LandingPageClient() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [installPlatform, setInstallPlatform] = useState<Platform | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [canAutoInstall, setCanAutoInstall] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    // Capture the beforeinstallprompt event (Chrome/Edge/Android)
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanAutoInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
   }, []);
+
+  async function handleInstall(platform: Platform) {
+    // If browser supports auto-install (Chrome/Edge on Android/Windows/Linux/Mac)
+    if (canAutoInstall && deferredPrompt && platform !== "ios") {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setInstallPlatform(null);
+      }
+      setDeferredPrompt(null);
+      setCanAutoInstall(false);
+    } else {
+      // Show manual instructions dialog
+      setInstallPlatform(platform);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white text-slate-900 overflow-y-auto">
@@ -39,10 +137,10 @@ export default function LandingPageClient() {
             <span className="text-lg font-bold text-slate-900">NurseOS</span>
           </Link>
 
-          {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-8">
             <Link href="/about" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">About</Link>
             <Link href="/features" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
+            <a href="#download" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Download</a>
             <Link href="/login" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Sign In</Link>
             <Link href="/register">
               <Button size="sm" className="bg-slate-900 text-white hover:bg-slate-800">
@@ -51,20 +149,16 @@ export default function LandingPageClient() {
             </Link>
           </div>
 
-          {/* Mobile menu button */}
-          <button
-            className="md:hidden text-slate-900"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
+          <button className="md:hidden text-slate-900" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X className="size-6" /> : <Menu className="size-6" />}
           </button>
         </div>
 
-        {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-slate-200 px-4 py-4 space-y-3">
             <Link href="/about" className="block text-sm text-slate-600 py-2" onClick={() => setMobileMenuOpen(false)}>About</Link>
             <Link href="/features" className="block text-sm text-slate-600 py-2" onClick={() => setMobileMenuOpen(false)}>Features</Link>
+            <a href="#download" className="block text-sm text-slate-600 py-2" onClick={() => setMobileMenuOpen(false)}>Download</a>
             <Link href="/login" className="block text-sm text-slate-600 py-2" onClick={() => setMobileMenuOpen(false)}>Sign In</Link>
             <Link href="/register" className="block" onClick={() => setMobileMenuOpen(false)}>
               <Button size="sm" className="w-full bg-slate-900 text-white">Get Started</Button>
@@ -90,19 +184,20 @@ export default function LandingPageClient() {
               into one platform — for hospitals, universities, and nursing schools.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
-              <Link href="/register">
+              <a href="#download">
                 <Button size="lg" className="bg-slate-900 text-white hover:bg-slate-800 w-full sm:w-auto">
+                  <Download className="size-4 mr-2" />
+                  Download App
+                </Button>
+              </a>
+              <Link href="/register">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto border-slate-300">
                   Get Started Free
                   <ArrowRight className="size-4 ml-2" />
                 </Button>
               </Link>
-              <Link href="/features">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto border-slate-300">
-                  Explore Features
-                </Button>
-              </Link>
             </div>
-            <p className="text-xs text-slate-400 mt-4">Free forever. No credit card required.</p>
+            <p className="text-xs text-slate-400 mt-4">Free forever. Available on all devices.</p>
           </motion.div>
         </div>
       </section>
@@ -116,7 +211,6 @@ export default function LandingPageClient() {
           </motion.div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Hospitals & Clinics */}
             <motion.div {...fadeUp} transition={{ delay: 0.1 }}>
               <div className="p-8 rounded-2xl bg-white border border-slate-200 h-full">
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">Hospitals & Clinics</h3>
@@ -133,7 +227,6 @@ export default function LandingPageClient() {
               </div>
             </motion.div>
 
-            {/* Universities & Schools of Nursing */}
             <motion.div {...fadeUp} transition={{ delay: 0.2 }}>
               <div className="p-8 rounded-2xl bg-white border border-slate-200 h-full">
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">Universities & Schools of Nursing</h3>
@@ -232,26 +325,68 @@ export default function LandingPageClient() {
               <p className="text-xs text-slate-500 mt-1">Built with privacy and compliance at the core.</p>
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-900">PWA Enabled</p>
-              <p className="text-xs text-slate-500 mt-1">Install on any device. Works offline.</p>
+              <p className="text-sm font-medium text-slate-900">Works Offline</p>
+              <p className="text-xs text-slate-500 mt-1">Install on any device. Access without internet.</p>
             </div>
           </div>
         </div>
       </section>
 
+      {/* ─── DOWNLOAD SECTION ─── */}
+      <section id="download" className="py-24 px-4 sm:px-6 bg-slate-900 text-white scroll-mt-16">
+        <div className="max-w-3xl mx-auto text-center">
+          <motion.div {...fadeUp}>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Download NurseOS
+            </h2>
+            <p className="text-slate-400 mb-2">
+              Install on your device for the best experience.
+            </p>
+            <p className="text-xs text-slate-500 mb-10">
+              NurseOS is a Progressive Web App — install it like a native app on any platform. No app store needed.
+            </p>
+
+            {/* Platform download buttons */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-2xl mx-auto">
+              {(Object.keys(platformInfo) as Platform[]).map((platform) => {
+                const info = platformInfo[platform];
+                const Icon = info.icon;
+                return (
+                  <button
+                    key={platform}
+                    onClick={() => handleInstall(platform)}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group"
+                  >
+                    <Icon className="size-6 text-white group-hover:text-emerald-400 transition-colors" />
+                    <span className="text-xs font-medium text-white">{info.name}</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                      <Download className="size-2.5" /> Install
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-xs text-slate-500 mt-8">
+              Works on Android, iPhone, iPad, Windows, Mac, and Linux.
+            </p>
+          </motion.div>
+        </div>
+      </section>
+
       {/* ─── CTA ─── */}
-      <section className="py-24 px-4 sm:px-6">
+      <section className="py-20 px-4 sm:px-6">
         <div className="max-w-2xl mx-auto text-center">
           <motion.div {...fadeUp}>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
-              Start using NurseOS today.
+              Or use it in your browser.
             </h2>
             <p className="text-slate-500 mt-4">
-              Free forever. Sign up with Google and pick your role.
+              No download required. Sign up and start using NurseOS right away.
             </p>
             <Link href="/register" className="inline-block mt-8">
               <Button size="lg" className="bg-slate-900 text-white hover:bg-slate-800">
-                Get Started
+                Get Started Free
                 <ArrowRight className="size-4 ml-2" />
               </Button>
             </Link>
@@ -272,12 +407,53 @@ export default function LandingPageClient() {
           <div className="flex gap-6 text-sm text-slate-500">
             <Link href="/about" className="hover:text-slate-900 transition-colors">About</Link>
             <Link href="/features" className="hover:text-slate-900 transition-colors">Features</Link>
+            <a href="#download" className="hover:text-slate-900 transition-colors">Download</a>
             <Link href="/privacy" className="hover:text-slate-900 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-900 transition-colors">Terms</Link>
           </div>
           <p className="text-xs text-slate-400">© {new Date().getFullYear()} NurseOS — Developed by Wabi The Tech Nurse</p>
         </div>
       </footer>
+
+      {/* ─── Install Instructions Dialog ─── */}
+      <Dialog open={installPlatform !== null} onOpenChange={() => setInstallPlatform(null)}>
+        {installPlatform && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {(() => {
+                  const Icon = platformInfo[installPlatform].icon;
+                  return <Icon className="size-5" />;
+                })()}
+                Install on {platformInfo[installPlatform].name}
+              </DialogTitle>
+              <DialogDescription>
+                Follow these steps to install NurseOS on your {platformInfo[installPlatform].name}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              {platformInfo[installPlatform].steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="flex size-6 items-center justify-center rounded-full bg-slate-900 text-white text-xs font-bold flex-shrink-0 mt-0.5">
+                    {i + 1}
+                  </div>
+                  <p className="text-sm text-slate-600">{step}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <a href={typeof window !== "undefined" ? window.location.origin : "/"} target="_blank" rel="noopener noreferrer">
+                <Button className="bg-slate-900 text-white hover:bg-slate-800 flex-1">
+                  Open NurseOS
+                </Button>
+              </a>
+              <Button variant="outline" onClick={() => setInstallPlatform(null)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
