@@ -140,6 +140,7 @@ export default function LandingPageClient() {
           <div className="hidden md:flex items-center gap-8">
             <Link href="/about" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">About</Link>
             <Link href="/features" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
+            <Link href="/impact" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Impact</Link>
             <a href="#download" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Download</a>
             <Link href="/login" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Sign In</Link>
             <Link href="/register">
@@ -407,6 +408,7 @@ export default function LandingPageClient() {
           <div className="flex gap-6 text-sm text-slate-500">
             <Link href="/about" className="hover:text-slate-900 transition-colors">About</Link>
             <Link href="/features" className="hover:text-slate-900 transition-colors">Features</Link>
+            <Link href="/impact" className="hover:text-slate-900 transition-colors">Impact</Link>
             <a href="#download" className="hover:text-slate-900 transition-colors">Download</a>
             <Link href="/privacy" className="hover:text-slate-900 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-900 transition-colors">Terms</Link>

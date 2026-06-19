@@ -4,26 +4,8 @@ import { motion, useInView, AnimatePresence } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  Heart,
-  Users,
-  Globe,
-  Target,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  Building2,
-  Stethoscope,
-  Code2,
-  GraduationCap,
-  Monitor,
-  Brain,
-  BarChart3,
-  Presentation,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 const founderPhotos = [
   "/founder/wabi-1.jpg",
@@ -42,14 +24,14 @@ function FounderPhotoCarousel() {
   }, []);
 
   return (
-    <div className="relative w-48 h-48 md:w-56 md:h-56 rounded-2xl overflow-hidden shadow-2xl shadow-emerald-500/20 ring-4 ring-white/10">
+    <div className="relative w-48 h-48 md:w-56 md:h-56 rounded-2xl overflow-hidden shadow-xl ring-1 ring-slate-200">
       <AnimatePresence mode="wait">
         <motion.div
           key={index}
-          initial={{ opacity: 0, scale: 1.08 }}
+          initial={{ opacity: 0, scale: 1.05 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98] }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.6 }}
           className="absolute inset-0"
         >
           <Image
@@ -62,46 +44,30 @@ function FounderPhotoCarousel() {
           />
         </motion.div>
       </AnimatePresence>
-      {/* Photo indicator dots */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
         {founderPhotos.map((_, i) => (
           <button
             key={i}
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIndex(i);
-            }}
-            className={`h-1.5 rounded-full transition-all ${
-              i === index ? "w-6 bg-white" : "w-1.5 bg-white/50 hover:bg-white/80"
-            }`}
+            onClick={(e) => { e.stopPropagation(); setIndex(i); }}
+            className={`h-1.5 rounded-full transition-all ${i === index ? "w-6 bg-white" : "w-1.5 bg-white/50 hover:bg-white/80"}`}
             aria-label={`View photo ${i + 1}`}
           />
         ))}
       </div>
-      {/* Soft gradient overlay for legibility */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
     </div>
   );
 }
 
-function FadeIn({
-  children,
-  delay = 0,
-  className = "",
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-}) {
+function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ duration: 0.7, delay, ease: [0.21, 0.47, 0.32, 0.98] }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      transition={{ duration: 0.5, delay }}
       className={className}
     >
       {children}
@@ -109,353 +75,158 @@ function FadeIn({
   );
 }
 
-const values = [
-  {
-    icon: Heart,
-    title: "Nurse-First Design",
-    description:
-      "Every feature is designed by someone who has stood at a bedside. Technology should amplify care, not complicate it. NurseOS is built from lived clinical experience, not assumptions.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Clinical Integrity",
-    description:
-      "Patient data security and nurse credential verification are non-negotiable. We build trust into every layer of the platform, ensuring compliance with NDPR and alignment with HIPAA standards.",
-  },
-  {
-    icon: Globe,
-    title: "Global from Day One",
-    description:
-      "Starting in Nigeria, designed for the world. Local compliance and culturally-aware AI from the start. Content available in English with plans for additional language support as the platform grows.",
-  },
-  {
-    icon: Target,
-    title: "Impact-Driven",
-    description:
-      "Every metric we track is tied to patient outcomes. We measure success not in clicks, but in lives improved and care quality enhanced across Nigerian healthcare facilities.",
-  },
-  {
-    icon: Users,
-    title: "Community-Powered",
-    description:
-      "NurseOS is built with nurses, not just for them. Real feedback from real healthcare workers drives every feature decision and product roadmap item.",
-  },
-  {
-    icon: Sparkles,
-    title: "Innovation with Purpose",
-    description:
-      "We apply cutting-edge AI and technology not for novelty, but to solve the real, daily challenges nurses face in understaffed and under-resourced facilities across Africa.",
-  },
-];
-
-const previousProjects = [
-  {
-    icon: Building2,
-    title: "Hospital Management System",
-    subtitle: "Healthcare Facility Management — Deployed & Operational",
-    description:
-      "A full Hospital Management System deployed at a university health centre. The system handles patient registration, appointments, medical records, pharmacy management, and laboratory workflows — proving that world-class healthcare software can be built right here in Nigeria.",
-    impact: "Successfully Deployed",
-    tech: ["Full Stack", "Web Development", "Healthcare IT"],
-  },
-  {
-    icon: Brain,
-    title: "MedAI",
-    subtitle: "AI-Powered Medical Intelligence",
-    description:
-      "An AI-powered medical intelligence tool that leverages large language models to assist healthcare providers with clinical decision support, diagnostic suggestions, and medical knowledge retrieval. MedAI demonstrated the potential of combining nursing expertise with artificial intelligence — a core principle that now powers NurseOS's NurseAI module.",
-    impact: "AI + Healthcare Integration",
-    tech: ["AI Development", "Clinical Decision Support", "LLM Integration"],
-  },
-];
-
 const milestones = [
-  {
-    year: "2026",
-    title: "Hospital Management System Deployed",
-    description:
-      "Hospital Management System deployed at a university health centre, proving that world-class healthcare software can be built in Nigeria.",
-  },
-  {
-    year: "2025",
-    title: "MedAI Built",
-    description:
-      "AI-powered medical intelligence tool created, combining healthcare knowledge with artificial intelligence to assist clinical decision-making.",
-  },
-  {
-    year: "Dec 2025",
-    title: "NurseOS Concept Born",
-    description:
-      "From the experience of building healthcare management systems and MedAI, the vision for a unified nursing operating system emerged — a platform built by a nurse, for every nurse.",
-  },
-  {
-    year: "Feb 2026",
-    title: "Development Begins",
-    description:
-      "Full development of the 5-module platform starts, built by a nurse who codes — every feature informed by real clinical experience.",
-  },
-  {
-    year: "May 2026",
-    title: "Platform Launch",
-    description:
-      "NurseOS launches with all 5 modules, starting from Nigeria with plans to expand across Africa and globally.",
-  },
+  { year: "2025", title: "MedAI Built", description: "AI-powered medical intelligence tool combining healthcare knowledge with artificial intelligence for clinical decision support." },
+  { year: "2025", title: "Hospital Management System Deployed", description: "Full hospital management system deployed at a university health centre — patient registration, appointments, medical records, pharmacy, and laboratory workflows." },
+  { year: "Dec 2025", title: "NurseOS Concept Born", description: "From the experience of building healthcare systems and MedAI, the vision for a unified nursing operating system emerged." },
+  { year: "Feb 2026", title: "Development Begins", description: "Full development of the platform starts, built by a nurse who codes — every feature informed by real clinical experience." },
+  { year: "May 2026", title: "Platform Launches", description: "NurseOS launches with all 5 modules plus the academic module for universities and schools of nursing." },
+  { year: "Jun 2026", title: "Top 20 — Next Nurse Reality Docuseries", description: "NurseOS selected as a Top 20 finalist in the Next Nurse Reality Docuseries, recognizing nursing innovation beyond the bedside." },
 ];
 
 export default function AboutPageClient() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-white pt-20">
       {/* Hero */}
-      <section className="relative py-20 sm:py-28 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-900 via-teal-800 to-cyan-900" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.15),transparent_60%)]" />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <Badge
-              variant="outline"
-              className="mb-6 px-4 py-1.5 text-emerald-300 border-emerald-500/30 bg-emerald-500/10"
-            >
-              Our Story
-            </Badge>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
-              Built by a Nurse.
-              <br />
-              <span className="bg-gradient-to-r from-emerald-300 via-teal-300 to-cyan-300 bg-clip-text text-transparent">
-                For the World.
-              </span>
+      <section className="py-16 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <p className="text-sm font-medium text-emerald-600 mb-3">Our Story</p>
+            <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 leading-tight">
+              Nursing is Beyond the Bedside.
             </h1>
-            <p className="text-lg sm:text-xl text-emerald-100/70 max-w-2xl mx-auto">
-              NurseOS was born from the frontline — created by Wabi, a Registered Nurse from
-              Redeemer&apos;s University, a certified BLS (Basic Life Support) Provider, a certified
-              Full Stack Web Developer and AI Engineer/Developer, a Data Analyst, and a premium
-              PowerPoint slides and presentations developer — who saw the gaps in healthcare
-              technology and decided to build the solution the world&apos;s nurses deserve.
+            <p className="text-lg text-slate-600 mt-6 leading-relaxed">
+              NurseOS was born from a simple realization: the nurses who understand healthcare
+              challenges best are rarely the ones building the technology to solve them.
+              That changes now.
             </p>
           </motion.div>
         </div>
       </section>
 
       {/* Founder Section */}
-      <section className="py-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-16 px-4 sm:px-6 bg-slate-50">
+        <div className="max-w-4xl mx-auto">
           <FadeIn>
             <div className="grid md:grid-cols-5 gap-8 items-center">
               <div className="md:col-span-2 flex justify-center">
-                <div className="relative">
-                  <FounderPhotoCarousel />
-                  <div className="absolute -bottom-3 -right-3 w-16 h-16 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
-                    <Code2 className="w-8 h-8 text-white" />
-                  </div>
-                </div>
+                <FounderPhotoCarousel />
               </div>
               <div className="md:col-span-3">
-                <Badge variant="outline" className="mb-4 text-emerald-600 border-emerald-200 dark:border-emerald-800">
-                  Founder & Builder
-                </Badge>
-                <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-                  Wabi — The Tech Nurse
-                </h2>
-                <p className="text-muted-foreground leading-relaxed mb-4">
-                  Wabi is a Registered Nurse from Redeemer&apos;s University, Ede, Osun State, Nigeria,
-                  and a certified BLS (Basic Life Support) Provider. Beyond clinical practice, Wabi is
-                  a certified Full Stack Web Developer and AI Engineer/Developer, a Data Analyst, and
-                  a premium PowerPoint slides and presentations developer. This rare intersection of
-                  clinical expertise, engineering depth, and design craft is exactly what allows
-                  NurseOS to feel like it was built by someone who has stood at the bedside — because
-                  it was.
+                <p className="text-sm font-medium text-emerald-600 mb-2">Founder & Builder</p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">Wabi — The Tech Nurse</h2>
+                <p className="text-slate-600 leading-relaxed mb-3">
+                  Wabi is a Registered Nurse from Redeemer&apos;s University, a certified BLS (Basic Life Support)
+                  Provider, a certified Full Stack Web Developer and AI Engineer/Developer, a Data Analyst, and a
+                  premium PowerPoint slides and presentations developer.
                 </p>
-                <p className="text-muted-foreground leading-relaxed mb-4">
-                  Healthcare technology worldwide is built by engineers who have never stood at a bedside.
-                  NurseOS is different — every feature is informed by real clinical experience, every module
-                  solves a problem that exists because the person building it has lived it. That is not a
-                  marketing line; it is the fundamental reason NurseOS exists.
+                <p className="text-slate-600 leading-relaxed mb-3">
+                  This rare intersection of clinical expertise, engineering depth, and design craft is exactly
+                  what allows NurseOS to feel like it was built by someone who has stood at the bedside — because
+                  it was. Every feature is informed by real clinical experience, every module solves a problem
+                  that exists because the person building it has lived it.
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Stethoscope className="w-3 h-3 mr-1" /> Registered Nurse, Redeemer&apos;s University
-                  </Badge>
-                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Heart className="w-3 h-3 mr-1" /> Certified BLS Provider
-                  </Badge>
-                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Code2 className="w-3 h-3 mr-1" /> Full Stack Web Developer
-                  </Badge>
-                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Monitor className="w-3 h-3 mr-1" /> AI Engineer / Developer
-                  </Badge>
-                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <BarChart3 className="w-3 h-3 mr-1" /> Data Analyst
-                  </Badge>
-                  <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                    <Presentation className="w-3 h-3 mr-1" /> Premium PPT Developer
-                  </Badge>
-                </div>
+                <p className="text-slate-600 leading-relaxed">
+                  Wabi represents a new kind of nurse: one who refuses to choose between caring for patients
+                  and building the tools that transform care. Nursing is beyond the bedside — and NurseOS is proof.
+                </p>
               </div>
             </div>
           </FadeIn>
         </div>
       </section>
 
-      {/* Previous Projects */}
-      <section className="py-20 bg-muted/30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <FadeIn className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Proven Track Record
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              NurseOS is not built from theory. It is the evolution of real, deployed healthcare
-              systems that are already serving patients in Nigeria.
-            </p>
-          </FadeIn>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            {previousProjects.map((project, i) => (
-              <FadeIn key={project.title} delay={i * 0.1}>
-                <Card className="h-full hover:shadow-xl hover:shadow-emerald-500/5 transition-all border-emerald-500/10">
-                  <CardContent className="p-6 sm:p-8">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20">
-                      <project.icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold text-foreground mb-1">{project.title}</h3>
-                    <p className="text-sm font-medium text-emerald-600 mb-3">{project.subtitle}</p>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                      {project.description}
-                    </p>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 bg-emerald-500/5">
-                        {project.impact}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {project.tech.map((t) => (
-                        <Badge key={t} variant="secondary" className="text-xs">
-                          {t}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Why NurseOS */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* The Problem */}
+      <section className="py-16 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto">
           <FadeIn>
-            <div className="text-center mb-12">
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">Why NurseOS?</h2>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                The problem is personal. The solution is too.
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6">The Problem</h2>
+            <div className="space-y-4 text-slate-600 leading-relaxed">
+              <p>
+                In Nigeria and across Africa, nurses make up the largest portion of the healthcare workforce,
+                yet they work with the least technological support. Paper records. Manual vital sign tracking.
+                No drug interaction checking. No clinical decision support. No unified platform for patient care,
+                professional development, and education.
+              </p>
+              <p>
+                Healthcare technology worldwide is built by engineers who have never stood at a bedside.
+                The result is software that looks good to administrators but creates more work for nurses.
+                The gap between those who understand healthcare challenges and those who build solutions
+                has never been wider.
               </p>
             </div>
           </FadeIn>
+        </div>
+      </section>
 
-          <FadeIn delay={0.1}>
-            <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20">
-              <CardContent className="p-8 sm:p-10">
-                <div className="space-y-4 text-muted-foreground leading-relaxed">
-                  <p>
-                    In Nigeria and across Africa, nurses make up the largest portion of the healthcare workforce,
-                    yet they work with the least technological support. Paper records, manual vital sign tracking,
-                    no drug interaction checking, no clinical decision support — nurses are expected to deliver
-                    world-class care with tools from the last century.
-                  </p>
-                  <p>
-                    Having built hospital management systems for healthcare facilities and watched them succeed,
-                    and having created MedAI to explore AI in clinical decision support, the pattern
-                    became clear: healthcare technology is built by people who have never been at the bedside.
-                    The result is software that looks good to administrators but creates more work for nurses.
-                  </p>
-                  <p>
-                    NurseOS is the answer. Five integrated modules — NurseAI, CareGrid, NurseAnalytics,
-                    NurseID, and NurseAcademy — designed by a nurse who codes, to solve problems that exist
-                    because the person building the solution has lived them. Starting from Nigeria, built
-                    for the world.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+      {/* The Solution */}
+      <section className="py-16 px-4 sm:px-6 bg-slate-50">
+        <div className="max-w-3xl mx-auto">
+          <FadeIn>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6">The Solution</h2>
+            <div className="space-y-4 text-slate-600 leading-relaxed">
+              <p>
+                NurseOS is the answer. Five integrated modules — NurseAI, CareGrid, NurseAnalytics, NurseID,
+                and NurseAcademy — plus a dedicated academic module for universities and schools of nursing.
+                Designed by a nurse who codes, to solve problems that exist because the person building the
+                solution has lived them.
+              </p>
+              <p>
+                For hospitals: AI-powered charting, patient management, vitals, medications, referrals, and analytics.
+                For institutions: lecturers upload materials, students access them by level, Q&amp;A threads,
+                level-targeted announcements, and cross-institution sharing.
+              </p>
+              <p>
+                Starting from Nigeria. Built for the world.
+              </p>
+            </div>
           </FadeIn>
         </div>
       </section>
 
-      {/* Values */}
-      <section className="py-20 bg-muted/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <FadeIn className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">Our Values</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              The principles that guide every decision we make at NurseOS.
-            </p>
+      {/* Why It Matters */}
+      <section className="py-16 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto">
+          <FadeIn>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6">Why It Matters</h2>
+            <div className="space-y-4 text-slate-600 leading-relaxed">
+              <p>
+                When nurses have the right tools, patient outcomes improve. When students have access to
+                quality materials, the next generation of nurses is better prepared. When institutions can
+                manage their academic programs digitally, education becomes more efficient and accessible.
+              </p>
+              <p>
+                NurseOS matters because it proves that nurses are not just care providers — they are
+                innovators, builders, and leaders. Nursing is beyond the bedside, and the technology
+                that serves nursing should be built by people who understand it.
+              </p>
+            </div>
           </FadeIn>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {values.map((val, i) => (
-              <FadeIn key={val.title} delay={i * 0.08}>
-                <Card className="h-full hover:shadow-lg hover:shadow-emerald-500/5 transition-all hover:border-emerald-500/20">
-                  <CardHeader>
-                    <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-2">
-                      <val.icon className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <CardTitle className="text-lg">{val.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {val.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              </FadeIn>
-            ))}
-          </div>
         </div>
       </section>
 
       {/* Timeline */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-16 px-4 sm:px-6 bg-slate-50">
+        <div className="max-w-3xl mx-auto">
           <FadeIn className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">Our Journey</h2>
-            <p className="text-lg text-muted-foreground">
-              From a nurse&apos;s vision to a global platform.
-            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Our Journey</h2>
+            <p className="text-slate-500 mt-2">From a nurse&apos;s vision to a Top 20 innovation.</p>
           </FadeIn>
-
           <div className="relative">
-            <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-0.5 bg-emerald-500/20 -translate-x-1/2" />
-
+            <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-px bg-slate-200 -translate-x-1/2" />
             <div className="space-y-8">
-              {milestones.map((milestone, i) => (
-                <FadeIn key={milestone.year} delay={i * 0.1}>
-                  <div
-                    className={`flex items-start gap-6 ${
-                      i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"
-                    }`}
-                  >
+              {milestones.map((m, i) => (
+                <FadeIn key={m.title} delay={i * 0.08}>
+                  <div className={`flex items-start gap-6 ${i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"}`}>
                     <div className={`flex-1 ${i % 2 === 0 ? "md:text-right" : ""}`}>
-                      <Card className="inline-block">
-                        <CardContent className="p-5">
-                          <Badge
-                            variant="outline"
-                            className="mb-2 text-emerald-600 border-emerald-500/30"
-                          >
-                            {milestone.year}
-                          </Badge>
-                          <h3 className="font-semibold text-foreground mb-1">{milestone.title}</h3>
-                          <p className="text-sm text-muted-foreground">{milestone.description}</p>
-                        </CardContent>
-                      </Card>
+                      <div className="inline-block p-5 rounded-xl bg-white border border-slate-200">
+                        <p className="text-xs font-medium text-emerald-600 mb-1">{m.year}</p>
+                        <h3 className="font-semibold text-slate-900 text-sm">{m.title}</h3>
+                        <p className="text-xs text-slate-500 mt-1">{m.description}</p>
+                      </div>
                     </div>
-                    <div className="relative z-10 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20">
-                      <div className="w-2 h-2 rounded-full bg-white" />
+                    <div className="relative z-10 w-3 h-3 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 mt-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
                     </div>
                     <div className="flex-1 hidden md:block" />
                   </div>
@@ -467,27 +238,19 @@ export default function AboutPageClient() {
       </section>
 
       {/* CTA */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <section className="py-20 px-4 sm:px-6">
+        <div className="max-w-2xl mx-auto text-center">
           <FadeIn>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Join the{" "}
-              <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                NurseOS
-              </span>{" "}
-              Revolution
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">
+              Join the revolution.
             </h2>
-            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Be part of the platform that&apos;s transforming nursing care, starting from Nigeria.
+            <p className="text-slate-500 mb-8">
               Built by a nurse who codes, for every nurse who cares.
             </p>
             <Link href="/register">
-              <Button
-                size="lg"
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-xl shadow-emerald-500/25 group"
-              >
+              <Button size="lg" className="bg-slate-900 text-white hover:bg-slate-800">
                 Get Started Free
-                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="size-5 ml-2" />
               </Button>
             </Link>
           </FadeIn>
