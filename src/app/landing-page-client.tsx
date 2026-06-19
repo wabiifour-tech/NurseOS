@@ -219,6 +219,26 @@ export default function LandingPageClient() {
         </div>
       </section>
 
+      {/* ─── Security & Trust ─── */}
+      <section className="py-16 px-4 sm:px-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+            <div>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">Data Isolated</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Each facility and institution sees only their own data.</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">NDPR & HIPAA Aligned</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Built with privacy and compliance at the core.</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">PWA Enabled</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Install on any device. Works offline.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ─── CTA ─── */}
       <section className="py-24 px-4 sm:px-6">
         <div className="max-w-2xl mx-auto text-center">
@@ -235,6 +255,9 @@ export default function LandingPageClient() {
                 <ArrowRight className="size-4 ml-2" />
               </Button>
             </Link>
+            <p className="text-xs text-slate-400 mt-6">
+              For hospitals, clinics, universities, and schools of nursing.
+            </p>
           </motion.div>
         </div>
       </section>
@@ -252,7 +275,7 @@ export default function LandingPageClient() {
             <Link href="/privacy" className="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-slate-900 dark:hover:text-white transition-colors">Terms</Link>
           </div>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} NurseOS</p>
+          <p className="text-xs text-slate-400">© {new Date().getFullYear()} NurseOS — Developed by Wabi The Tech Nurse</p>
         </div>
       </footer>
     </div>
