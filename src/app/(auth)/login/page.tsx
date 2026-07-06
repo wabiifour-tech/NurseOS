@@ -5,14 +5,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, Suspense, useEffect } from "react";
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { useState, Suspense, useEffect, useRef, useCallback } from "react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, ExternalLink } from "lucide-react";
 import { signIn as nextAuthSignIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth-store";
+import { isStandaloneMode, openInSystemBrowser } from "@/lib/pwa-detect";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -21,15 +22,22 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
+/** Polling interval (ms) and max wait time (ms) for PWA OAuth completion */
+const PWA_POLL_INTERVAL = 2000;
+const PWA_POLL_MAX_WAIT = 120_000; // 2 minutes
+
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [pwaOAuthPending, setPwaOAuthPending] = useState(false);
   const login = useAuthStore((state) => state.login);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const pendingMessage = searchParams.get("message");
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef<number>(0);
 
   // Show pending approval message if redirected from registration
   useEffect(() => {
@@ -48,6 +56,13 @@ function LoginForm() {
     }
   }, [isAuthenticated, callbackUrl]);
 
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
+
   const {
     register,
     handleSubmit,
@@ -55,6 +70,88 @@ function LoginForm() {
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   });
+
+  /**
+   * Poll /api/auth/pwa-check to detect when the system browser
+   * has completed the Google OAuth flow and set the nurseos-token cookie.
+   */
+  const startPwaPolling = useCallback(() => {
+    setPwaOAuthPending(true);
+    pollStartRef.current = Date.now();
+
+    pollTimerRef.current = setInterval(async () => {
+      // Timeout: give up after PWA_POLL_MAX_WAIT
+      if (Date.now() - pollStartRef.current > PWA_POLL_MAX_WAIT) {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        setPwaOAuthPending(false);
+        toast.error("Sign-in timed out", {
+          description: "Google sign-in took too long. Please try again.",
+        });
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/auth/pwa-check");
+        const data = await res.json();
+
+        if (data.authenticated && data.user) {
+          // Stop polling
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          setPwaOAuthPending(false);
+
+          // Log the user into the Zustand store
+          login({
+            id: data.user.id,
+            email: data.user.email,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+            role: data.user.role,
+            academicRole: data.user.academicRole || null,
+            studentLevel: data.user.studentLevel ?? null,
+            matricNumber: data.user.matricNumber || null,
+            facilityId: data.user.facilityId || null,
+            facilityName: data.user.facilityName || null,
+            facilityType: data.user.facilityType || null,
+            nurseProfileId: data.user.nurseProfileId || null,
+          }, "__pwa_oauth__"); // Token is in the httpOnly cookie, not needed here
+
+          toast.success("Welcome back to NurseOS!");
+          window.location.assign("/dashboard");
+        }
+      } catch {
+        // Network error — silently retry on next interval
+      }
+    }, PWA_POLL_INTERVAL);
+  }, [login]);
+
+  /**
+   * Handle Google Sign-In click.
+   *
+   * - Normal browser: use next-auth's signIn() which redirects to Google.
+   * - PWA standalone: open Google OAuth in the system browser to avoid
+   *   Google's "disallowed_useragent" error, then poll for completion.
+   */
+  const handleGoogleSignIn = () => {
+    if (isStandaloneMode()) {
+      // PWA mode: open OAuth in the system browser
+      // Append pwa=1 so the callback page knows to show "return to app" message
+      const oauthUrl = "/api/auth/signin/google?callbackUrl=" +
+        encodeURIComponent("/auth/callback?pwa=1");
+
+      openInSystemBrowser(oauthUrl);
+
+      // Start polling for the session cookie
+      startPwaPolling();
+    } else {
+      // Normal browser: standard next-auth flow
+      nextAuthSignIn("google", { callbackUrl: "/auth/callback" });
+    }
+  };
+
+  const cancelPwaOAuth = () => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    setPwaOAuthPending(false);
+  };
 
   async function onSubmit(data: LoginForm) {
     setIsLoading(true);
@@ -108,6 +205,34 @@ function LoginForm() {
     }
   }
 
+  // Show PWA OAuth waiting overlay
+  if (pwaOAuthPending) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-6 py-12">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
+          <ExternalLink className="absolute inset-0 m-auto w-5 h-5 text-emerald-500" />
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-sm font-medium text-foreground">Waiting for Google sign-in...</p>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            A browser window opened to complete sign-in with Google.
+            This page will automatically continue once you&apos;re signed in.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground"
+          onClick={cancelPwaOAuth}
+        >
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
@@ -119,7 +244,7 @@ function LoginForm() {
       <Button
         type="button"
         className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
-        onClick={() => nextAuthSignIn("google", { callbackUrl: "/auth/callback" })}
+        onClick={handleGoogleSignIn}
       >
         <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#fff"/>

@@ -2,17 +2,21 @@
 
 import { useEffect, useState } from "react"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { Loader2, Clock, AlertCircle } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Loader2, Clock, AlertCircle, CheckCircle2, Smartphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
+import { isStandaloneMode } from "@/lib/pwa-detect"
 
 export default function AuthCallbackPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isPwaFlow = searchParams.get("pwa") === "1"
   const [processing, setProcessing] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingApproval, setPendingApproval] = useState(false)
+  const [pwaComplete, setPwaComplete] = useState(false)
 
   // Handle unauthenticated status (Google sign-in failed or was cancelled)
   useEffect(() => {
@@ -45,6 +49,22 @@ export default function AuthCallbackPage() {
         if (res.ok) {
           if (data.status === "ACTIVE" && data.token) {
             // User exists and is active — log them in
+
+            // If this was initiated from the PWA (running in system browser now),
+            // the nurseos-token cookie is already set by the oauth/link response.
+            // The PWA is polling /api/auth/pwa-check and will detect the cookie.
+            // Show a "return to app" message instead of redirecting to dashboard.
+            if (isPwaFlow && !isStandaloneMode()) {
+              setProcessing(false)
+              setPwaComplete(true)
+              // Try to close the popup/tab (works if opened via window.open)
+              setTimeout(() => {
+                try { window.close() } catch { /* ignore */ }
+              }, 3000)
+              return
+            }
+
+            // Normal (non-PWA) flow: redirect to dashboard
             // Store the session token in our custom auth system (matching auth-store shape)
             localStorage.setItem("nurseos-auth", JSON.stringify({
               state: {
@@ -117,7 +137,7 @@ export default function AuthCallbackPage() {
     }
 
     processOAuth()
-  }, [status, session, router])
+  }, [status, session, router, isPwaFlow])
 
   if (processing) {
     return (
@@ -127,6 +147,33 @@ export default function AuthCallbackPage() {
           <Loader2 className="size-4 animate-spin" />
           <span className="text-sm">Authenticating with Google...</span>
         </div>
+      </div>
+    )
+  }
+
+  // PWA flow: show "return to app" message (this page is in the system browser,
+  // the PWA is polling and will auto-continue)
+  if (pwaComplete) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
+        <div className="flex flex-col items-center gap-4 text-center max-w-md">
+          <div className="rounded-full bg-emerald-500/10 p-4">
+            <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+          </div>
+          <h2 className="text-2xl font-bold">Signed in successfully</h2>
+          <p className="text-muted-foreground">
+            You can now return to the NurseOS app. It will automatically continue to your dashboard.
+          </p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2">
+            <Smartphone className="w-4 h-4" />
+            <span>Switch back to the NurseOS app</span>
+          </div>
+        </div>
+        <Button variant="outline" onClick={() => {
+          try { window.close() } catch { /* ignore */ }
+        }}>
+          Close this tab
+        </Button>
       </div>
     )
   }
