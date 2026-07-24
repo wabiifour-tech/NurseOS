@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, Clock, AlertCircle, CheckCircle2, Smartphone } from "lucide-react"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { isStandaloneMode } from "@/lib/pwa-detect"
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -215,4 +215,24 @@ export default function AuthCallbackPage() {
   }
 
   return null
+}
+
+function AuthCallbackFallback() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+      <Image src="/nurseos-logo.png" alt="NurseOS" width={40} height={40} className="w-10 h-10 rounded-lg animate-pulse" priority />
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        <span className="text-sm">Authenticating with Google...</span>
+      </div>
+    </div>
+  )
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<AuthCallbackFallback />}>
+      <AuthCallbackContent />
+    </Suspense>
+  )
 }
