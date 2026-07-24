@@ -54,6 +54,7 @@ const publicApiRoutes = [
   '/api/auth/setup-status',
   '/api/auth/dev-login',
   '/api/auth/pwa-check',
+  '/api/gsc-verify',
   '/api/facilities/public',
   '/api/health',
   '/api/setup',
