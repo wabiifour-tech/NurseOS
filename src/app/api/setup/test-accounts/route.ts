@@ -2,24 +2,26 @@
  * POST /api/setup/test-accounts
  *
  * Wipes ALL existing users + facilities and creates fresh test accounts for testing.
- * This is the browser-clickable equivalent of scripts/create-test-accounts.mjs.
- *
- * Created accounts (all ACTIVE, all at the same test institution):
- *   - Institution Admin: admin@nurseos.test / Admin123
- *   - Lecturer:          lecturer@nurseos.test / Lecturer123
- *   - Student:           student@nurseos.test / Student123 (200 level, matric NUR/2023/00245)
- *
- * SECURITY: This is a destructive operation (wipes all users). It's intended for testing only.
- * In production, real users sign up via Google OAuth. This endpoint is left accessible so the
- * project owner can reset the database to a clean test state at any time.
+ * Blocked by middleware in ALL environments. Defense-in-depth: requires ADMIN auth.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db, isDatabaseConnected } from '@/lib/db'
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+  if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
   try {
     const dbConnected = await isDatabaseConnected()
     if (!dbConnected) {

@@ -1250,7 +1250,11 @@ function getDropTablesSQL(): string[] {
   return tables.map(t => `DROP TABLE IF EXISTS "${t}" CASCADE`)
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Defense-in-depth: require auth (also blocked by middleware)
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+
   const dbConnected = await isDatabaseConnected()
 
   if (!dbConnected) {
@@ -1330,26 +1334,21 @@ export async function POST(request: NextRequest) {
   // manually run SQL to add columns. Now we always proceed unless force=true is requested
   // without authentication.
 
-  // Auth check for destructive operations only (force reset)
-  let authUser = null
-  try {
-    authUser = await getAuthenticatedUser(request)
-  } catch {}
+  // SECURITY: Auth required for ALL operations, not just force reset.
+  // Previously, non-force setup was allowed without auth (P0 vulnerability).
+  // Now ALL setup operations require ADMIN authentication.
 
-  if (forceReset) {
-    // Force reset is DESTRUCTIVE — drops and recreates tables. Requires admin auth.
-    if (!authUser) return unauthorizedResponse()
-    if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Super Admin access required for force reset' }, { status: 403 })
-    }
+  const authUser = await getAuthenticatedUser(request)
+  if (!authUser) return unauthorizedResponse()
+  if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Admin access required for database setup' }, { status: 403 })
   }
-  // Non-force setup: always allowed, no auth required (it's idempotent and safe)
 
   try {
     const dbConnected = await isDatabaseConnected()
     if (!dbConnected) {
       return NextResponse.json(
-        { error: 'Database is not configured. Please set DATABASE_URL in Vercel → Settings → Environment Variables first.' },
+        { error: 'Database is not configured. Please set DATABASE_URL in Vercel Settings Environment Variables first.' },
         { status: 503 }
       )
     }

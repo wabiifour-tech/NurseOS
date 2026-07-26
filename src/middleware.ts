@@ -34,7 +34,6 @@ const nonIndexablePublicRoutes = [
   '/onboarding',
   '/auth/callback',
   '/setup',
-  '/test-login',
 ]
 
 // All public routes combined
@@ -52,20 +51,27 @@ const publicApiRoutes = [
   '/api/auth/oauth/link',
   '/api/auth/oauth/complete',
   '/api/auth/setup-status',
-  '/api/auth/dev-login',
   '/api/auth/pwa-check',
   '/api/gsc-verify',
   '/api/facilities/public',
   '/api/health',
-  '/api/setup',
-  '/api/setup/test-accounts',
-  '/api/seed',
   '/api/email/webhook',
   '/api/news',
   '/api/uploadthing',
 ]
 
-// NextAuth.js catch-all route prefix — any request to /api/auth/* must be public
+// BLOCKLIST: Routes that must NEVER be publicly accessible, even in dev
+// These override both the publicApiRoutes whitelist and the NextAuth catch-all.
+// Checked FIRST in isPublicPath() before any other matching logic.
+const blockedApiRoutes = [
+  '/api/auth/dev-login',       // P0: Password auth bypass — dev-only
+  '/api/setup',                // P0: DDL execution + admin seeding
+  '/api/setup/test-accounts',  // P0: Full DB wipe + credential creation
+  '/api/seed',                 // P1: Database seeding
+  '/api/seed/courses',         // P1: Course data manipulation
+]
+
+// NextAuth.js catch-all route prefix — most /api/auth/* routes are public
 // This covers /api/auth/signin, /api/auth/callback/google, /api/auth/session, etc.
 const NEXTAUTH_ROUTE_PREFIX = '/api/auth/'
 
@@ -97,8 +103,12 @@ const isPublicPath = (pathname: string): boolean => {
   if (publicRoutes.includes(pathname)) return true
   // Only allow specifically whitelisted API routes without auth
   if (pathname.startsWith('/api/')) {
-    // NextAuth.js catch-all route: any path under /api/auth/* is public
-    // This covers /api/auth/signin, /api/auth/callback/google, /api/auth/session, etc.
+    // BLOCKLIST CHECK FIRST — these routes are never public, even under catch-all
+    if (blockedApiRoutes.some(route => pathname === route || pathname.startsWith(route + '/'))) {
+      return false
+    }
+    // NextAuth.js catch-all route: most /api/auth/* routes are public
+    // (dev-login is blocked above via the blocklist)
     if (pathname.startsWith(NEXTAUTH_ROUTE_PREFIX)) return true
     // Other specifically whitelisted API routes
     return publicApiRoutes.some(route => pathname === route || pathname.startsWith(route + '/'))
@@ -114,7 +124,7 @@ const neverNoindexPaths = ['/sitemap.xml', '/robots.txt']
 // Check if a path should be indexed by search engines (public + indexable)
 const isIndexablePath = (pathname: string): boolean => {
   const normalized = normalizePath(pathname)
-  return indexablePublicRoutes.includes(normalized) || 
+  return indexablePublicRoutes.includes(normalized) ||
          indexablePublicRoutes.includes(pathname) ||
          neverNoindexPaths.includes(pathname)
 }
@@ -179,10 +189,6 @@ export function middleware(request: NextRequest) {
     }
 
     // For search engine bots: let the page render but add noindex header.
-    // This prevents "Page with redirect" errors in Google Search Console
-    // because we don't redirect the bot — we serve the page content with
-    // an instruction not to index it. The client-side auth logic will show
-    // a redirect/loading screen, but Google won't flag it as a redirect.
     if (isSearchBot(request)) {
       const response = NextResponse.next()
       response.headers.set('X-Robots-Tag', 'noindex, nofollow')
@@ -196,8 +202,6 @@ export function middleware(request: NextRequest) {
   }
 
   // For public pages that shouldn't be indexed (login, register, etc.)
-  // Add noindex header to prevent them from appearing in search results
-  // Exception: sitemap.xml and robots.txt are technical files that should NOT get noindex
   if (isPublicPath(pathname) && !isIndexablePath(pathname)) {
     const response = NextResponse.next()
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')

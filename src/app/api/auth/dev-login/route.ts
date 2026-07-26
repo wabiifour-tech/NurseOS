@@ -2,17 +2,8 @@
  * POST /api/auth/dev-login
  *
  * DEVELOPMENT / TESTING ONLY — bypasses Google OAuth.
- *
- * Allows logging in with email + password for testing purposes. This is needed because
- * the production signup flow is Google-only (per product decision), but for testing
- * the full role-based dashboard flow (institution admin, lecturer, student), we need
- * a way to create test accounts with passwords and log in as them.
- *
- * To create test accounts, use the /scripts/create-test-accounts.mjs script.
- *
- * SECURITY: This route is intentionally permissive — it accepts any valid email + password
- * combo that matches a user in the database. It should NOT be used in production for real users.
- * In production, all real users authenticate via Google OAuth.
+ * Blocked by middleware in ALL environments. This handler-level check ensures
+ * it can never be used in production, even if middleware is misconfigured.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -22,6 +13,11 @@ import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 
 export async function POST(request: NextRequest) {
+  // Defense-in-depth: Block in production regardless of middleware
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   try {
     const dbConnected = await isDatabaseConnected()
     if (!dbConnected) {
