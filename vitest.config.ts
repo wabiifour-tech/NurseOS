@@ -1,0 +1,16 @@
+import { defineConfig } from 'vitest/config';
+import path from 'path';
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    setupFiles: ['./src/__tests__/helpers/setup.ts'],
+    testTimeout: 60_000,
+    include: ['src/__tests__/**/*.test.ts'],
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});

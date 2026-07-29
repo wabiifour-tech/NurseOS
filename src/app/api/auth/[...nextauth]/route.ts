@@ -78,9 +78,15 @@ const authOptions: NextAuthOptions = {
     async redirect({ url, baseUrl }) {
       // After OAuth, redirect to our custom callback page
       // The callback page will handle user linking/creation
-      if (url.startsWith("/")) return `${baseUrl}/auth/callback?provider=google`
-      if (new URL(url).origin === baseUrl) return `${baseUrl}/auth/callback?provider=google`
-      return `${baseUrl}/auth/callback?provider=google`
+      // Guard: if already on /auth/callback, don't redirect again (prevents infinite loop)
+      const targetUrl = `${baseUrl}/auth/callback?provider=google`
+      try {
+        const currentUrl = new URL(url)
+        if (currentUrl.pathname === '/auth/callback') return url
+      } catch { /* url may be relative, ignore */ }
+      if (url.startsWith("/")) return targetUrl
+      if (new URL(url).origin === baseUrl) return targetUrl
+      return targetUrl
     },
   },
   pages: {

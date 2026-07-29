@@ -1,12 +1,106 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, Clock, AlertCircle, CheckCircle2, Smartphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { isStandaloneMode } from "@/lib/pwa-detect"
+
+/**
+ * Process an OAuth session — shared by both the useSession() path and the
+ * direct-fetch fallback. Returns nothing; mutates component state directly.
+ */
+function processOAuthSession(sessionData: {
+  email?: string | null
+  name?: string | null
+  image?: string | null
+  id?: unknown
+}, callbacks: {
+  setError: (msg: string) => void
+  setProcessing: (v: boolean) => void
+  setPendingApproval: (v: boolean) => void
+  setPwaComplete: (v: boolean) => void
+  router: ReturnType<typeof useRouter>
+  isPwaFlow: boolean
+}) {
+  // Destructure callbacks for readability
+  const { setError, setProcessing, setPendingApproval, setPwaComplete, router, isPwaFlow } = callbacks
+
+  fetch("/api/auth/oauth/link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: sessionData.email,
+      name: sessionData.name,
+      image: sessionData.image,
+      provider: "google",
+      providerAccountId: sessionData.id,
+    }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.status === "ACTIVE" && data.token) {
+        // PWA flow — show return-to-app message
+        if (isPwaFlow && !isStandaloneMode()) {
+          setProcessing(false)
+          setPwaComplete(true)
+          setTimeout(() => { try { window.close() } catch { /* ignore */ } }, 3000)
+          return
+        }
+
+        // Normal flow: store session and redirect
+        localStorage.setItem("nurseos-auth", JSON.stringify({
+          state: {
+            user: {
+              id: data.user.id,
+              email: data.user.email,
+              firstName: data.user.firstName,
+              lastName: data.user.lastName,
+              role: data.user.role,
+              academicRole: data.user.academicRole || null,
+              studentLevel: data.user.studentLevel ?? null,
+              matricNumber: (data.user as Record<string, unknown>).matricNumber || null,
+              avatarUrl: data.user.avatarUrl || null,
+              facilityId: data.user.facilityId || null,
+              facilityName: data.user.facilityName || null,
+              facilityType: data.user.facilityType || null,
+              nurseProfileId: data.user.nurseProfileId || null,
+            },
+            token: data.token,
+            isAuthenticated: true,
+            isSuperAdmin: data.user.role === "SUPER_ADMIN",
+            isLoggingOut: false,
+          },
+          version: 0,
+        }))
+        setTimeout(() => { window.location.href = "/dashboard" }, 500)
+      } else if (data.status === "PENDING") {
+        signOut({ redirect: false })
+        setPendingApproval(true)
+        setProcessing(false)
+      } else if (data.status === "NEW") {
+        sessionStorage.setItem("nurseos-oauth", JSON.stringify({
+          email: sessionData.email,
+          firstName: sessionData.name?.split(" ")[0] || "",
+          lastName: sessionData.name?.split(" ").slice(1).join(" ") || "",
+          avatarUrl: sessionData.image || null,
+          provider: "google",
+        }))
+        router.push("/onboarding")
+      } else {
+        signOut({ redirect: false })
+        setError(data.message || data.error || "Unexpected authentication status. Please try again.")
+        setProcessing(false)
+      }
+    })
+    .catch((err) => {
+      console.error("OAuth callback error:", err)
+      setError("Connection error. Please try again.")
+      setProcessing(false)
+    })
+}
 
 function AuthCallbackContent() {
   const { data: session, status } = useSession()
@@ -18,6 +112,19 @@ function AuthCallbackContent() {
   const [pendingApproval, setPendingApproval] = useState(false)
   const [pwaComplete, setPwaComplete] = useState(false)
 
+  // Guard against double-processing (useSession + fallback could both fire)
+  const hasProcessedRef = useRef(false)
+
+  const handleOAuth = useCallback(() => {
+    if (hasProcessedRef.current) return
+    hasProcessedRef.current = true
+
+    processOAuthSession(
+      { email: session?.user?.email, name: session?.user?.name, image: session?.user?.image, id: (session?.user as Record<string, unknown>)?.id },
+      { setError, setProcessing, setPendingApproval, setPwaComplete, router, isPwaFlow }
+    )
+  }, [session, router, isPwaFlow, setError, setProcessing, setPendingApproval, setPwaComplete])
+
   // Handle unauthenticated status (Google sign-in failed or was cancelled)
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -26,118 +133,42 @@ function AuthCallbackContent() {
     }
   }, [status])
 
+  // Primary path: useSession() resolves successfully
   useEffect(() => {
     if (status !== "authenticated" || !session?.user) return
+    handleOAuth()
+  }, [status, session, handleOAuth])
 
-    async function processOAuth() {
-      try {
-        // Check if this Google user already has a NurseOS account
-        const res = await fetch("/api/auth/oauth/link", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: session.user.email,
-            name: session.user.name,
-            image: session.user.image,
-            provider: "google",
-            providerAccountId: (session.user as Record<string, unknown>).id,
-          }),
-        })
-
-        const data = await res.json()
-
-        if (res.ok) {
-          if (data.status === "ACTIVE" && data.token) {
-            // User exists and is active — log them in
-
-            // If this was initiated from the PWA (running in system browser now),
-            // the nurseos-token cookie is already set by the oauth/link response.
-            // The PWA is polling /api/auth/pwa-check and will detect the cookie.
-            // Show a "return to app" message instead of redirecting to dashboard.
-            if (isPwaFlow && !isStandaloneMode()) {
+  // Fallback path: if useSession() never resolves within 12 seconds,
+  // fetch /api/auth/session directly to break out of infinite loading.
+  // Root cause: missing NEXTAUTH_SECRET causes per-instance random secret
+  // in serverless, leading to JWT decrypt failure and infinite retry.
+  useEffect(() => {
+    if (status === "loading") {
+      const timer = setTimeout(() => {
+        if (hasProcessedRef.current) return
+        console.warn("[AuthCallback] useSession() timed out after 12s — falling back to direct fetch")
+        fetch("/api/auth/session")
+          .then((r) => {
+            if (!r.ok) throw new Error(`Session fetch returned ${r.status}`)
+            return r.json()
+          })
+          .then((sessionData) => {
+            if (sessionData?.user) {
+              handleOAuth()
+            } else {
+              setError("Session could not be established. Please try signing in again.")
               setProcessing(false)
-              setPwaComplete(true)
-              // Try to close the popup/tab (works if opened via window.open)
-              setTimeout(() => {
-                try { window.close() } catch { /* ignore */ }
-              }, 3000)
-              return
             }
-
-            // Normal (non-PWA) flow: redirect to dashboard
-            // Store the session token in our custom auth system (matching auth-store shape)
-            localStorage.setItem("nurseos-auth", JSON.stringify({
-              state: {
-                user: {
-                  id: data.user.id,
-                  email: data.user.email,
-                  firstName: data.user.firstName,
-                  lastName: data.user.lastName,
-                  role: data.user.role,
-                  academicRole: data.user.academicRole || null,
-                  studentLevel: data.user.studentLevel ?? null,
-                  matricNumber: (data.user as any).matricNumber || null,
-                  avatarUrl: data.user.avatarUrl || null,
-                  facilityId: data.user.facilityId || null,
-                  facilityName: data.user.facilityName || null,
-                  facilityType: data.user.facilityType || null,
-                  nurseProfileId: data.user.nurseProfileId || null,
-                },
-                token: data.token,
-                isAuthenticated: true,
-                isSuperAdmin: data.user.role === "SUPER_ADMIN",
-                isLoggingOut: false,
-              },
-              version: 0,
-            }))
-            // Set a small delay for cookie to be set
-            setTimeout(() => {
-              window.location.href = "/dashboard"
-            }, 500)
-            return
-          } else if (data.status === "PENDING") {
-            // User exists but waiting for admin approval
-            // Sign out of next-auth to prevent redirect loop on next visit
-            signOut({ redirect: false })
-            setPendingApproval(true)
+          })
+          .catch(() => {
+            setError("Authentication timed out. Please check your connection and try again.")
             setProcessing(false)
-            return
-          } else if (data.status === "NEW") {
-            // New user — redirect to onboarding
-            // Store temp OAuth data in sessionStorage for onboarding page
-            sessionStorage.setItem("nurseos-oauth", JSON.stringify({
-              email: session.user.email,
-              firstName: session.user.name?.split(" ")[0] || "",
-              lastName: session.user.name?.split(" ").slice(1).join(" ") || "",
-              avatarUrl: session.user.image || null,
-              provider: "google",
-            }))
-            router.push("/onboarding")
-            return
-          } else {
-            // Unexpected status — sign out and show error
-            signOut({ redirect: false })
-            setError(data.message || data.error || "Unexpected authentication status. Please try again.")
-            setProcessing(false)
-            return
-          }
-        }
-
-        setError(data.error || "Failed to process authentication")
-        // If the error is about database not being set up, show a more helpful message
-        if (data.errorType === 'DB_NOT_CONFIGURED') {
-          setError("Database tables are not set up yet. An administrator needs to visit /api/setup to create the database tables first.")
-        }
-        setProcessing(false)
-      } catch (err) {
-        console.error("OAuth callback error:", err)
-        setError("Connection error. Please try again.")
-        setProcessing(false)
-      }
+          })
+      }, 12_000)
+      return () => clearTimeout(timer)
     }
-
-    processOAuth()
-  }, [status, session, router, isPwaFlow])
+  }, [status, handleOAuth])
 
   if (processing) {
     return (
