@@ -2,27 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
-// GET /api/nurseid/profile - Get nurse profile
+// GET /api/nurseid/profile - Get nurse profile (auto-creates if missing)
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser(request)
   if (!authUser) return unauthorizedResponse()
 
   try {
-    const nurseProfile = await db.nurseProfile.findUnique({
+    let nurseProfile = await db.nurseProfile.findUnique({
       where: { userId: authUser.id },
       include: {
         user: {
           select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            middleName: true,
-            displayName: true,
-            email: true,
-            phone: true,
-            avatarUrl: true,
-            role: true,
-            createdAt: true,
+            id: true, firstName: true, lastName: true, middleName: true,
+            displayName: true, email: true, phone: true, avatarUrl: true,
+            role: true, createdAt: true,
           },
         },
         credentials: { orderBy: { issueDate: 'desc' } },
@@ -32,11 +25,29 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Auto-create NurseProfile for users who don't have one
     if (!nurseProfile) {
-      return NextResponse.json(
-        { error: 'Nurse profile not found' },
-        { status: 404 }
-      )
+      nurseProfile = await db.nurseProfile.create({
+        data: {
+          userId: authUser.id,
+          licenseNumber: '',
+          skills: '[]',
+          languages: '["English"]',
+        },
+        include: {
+          user: {
+            select: {
+              id: true, firstName: true, lastName: true, middleName: true,
+              displayName: true, email: true, phone: true, avatarUrl: true,
+              role: true, createdAt: true,
+            },
+          },
+          credentials: { orderBy: { issueDate: 'desc' } },
+          competencies: { orderBy: { updatedAt: 'desc' } },
+          portfolioEntries: { orderBy: { createdAt: 'desc' } },
+          cpdRecords: { orderBy: { dateCompleted: 'desc' } },
+        },
+      })
     }
 
     return NextResponse.json({ profile: nurseProfile })

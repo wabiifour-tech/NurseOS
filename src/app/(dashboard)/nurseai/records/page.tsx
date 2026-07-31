@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FileText, Search, Plus, Activity, UserCheck, AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { FacilityError } from '@/components/facility-error'
 
 // ---------- Types ----------
 
@@ -152,7 +153,7 @@ export default function RecordsPage() {
   const [records, setRecords] = React.useState<ApiRecord[]>([])
   const [patients, setPatients] = React.useState<PatientOption[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState(false)
 
   const [searchQuery, setSearchQuery] = React.useState('')
   const [encounterFilter, setEncounterFilter] = React.useState('all')
@@ -171,7 +172,7 @@ export default function RecordsPage() {
   const fetchRecords = React.useCallback(async () => {
     try {
       setLoading(true)
-      setError(null)
+      setError(false)
       const params = new URLSearchParams()
       params.set('limit', '50')
       if (encounterFilter !== 'all') params.set('encounterType', encounterFilter)
@@ -179,12 +180,18 @@ export default function RecordsPage() {
       if (searchQuery.trim()) params.set('search', searchQuery.trim())
 
       const res = await fetch(`/api/nurseai/records?${params.toString()}`)
-      if (!res.ok) throw new Error('Failed to fetch records')
+      if (!res.ok) {
+        if (res.status === 403) {
+          setError(true)
+          return
+        }
+        throw new Error('Failed to fetch records')
+      }
       const data = await res.json()
       setRecords(data.records ?? [])
     } catch (err) {
       console.error(err)
-      setError('Failed to load medical records. Please try again.')
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -471,13 +478,7 @@ export default function RecordsPage() {
 
       {/* Error State */}
       {!loading && error && (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <AlertTriangle className="size-12 mb-3 text-red-400" />
-          <p className="font-medium text-red-600">{error}</p>
-          <Button variant="outline" className="mt-4" onClick={fetchRecords}>
-            Try Again
-          </Button>
-        </div>
+        <FacilityError title="Unable to Load Data" message="This feature requires a facility assignment. Please contact your administrator or select a facility in Settings." onRetry={() => window.location.reload()} />
       )}
 
       {/* Empty State */}

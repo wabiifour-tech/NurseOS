@@ -36,7 +36,7 @@ import {
   LineChart,
   Line,
 } from "recharts"
-import { toast } from "sonner"
+import { FacilityError } from '@/components/facility-error'
 
 interface StaffingMetrics {
   nurseToPatientRatio: string
@@ -97,12 +97,14 @@ export default function StaffingAnalyticsPage() {
           headers["Authorization"] = `Bearer ${token}`
         }
         const res = await fetch("/api/nurseanalytics/dashboard", { headers })
-        if (!res.ok) throw new Error("Failed to fetch staffing data")
+        if (!res.ok) {
+          if (res.status === 403) { setError(true); return }
+          throw new Error("Failed to fetch staffing data")
+        }
         const d = await res.json()
         setData(d)
       } catch {
         setError(true)
-        toast.error("Failed to load staffing analytics. Please try again.")
       } finally {
         setLoading(false)
       }
@@ -120,19 +122,7 @@ export default function StaffingAnalyticsPage() {
   }
 
   if (error && !data) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-        <AlertTriangle className="size-10 text-red-400 mb-3" />
-        <h2 className="text-lg font-semibold text-slate-700 mb-1">Unable to Load Data</h2>
-        <p className="text-sm text-muted-foreground mb-4">There was a problem fetching staffing analytics.</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
-        >
-          Retry
-        </button>
-      </div>
-    )
+    return <FacilityError title="Unable to Load Data" message="This analytics view requires a facility assignment. Please contact your administrator or select a facility in Settings." onRetry={() => window.location.reload()} />
   }
 
   const staffing = data?.staffingMetrics || {

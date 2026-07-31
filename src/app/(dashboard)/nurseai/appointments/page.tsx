@@ -15,6 +15,7 @@ import {
   UserX, CalendarCheck, Stethoscope, MapPin, AlertCircle, CalendarX2, Search
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { FacilityError } from '@/components/facility-error'
 
 // ---- Types matching the API response ----
 interface AppointmentPatient {
@@ -147,7 +148,7 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = React.useState<Appointment[]>([])
   const [patients, setPatients] = React.useState<PatientOption[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
 
   // Form state
@@ -163,14 +164,20 @@ export default function AppointmentsPage() {
   const fetchAppointments = React.useCallback(async () => {
     try {
       setLoading(true)
-      setError(null)
+      setError(false)
       const res = await fetch('/api/nurseai/appointments?limit=100')
-      if (!res.ok) throw new Error('Failed to fetch appointments')
+      if (!res.ok) {
+        if (res.status === 403) {
+          setError(true)
+          return
+        }
+        throw new Error('Failed to fetch appointments')
+      }
       const data = await res.json()
       setAppointments(data.appointments || [])
     } catch (err) {
       console.error('Error fetching appointments:', err)
-      setError('Failed to load appointments. Please try again.')
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -480,20 +487,7 @@ export default function AppointmentsPage() {
           <Loader2 className="size-8 animate-spin text-emerald-600" />
         </div>
       ) : error ? (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-8 text-center">
-            <AlertCircle className="size-12 mx-auto mb-3 text-red-400" />
-            <p className="font-medium text-red-600">{error}</p>
-            <Button
-              variant="outline"
-              className="mt-4 gap-2"
-              onClick={fetchAppointments}
-            >
-              <Loader2 className="size-4" />
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
+        <FacilityError title="Unable to Load Data" message="This feature requires a facility assignment. Please contact your administrator or select a facility in Settings." onRetry={() => window.location.reload()} />
       ) : appointments.length === 0 ? (
         <Card className="border-0 shadow-sm">
           <CardContent className="p-8 text-center">

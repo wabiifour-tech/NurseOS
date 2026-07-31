@@ -294,30 +294,16 @@ export default function ReferralsPage() {
   }
 
   // --- Render: Error ---
-  if (error) {
-    return (
-      <div className="p-4 md:p-6 space-y-6">
-        <div className="flex items-center justify-center py-24">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <AlertCircle className="size-8 text-red-500" />
-            <p className="text-sm font-medium text-red-700">Failed to load referrals</p>
-            <p className="text-xs text-muted-foreground max-w-sm">{error}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => {
-                setLoading(true)
-                fetchReferrals()
-              }}
-            >
-              Try Again
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const errorContent = error ? (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <AlertCircle className="size-8 text-red-500 mb-3" />
+      <p className="text-sm font-medium text-red-700">Failed to load referrals</p>
+      <p className="text-xs text-muted-foreground max-w-sm mt-1">Check that you are assigned to a facility, then try again.</p>
+      <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLoading(true); fetchReferrals() }}>
+        Try Again
+      </Button>
+    </div>
+  ) : null
 
   // --- Render: Main ---
   return (
@@ -444,6 +430,9 @@ export default function ReferralsPage() {
         </Dialog>
       </div>
 
+      {/* Error or Content */}
+      {errorContent || (
+        <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-emerald-100 bg-gradient-to-br from-emerald-50 to-white">
@@ -632,6 +621,8 @@ export default function ReferralsPage() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   )
 }

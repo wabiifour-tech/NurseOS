@@ -16,6 +16,7 @@ import {
   ShieldAlert, Package, Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { FacilityError } from '@/components/facility-error'
 import { useAuthStore } from '@/lib/auth-store'
 
 // ---- API Types ----
@@ -85,7 +86,7 @@ export default function MedicationsPage() {
   const { token } = useAuthStore()
   const [medications, setMedications] = React.useState<ApiMedication[]>([])
   const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState(false)
 
   const [searchQuery, setSearchQuery] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('all')
@@ -103,20 +104,24 @@ export default function MedicationsPage() {
   React.useEffect(() => {
     async function fetchMedications() {
       setLoading(true)
-      setError(null)
+      setError(false)
       try {
         const headers: HeadersInit = {}
         if (token) headers['Authorization'] = `Bearer ${token}`
 
         const res = await fetch('/api/nurseai/medications', { headers })
         if (!res.ok) {
+          if (res.status === 403) {
+            setError(true)
+            return
+          }
           throw new Error(`Failed to fetch medications (${res.status})`)
         }
         const data = await res.json()
         setMedications(data.medications || [])
       } catch (err) {
         console.error('Error fetching medications:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load medications')
+        setError(true)
       } finally {
         setLoading(false)
       }
@@ -293,21 +298,7 @@ export default function MedicationsPage() {
             <p className="text-sm text-muted-foreground">Manage medication orders and drug interactions</p>
           </div>
         </div>
-        <Alert className="border-red-200 bg-red-50">
-          <AlertTriangle className="size-4 text-red-600" />
-          <AlertTitle className="text-red-700 font-semibold">Failed to Load Medications</AlertTitle>
-          <AlertDescription className="text-sm text-red-600 mt-1">
-            {error}
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-3 border-red-300 text-red-700 hover:bg-red-100"
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <FacilityError title="Unable to Load Data" message="This feature requires a facility assignment. Please contact your administrator or select a facility in Settings." onRetry={() => window.location.reload()} />
       </div>
     )
   }
