@@ -24,12 +24,13 @@ function processOAuthSession(sessionData: {
   setPwaComplete: (v: boolean) => void
   router: ReturnType<typeof useRouter>
   isPwaFlow: boolean
+  debugId: string
 }) {
   // Destructure callbacks for readability
-  const { setError, setProcessing, setPendingApproval, setPwaComplete, router, isPwaFlow } = callbacks
+  const { setError, setProcessing, setPendingApproval, setPwaComplete, router, isPwaFlow, debugId } = callbacks
 
   const cbT0 = performance.now()
-  console.warn(`[AUTH-TIMELINE] CALLBACK_OAUTH_LINK_START email=${sessionData.email || 'null'} name=${sessionData.name || 'null'} isPwaFlow=${isPwaFlow}`)
+  console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_OAUTH_LINK_START email=${sessionData.email || 'null'} name=${sessionData.name || 'null'} isPwaFlow=${isPwaFlow}`)
 
   fetch("/api/auth/oauth/link", {
     method: "POST",
@@ -43,11 +44,11 @@ function processOAuthSession(sessionData: {
     }),
   })
     .then((res) => {
-      console.warn(`[AUTH-TIMELINE] CALLBACK_OAUTH_LINK_RESPONSE T+${Math.round(performance.now() - cbT0)}ms status=${res.status} ok=${res.ok}`)
+      console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_OAUTH_LINK_RESPONSE T+${Math.round(performance.now() - cbT0)}ms status=${res.status} ok=${res.ok}`)
       return res.json()
     })
     .then((data) => {
-      console.warn(`[AUTH-TIMELINE] CALLBACK_OAUTH_LINK_PARSED T+${Math.round(performance.now() - cbT0)}ms status=${data.status || 'missing'} hasToken=${!!data.token} tokenLen=${data.token?.length || 0} hasUser=${!!data.user} userId=${data.user?.id || 'null'} error=${data.error || 'none'}`)
+      console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_OAUTH_LINK_PARSED T+${Math.round(performance.now() - cbT0)}ms status=${data.status || 'missing'} hasToken=${!!data.token} tokenLen=${data.token?.length || 0} hasUser=${!!data.user} userId=${data.user?.id || 'null'} error=${data.error || 'none'`)
 
       if (data.status === "ACTIVE" && data.token) {
         // PWA flow — show return-to-app message
@@ -59,7 +60,7 @@ function processOAuthSession(sessionData: {
         }
 
         // Normal flow: store session and redirect
-        console.warn(`[AUTH-TIMELINE] CALLBACK_WRITING_LOCALSTORAGE T+${Math.round(performance.now() - cbT0)}ms userId=${data.user.id} tokenLen=${data.token.length}`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_WRITING_LOCALSTORAGE T+${Math.round(performance.now() - cbT0)}ms userId=${data.user.id} tokenLen=${data.token.length}`)
         localStorage.setItem("nurseos-auth", JSON.stringify({
           state: {
             user: {
@@ -87,18 +88,18 @@ function processOAuthSession(sessionData: {
         // [AUTH-TIMELINE] Check cookie before redirect
         const cookieAfterLink = document.cookie
         const hasNurseosCookieAfter = cookieAfterLink.includes('nurseos-token=')
-        console.warn(`[AUTH-TIMELINE] CALLBACK_PRE_REDIRECT T+${Math.round(performance.now() - cbT0)}ms cookieHasNurseosToken=${hasNurseosCookieAfter} redirecting_in_500ms`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_PRE_REDIRECT T+${Math.round(performance.now() - cbT0)}ms cookieHasNurseosToken=${hasNurseosCookieAfter} redirecting_in_500ms`)
         setTimeout(() => {
-          console.warn(`[AUTH-TIMELINE] CALLBACK_REDIRECTING T+${Math.round(performance.now() - cbT0)}ms -> /dashboard`)
+          console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_REDIRECTING T+${Math.round(performance.now() - cbT0)}ms -> /dashboard`)
           window.location.href = "/dashboard"
         }, 500)
       } else if (data.status === "PENDING") {
-        console.warn(`[AUTH-TIMELINE] CALLBACK_STATUS_PENDING T+${Math.round(performance.now() - cbT0)}ms`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_STATUS_PENDING T+${Math.round(performance.now() - cbT0)}ms`)
         signOut({ redirect: false })
         setPendingApproval(true)
         setProcessing(false)
       } else if (data.status === "NEW") {
-        console.warn(`[AUTH-TIMELINE] CALLBACK_STATUS_NEW T+${Math.round(performance.now() - cbT0)}ms`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_STATUS_NEW T+${Math.round(performance.now() - cbT0)}ms`)
         sessionStorage.setItem("nurseos-oauth", JSON.stringify({
           email: sessionData.email,
           firstName: sessionData.name?.split(" ")[0] || "",
@@ -108,7 +109,7 @@ function processOAuthSession(sessionData: {
         }))
         router.push("/onboarding")
       } else {
-        console.warn(`[AUTH-TIMELINE] CALLBACK_UNEXPECTED_STATUS T+${Math.round(performance.now() - cbT0)}ms status=${data.status} hasToken=${!!data.token} message=${data.message || data.error || 'none'}`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_UNEXPECTED_STATUS T+${Math.round(performance.now() - cbT0)}ms status=${data.status} hasToken=${!!data.token} message=${data.message || data.error || 'none'}`)
         signOut({ redirect: false })
         setError(data.message || data.error || "Unexpected authentication status. Please try again.")
         setProcessing(false)
@@ -134,25 +135,33 @@ function AuthCallbackContent() {
   // Guard against double-processing (useSession + fallback could both fire)
   const hasProcessedRef = useRef(false)
 
+  // [AUTH-TIMELINE] Generate correlation ID for this login attempt.
+  // Stored in sessionStorage so the dashboard layout can pick it up after navigation.
+  const [debugId] = useState(() => {
+    const id = Math.random().toString(36).slice(2, 10)
+    try { sessionStorage.setItem('nurseos-auth-debug-id', id) } catch {}
+    return id
+  })
+
   const handleOAuth = useCallback(() => {
     if (hasProcessedRef.current) {
-      console.warn(`[AUTH-TIMELINE] CALLBACK_DOUBLE_PROCESS_BLOCKED`)
+      console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_DOUBLE_PROCESS_BLOCKED`)
       return
     }
     hasProcessedRef.current = true
-    console.warn(`[AUTH-TIMELINE] CALLBACK_HANDLE_OAUTH_CALLED useSessionStatus=${status} hasSessionUser=${!!session?.user} sessionEmail=${session?.user?.email || 'null'}`)
+    console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_HANDLE_OAUTH_CALLED useSessionStatus=${status} hasSessionUser=${!!session?.user} sessionEmail=${session?.user?.email || 'null'}`)
 
     processOAuthSession(
       { email: session?.user?.email, name: session?.user?.name, image: session?.user?.image, id: (session?.user as Record<string, unknown>)?.id },
-      { setError, setProcessing, setPendingApproval, setPwaComplete, router, isPwaFlow }
+      { setError, setProcessing, setPendingApproval, setPwaComplete, router, isPwaFlow, debugId }
     )
   }, [session, router, isPwaFlow, setError, setProcessing, setPendingApproval, setPwaComplete])
 
   // Handle unauthenticated status (Google sign-in failed or was cancelled)
   useEffect(() => {
-    console.warn(`[AUTH-TIMELINE] CALLBACK_SESSION_STATUS status=${status}`)
+    console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_SESSION_STATUS status=${status}`)
     if (status === "unauthenticated") {
-      console.warn(`[AUTH-TIMELINE] CALLBACK_GOOGLE_SIGNIN_FAILED status=unauthenticated`)
+      console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_GOOGLE_SIGNIN_FAILED status=unauthenticated`)
       setError("Google sign-in was cancelled or failed. Please try again.")
       setProcessing(false)
     }
@@ -161,7 +170,7 @@ function AuthCallbackContent() {
   // Primary path: useSession() resolves successfully
   useEffect(() => {
     if (status !== "authenticated" || !session?.user) return
-    console.warn(`[AUTH-TIMELINE] CALLBACK_USESESSION_AUTHENTICATED email=${session.user.email} name=${session.user.name}`)
+    console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_USESESSION_AUTHENTICATED email=${session.user.email} name=${session.user.name}`)
     handleOAuth()
   }, [status, session, handleOAuth])
 
@@ -173,14 +182,14 @@ function AuthCallbackContent() {
     if (status === "loading") {
       const timer = setTimeout(() => {
         if (hasProcessedRef.current) return
-        console.warn(`[AUTH-TIMELINE] CALLBACK_USESESSION_TIMEOUT_12s falling back to direct fetch`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_USESESSION_TIMEOUT_12s falling back to direct fetch`)
         fetch("/api/auth/session")
           .then((r) => {
             if (!r.ok) throw new Error(`Session fetch returned ${r.status}`)
             return r.json()
           })
           .then((sessionData) => {
-            console.warn(`[AUTH-TIMELINE] CALLBACK_FALLBACK_SESSION_FETCHED hasUser=${!!sessionData?.user} email=${sessionData?.user?.email || 'null'}`)
+            console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_FALLBACK_SESSION_FETCHED hasUser=${!!sessionData?.user} email=${sessionData?.user?.email || 'null'}`)
             if (sessionData?.user) {
               handleOAuth()
             } else {

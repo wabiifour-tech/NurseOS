@@ -479,6 +479,16 @@ export default function DashboardLayout({
   // [AUTH-TIMELINE] T0: Record mount time as the origin for all subsequent timestamps
   const mountTimeRef = React.useRef<number>(performance.now())
 
+  // [AUTH-TIMELINE] Read correlation ID from sessionStorage (set by /auth/callback during OAuth).
+  // Falls back to 'direct' for non-OAuth navigation (password login, page refresh).
+  const debugId = React.useMemo(() => {
+    try {
+      const id = sessionStorage.getItem('nurseos-auth-debug-id')
+      if (id) { sessionStorage.removeItem('nurseos-auth-debug-id'); return id }
+    } catch {}
+    return 'direct'
+  }, [])
+
   // Prevent search engines from indexing any dashboard pages
   React.useEffect(() => {
     // Add noindex meta tag to prevent Google from indexing dashboard pages
@@ -525,12 +535,12 @@ export default function DashboardLayout({
   React.useEffect(() => {
     const t0 = mountTimeRef.current
     const zustandBefore = useAuthStore.getState()
-    console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms HYDRATION_CHECK_START isAuthenticated=${zustandBefore.isAuthenticated} hasToken=${!!zustandBefore.token} userId=${zustandBefore.user?.id || 'null'}`)
+    console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms HYDRATION_CHECK_START isAuthenticated=${zustandBefore.isAuthenticated} hasToken=${!!zustandBefore.token} userId=${zustandBefore.user?.id || 'null'}`)
 
     const checkHydration = () => {
       if (useAuthStore.persist.hasHydrated()) {
         const zustandAfter = useAuthStore.getState()
-        console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms HYDRATION_COMPLETE isAuthenticated=${zustandAfter.isAuthenticated} hasToken=${!!zustandAfter.token} userId=${zustandAfter.user?.id || 'null'}`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms HYDRATION_COMPLETE isAuthenticated=${zustandAfter.isAuthenticated} hasToken=${!!zustandAfter.token} userId=${zustandAfter.user?.id || 'null'}`)
         setHydrated(true)
       } else {
         // Poll until hydration completes (Zustand persist hydrates async)
@@ -556,7 +566,7 @@ export default function DashboardLayout({
     // [AUTH-TIMELINE] Snapshot cookies before fetch
     const cookieSnapshot = typeof document !== 'undefined' ? document.cookie : 'N/A'
     const hasNurseosCookie = cookieSnapshot.includes('nurseos-token=')
-    console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms ME_FETCH_START hydrated=true isLoggingOut=${isLoggingOut} zustandIsAuth=${capturedIsAuthenticated} cookieHasNurseosToken=${hasNurseosCookie}`)
+    console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms ME_FETCH_START hydrated=true isLoggingOut=${isLoggingOut} zustandIsAuth=${capturedIsAuthenticated} cookieHasNurseosToken=${hasNurseosCookie}`)
 
     const fetchStart = performance.now()
 
@@ -565,22 +575,23 @@ export default function DashboardLayout({
     fetch('/api/auth/me', {
       method: 'GET',
       credentials: 'include', // Send HttpOnly cookie
+      headers: { 'X-Auth-Debug-Id': debugId },
     })
       .then(res => {
         if (cancelled) return null
         const fetchDuration = Math.round(performance.now() - fetchStart)
-        console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms ME_RESPONSE status=${res.status} ok=${res.ok} duration=${fetchDuration}ms`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms ME_RESPONSE status=${res.status} ok=${res.ok} duration=${fetchDuration}ms`)
         if (!res.ok) throw new Error('Not authenticated')
         return res.json()
       })
       .then(data => {
         if (cancelled || !data) return
 
-        console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms ME_BODY_PARSED hasUser=${!!data.user} hasToken=${!!data.token} tokenLength=${data.token ? data.token.length : 0} userId=${data.user?.id || 'null'} userType=${typeof data.user}`)
+        console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms ME_BODY_PARSED hasUser=${!!data.user} hasToken=${!!data.token} tokenLength=${data.token ? data.token.length : 0} userId=${data.user?.id || 'null'} userType=${typeof data.user}`)
 
         if (data.user && data.token) {
           // Server confirms authenticated — re-populate Zustand from server data (always fresh)
-          console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms AUTH_SUCCESS calling_login() userId=${data.user.id}`)
+          console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms AUTH_SUCCESS calling_login() userId=${data.user.id}`)
           const { login } = useAuthStore.getState()
           login({
             id: data.user.id,
@@ -600,7 +611,7 @@ export default function DashboardLayout({
           setAuthChecked(true)
         } else {
           // [AUTH-TIMELINE] REDIRECT PATH A: Server returned data but missing user or token
-          console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms REDIRECT_PATH_A server_returned_no_auth hasUser=${!!data.user} hasToken=${!!data.token} dataKeys=${Object.keys(data).join(',')}`)
+          console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms REDIRECT_PATH_A server_returned_no_auth hasUser=${!!data.user} hasToken=${!!data.token} dataKeys=${Object.keys(data).join(',')}`)
           window.location.href = "/login"
         }
       })
@@ -609,10 +620,10 @@ export default function DashboardLayout({
         const fetchDuration = Math.round(performance.now() - fetchStart)
         if (!capturedIsAuthenticated) {
           // [AUTH-TIMELINE] REDIRECT PATH B: Fetch failed AND Zustand says not authenticated
-          console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms REDIRECT_PATH_B fetch_error_no_zustand_auth duration=${fetchDuration}ms zustandWasAuth=${capturedIsAuthenticated} error=${err?.message || String(err)}`)
+          console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms REDIRECT_PATH_B fetch_error_no_zustand_auth duration=${fetchDuration}ms zustandWasAuth=${capturedIsAuthenticated} error=${err?.message || String(err)}`)
           window.location.href = "/login"
         } else {
-          console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - t0)}ms FETCH_FAILED_USING_ZUSTAND duration=${fetchDuration}ms zustandWasAuth=${capturedIsAuthenticated} error=${err?.message || String(err)}`)
+          console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - t0)}ms FETCH_FAILED_USING_ZUSTAND duration=${fetchDuration}ms zustandWasAuth=${capturedIsAuthenticated} error=${err?.message || String(err)}`)
           setAuthChecked(true)
         }
       })
@@ -669,7 +680,7 @@ export default function DashboardLayout({
   // login() was called but isAuthenticated is still false — investigate.
   if (!isAuthenticated) {
     if (hydrated && authChecked) {
-      console.warn(`[AUTH-TIMELINE] T+${Math.round(performance.now() - mountTimeRef.current)}ms RENDER_GATE_REDIRECT hydrated=true authChecked=true isAuthenticated=false — no JS redirect executed`)
+      console.warn(`[AUTH-TIMELINE][req=${debugId}] T+${Math.round(performance.now() - mountTimeRef.current)}ms RENDER_GATE_REDIRECT hydrated=true authChecked=true isAuthenticated=false — no JS redirect executed`)
     }
     return (
       <div className="flex h-screen w-full items-center justify-center">

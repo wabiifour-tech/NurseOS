@@ -15,18 +15,19 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   const t0 = Date.now()
+  const reqId = request.headers.get('X-Auth-Debug-Id') || 'unknown'
   const cookieToken = request.cookies.get('nurseos-token')?.value || null
   const authHeader = request.headers.get('Authorization')
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
-  console.warn(`[AUTH-TIMELINE] ME_START cookieTokenPresent=${!!cookieToken} cookieTokenLen=${cookieToken?.length || 0} bearerTokenPresent=${!!bearerToken} url=${request.url}`)
+  console.warn(`[AUTH-TIMELINE][req=${reqId}] ME_START cookieTokenPresent=${!!cookieToken} cookieTokenLen=${cookieToken?.length || 0} bearerTokenPresent=${!!bearerToken}`)
 
   const authUser = await getAuthenticatedUser(request)
   const t1 = Date.now()
   if (!authUser) {
-    console.warn(`[AUTH-TIMELINE] ME_AUTH_NULL t=${t1 - t0}ms cookieTokenPresent=${!!cookieToken} bearerTokenPresent=${!!bearerToken}`)
+    console.warn(`[AUTH-TIMELINE][req=${reqId}] ME_AUTH_NULL t=${t1 - t0}ms cookieTokenPresent=${!!cookieToken} bearerTokenPresent=${!!bearerToken}`)
     return unauthorizedResponse()
   }
-  console.warn(`[AUTH-TIMELINE] ME_AUTH_OK t=${t1 - t0}ms userId=${authUser.id} role=${authUser.role} facilityId=${authUser.facilityId || 'null'}`)
+  console.warn(`[AUTH-TIMELINE][req=${reqId}] ME_AUTH_OK t=${t1 - t0}ms userId=${authUser.id} role=${authUser.role} facilityId=${authUser.facilityId || 'null'}`)
 
   try {
     const user = await db.user.findUnique({
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     const token = existingSession?.token || null
     const tokenMatchesCookie = token && cookieToken && token === cookieToken
-    console.warn(`[AUTH-TIMELINE] ME_SESSION_LOOKUP t=${t3 - t2}ms sessionFound=${!!existingSession} returnedTokenPresent=${!!token} returnedTokenLen=${token?.length || 0} cookieTokenLen=${cookieToken?.length || 0} tokensMatch=${tokenMatchesCookie} totalElapsed=${t3 - t0}ms`)
+    console.warn(`[AUTH-TIMELINE][req=${reqId}] ME_SESSION_LOOKUP t=${t3 - t2}ms sessionFound=${!!existingSession} returnedTokenPresent=${!!token} returnedTokenLen=${token?.length || 0} cookieTokenLen=${cookieToken?.length || 0} tokensMatch=${tokenMatchesCookie} totalElapsed=${t3 - t0}ms`)
 
     // Normalize role: If user has AdminProfile with accessLevel >= 10, treat as SUPER_ADMIN
     let normalizedRole = user.role
@@ -120,7 +121,7 @@ export async function GET(request: NextRequest) {
       nurseProfileId,
     })
   } catch (error) {
-    console.error('[AUTH-TIMELINE] ME_ERROR', error)
+    console.error(`[AUTH-TIMELINE][req=${reqId}] ME_ERROR`, error)
     return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 })
   }
 }
