@@ -15,11 +15,13 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   const t0 = Date.now()
-  const reqId = request.headers.get('X-Auth-Debug-Id') || 'unknown'
+  const debugHeaderRaw = request.headers.get('X-Auth-Debug-Id')
+  const debugHeaderPresent = !!debugHeaderRaw
+  const reqId = debugHeaderRaw || 'missing'
   const cookieToken = request.cookies.get('nurseos-token')?.value || null
   const authHeader = request.headers.get('Authorization')
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
-  console.warn(`[AUTH-TIMELINE][req=${reqId}] ME_START cookieTokenPresent=${!!cookieToken} cookieTokenLen=${cookieToken?.length || 0} bearerTokenPresent=${!!bearerToken}`)
+  console.warn(`[AUTH-TIMELINE][req=${reqId}] ME_START debugHeaderPresent=${debugHeaderPresent} cookieTokenPresent=${!!cookieToken} cookieTokenLen=${cookieToken?.length || 0} bearerTokenPresent=${!!bearerToken}`)
 
   const authUser = await getAuthenticatedUser(request)
   const t1 = Date.now()
