@@ -14,8 +14,19 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
  * Returns: user object, token, facilityId, facilityName, nurseProfileId
  */
 export async function GET(request: NextRequest) {
+  const t0 = Date.now()
+  const cookieToken = request.cookies.get('nurseos-token')?.value || null
+  const authHeader = request.headers.get('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+  console.warn(`[AUTH-TIMELINE] ME_START cookieTokenPresent=${!!cookieToken} cookieTokenLen=${cookieToken?.length || 0} bearerTokenPresent=${!!bearerToken} url=${request.url}`)
+
   const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
+  const t1 = Date.now()
+  if (!authUser) {
+    console.warn(`[AUTH-TIMELINE] ME_AUTH_NULL t=${t1 - t0}ms cookieTokenPresent=${!!cookieToken} bearerTokenPresent=${!!bearerToken}`)
+    return unauthorizedResponse()
+  }
+  console.warn(`[AUTH-TIMELINE] ME_AUTH_OK t=${t1 - t0}ms userId=${authUser.id} role=${authUser.role} facilityId=${authUser.facilityId || 'null'}`)
 
   try {
     const user = await db.user.findUnique({
@@ -63,12 +74,16 @@ export async function GET(request: NextRequest) {
     const nurseProfileId = user.nurseProfile?.id || null
 
     // Get the current active session token
+    const t2 = Date.now()
     const existingSession = await db.session.findFirst({
       where: { userId: user.id, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     })
+    const t3 = Date.now()
 
     const token = existingSession?.token || null
+    const tokenMatchesCookie = token && cookieToken && token === cookieToken
+    console.warn(`[AUTH-TIMELINE] ME_SESSION_LOOKUP t=${t3 - t2}ms sessionFound=${!!existingSession} returnedTokenPresent=${!!token} returnedTokenLen=${token?.length || 0} cookieTokenLen=${cookieToken?.length || 0} tokensMatch=${tokenMatchesCookie} totalElapsed=${t3 - t0}ms`)
 
     // Normalize role: If user has AdminProfile with accessLevel >= 10, treat as SUPER_ADMIN
     let normalizedRole = user.role
@@ -105,7 +120,7 @@ export async function GET(request: NextRequest) {
       nurseProfileId,
     })
   } catch (error) {
-    console.error('Error fetching current user:', error)
+    console.error('[AUTH-TIMELINE] ME_ERROR', error)
     return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 })
   }
 }
