@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server' 
 import { db } from '@/lib/db'
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
@@ -84,6 +84,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'You can only manage users in your facility' }, { status: 403 })
     }
 
+    // Look up the facility name for notification messages
+    const facilityName = pendingUser.facilityId
+      ? (await db.facility.findUnique({ where: { id: pendingUser.facilityId }, select: { name: true } }))?.name || 'your facility'
+      : 'your facility'
+
+    // Find and dismiss the admin's USER_APPROVAL notification for this user
+    // The notification data field contains the pending user's info
+    const adminNotification = await db.notification.findFirst({
+      where: {
+        userId: authUser.id,
+        type: 'USER_APPROVAL',
+        isRead: false,
+        message: { contains: pendingUser.email },
+      },
+      select: { id: true },
+    })
+
     if (action === 'approve') {
       await db.user.update({
         where: { id: userId },
@@ -107,16 +124,31 @@ export async function PATCH(request: NextRequest) {
           userId,
           type: 'ACCOUNT_APPROVED',
           title: 'Your account has been approved!',
-          message: `Welcome to NurseOS! The admin has approved your access. You can now sign in and start using the platform.`,
+          message: `Welcome to NurseOS! Your access to ${facilityName} has been approved. You can now sign in and start using the platform.`,
+          data: JSON.stringify({ facilityId: pendingUser.facilityId }),
         },
       })
 
+      // Dismiss the admin's USER_APPROVAL notification for this user
+      if (adminNotification) {
+        await db.notification.delete({ where: { id: adminNotification.id } })
+      }
+
       return NextResponse.json({ message: 'User approved successfully' })
     } else if (action === 'reject') {
-      // Soft-delete the user by marking as rejected
+      // Set status to REJECTED and clear facility assignment
       await db.user.update({
         where: { id: userId },
-        data: { status: 'DELETED', deletedAt: new Date() },
+        data: {
+          status: 'REJECTED',
+          facilityId: null,
+        },
+      })
+
+      // Also clear nurseProfile facility reference if it exists
+      await db.nurseProfile.updateMany({
+        where: { userId },
+        data: { currentFacilityId: null },
       })
 
       await db.auditLog.create({
@@ -128,6 +160,22 @@ export async function PATCH(request: NextRequest) {
           details: `Rejected user ${pendingUser.email}`,
         },
       })
+
+      // Notify the rejected user
+      await db.notification.create({
+        data: {
+          userId,
+          type: 'ACCOUNT_REJECTED',
+          title: 'Your account application was not approved',
+          message: `Your application to join ${facilityName} was not approved. If you believe this is an error, please contact your institution admin or support.`,
+          data: JSON.stringify({ facilityId: pendingUser.facilityId }),
+        },
+      })
+
+      // Dismiss the admin's USER_APPROVAL notification for this user
+      if (adminNotification) {
+        await db.notification.delete({ where: { id: adminNotification.id } })
+      }
 
       return NextResponse.json({ message: 'User rejected' })
     }
