@@ -48,7 +48,7 @@ function processOAuthSession(sessionData: {
       return res.json()
     })
     .then((data) => {
-      console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_OAUTH_LINK_PARSED T+${Math.round(performance.now() - cbT0)}ms status=${data.status || 'missing'} hasToken=${!!data.token} tokenLen=${data.token?.length || 0} hasUser=${!!data.user} userId=${data.user?.id || 'null'} error=${data.error || 'none'`)
+      console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_OAUTH_LINK_PARSED T+${Math.round(performance.now() - cbT0)}ms status=${data.status || 'missing'} hasToken=${!!data.token} tokenLen=${data.token?.length || 0} hasUser=${!!data.user} userId=${data.user?.id || 'null'} error=${data.error || 'none'}`)
 
       if (data.status === "ACTIVE" && data.token) {
         // PWA flow — show return-to-app message
