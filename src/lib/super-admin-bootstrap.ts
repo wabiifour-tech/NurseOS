@@ -20,6 +20,7 @@
  *   - Idempotent — safe to call multiple times
  *   - Creates audit log entry
  *   - Works for both existing users (upgrade) and new users (first-time setup)
+ *   - Mutations are wrapped in a Prisma transaction to prevent TOCTOU races
  *
  * ENV VARS:
  *   FOUNDER_EMAIL — The email address of the founder. Must be a valid email.
@@ -56,8 +57,13 @@ export function shouldAttemptBootstrap(email: string): boolean {
  * or { bootstrapped: false, reason } if no action was taken.
  */
 export async function bootstrapSuperAdmin(userId: string): Promise<BootstrapResult> {
-  // Step 1: Check if any Super Admin already exists
-  // This is a single query — efficient even on large databases due to the index
+  // Step 1: Quick env var check (no DB query needed)
+  const founderEmail = process.env.FOUNDER_EMAIL
+  if (!founderEmail) {
+    return { bootstrapped: false, reason: 'FOUNDER_EMAIL not configured' }
+  }
+
+  // Step 2: Check if any Super Admin already exists
   const existingSA = await db.adminProfile.findFirst({
     where: { accessLevel: { gte: 10 } },
     select: { id: true },
@@ -67,7 +73,7 @@ export async function bootstrapSuperAdmin(userId: string): Promise<BootstrapResu
     return { bootstrapped: false, reason: 'Super Admin already exists' }
   }
 
-  // Step 2: Get the user
+  // Step 3: Get the user
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, role: true, status: true },
@@ -77,62 +83,73 @@ export async function bootstrapSuperAdmin(userId: string): Promise<BootstrapResu
     return { bootstrapped: false, reason: 'User not found' }
   }
 
-  // Step 3: Verify email matches FOUNDER_EMAIL
-  const founderEmail = process.env.FOUNDER_EMAIL
-  if (!founderEmail) {
-    return { bootstrapped: false, reason: 'FOUNDER_EMAIL not configured' }
-  }
-
+  // Step 4: Verify email matches FOUNDER_EMAIL
   if (user.email.toLowerCase().trim() !== founderEmail.toLowerCase().trim()) {
     return { bootstrapped: false, reason: 'Email does not match FOUNDER_EMAIL' }
   }
 
-  // Step 4: Ensure user has ADMIN role
-  const effectiveRole = user.role === 'ADMIN' ? 'ADMIN' : 'ADMIN'
-  if (user.role !== 'ADMIN') {
-    await db.user.update({
-      where: { id: userId },
-      data: { role: 'ADMIN' },
+  // Step 5-7: All mutations inside a transaction to prevent TOCTOU races.
+  // Without a transaction, two concurrent login requests could both pass
+  // Step 2 (no SA exists) before either creates the profile.
+  try {
+    await db.$transaction(async (tx) => {
+      // Re-check SA existence inside the transaction (serializable guarantee)
+      const saInsideTx = await tx.adminProfile.findFirst({
+        where: { accessLevel: { gte: 10 } },
+        select: { id: true },
+      })
+      if (saInsideTx) {
+        throw new Error('SA_ALREADY_EXISTS')
+      }
+
+      // Ensure user has ADMIN role
+      if (user.role !== 'ADMIN') {
+        await tx.user.update({
+          where: { id: userId },
+          data: { role: 'ADMIN' },
+        })
+      }
+
+      // Create or upgrade AdminProfile to accessLevel = 10
+      const existingProfile = await tx.adminProfile.findUnique({
+        where: { userId },
+        select: { id: true, accessLevel: true },
+      })
+
+      if (existingProfile) {
+        await tx.adminProfile.update({
+          where: { id: existingProfile.id },
+          data: { accessLevel: 10 },
+        })
+      } else {
+        await tx.adminProfile.create({
+          data: {
+            id: randomUUID(),
+            userId,
+            accessLevel: 10,
+          },
+        })
+      }
+
+      // Audit log
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'SUPER_ADMIN_BOOTSTRAP',
+          resource: 'User',
+          resourceId: userId,
+          details: `Super Admin bootstrapped via Google OAuth for ${user.email}. No prior Super Admin existed.`,
+        },
+      })
     })
-  }
-
-  // Step 5: Create or upgrade AdminProfile to accessLevel = 10
-  const existingProfile = await db.adminProfile.findUnique({
-    where: { userId },
-    select: { id: true, accessLevel: true },
-  })
-
-  if (existingProfile) {
-    if (existingProfile.accessLevel >= 10) {
-      // Already a Super Admin — shouldn't happen given Step 1, but be safe
-      return { bootstrapped: false, reason: 'User already has accessLevel >= 10' }
+  } catch (txError) {
+    // If the transaction threw our sentinel, it means another request
+    // created the SA between our Step 2 and the transaction — safe to ignore.
+    if ((txError as Error)?.message === 'SA_ALREADY_EXISTS') {
+      return { bootstrapped: false, reason: 'Super Admin already exists (concurrent request)' }
     }
-    // Upgrade existing profile
-    await db.adminProfile.update({
-      where: { id: existingProfile.id },
-      data: { accessLevel: 10 },
-    })
-  } else {
-    // Create new profile
-    await db.adminProfile.create({
-      data: {
-        id: randomUUID(),
-        userId,
-        accessLevel: 10,
-      },
-    })
+    throw txError
   }
-
-  // Step 6: Audit log
-  await db.auditLog.create({
-    data: {
-      userId,
-      action: 'SUPER_ADMIN_BOOTSTRAP',
-      resource: 'User',
-      resourceId: userId,
-      details: `Super Admin bootstrapped via Google OAuth for ${user.email}. No prior Super Admin existed.`,
-    },
-  })
 
   console.log(`[bootstrap] Super Admin bootstrapped: ${user.email} (userId: ${userId})`)
 

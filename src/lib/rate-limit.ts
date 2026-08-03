@@ -9,6 +9,10 @@
  * Falls back to in-memory if UPSTASH_REDIS_REST_URL is not set (dev only).
  * In-memory rate limiting is INEFFECTIVE on Vercel serverless (different instances
  * don't share memory), so UPSTASH_REDIS_REST_URL must be set in production.
+ *
+ * FAIL-CLOSED: In production, if Redis is not configured, rate limiting
+ * returns { limited: true } — the request is blocked. This prevents silent
+ * disabling of rate limits due to misconfiguration.
  */
 
 import { Redis } from '@upstash/redis'
@@ -63,6 +67,12 @@ export async function checkRateLimit(
   if (r) {
     return checkRateLimitRedis(r, identifier, options)
   }
+  // FAIL-CLOSED: In production, block the request if Redis is not configured.
+  // In-memory rate limiting is ineffective on serverless (per-instance isolation).
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[rate-limit] UPSTASH_REDIS_REST_URL not set in production — blocking request (fail-closed). Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.')
+    return { limited: true, retryAfter: 60 }
+  }
   return checkRateLimitMemory(identifier, options)
 }
 
@@ -93,9 +103,6 @@ function checkRateLimitMemory(
   identifier: string,
   options: RateLimitOptions
 ): { limited: false } | { limited: true; retryAfter: number } {
-  if (process.env.NODE_ENV === 'production') {
-    console.warn('[rate-limit] UPSTASH_REDIS_REST_URL not set — using in-memory rate limiting which is INEFFECTIVE on serverless. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in production.')
-  }
   const now = Date.now()
   const entry = memoryStore.get(identifier)
   if (!entry || now > entry.resetTime) {
