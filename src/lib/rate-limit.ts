@@ -1,26 +1,45 @@
 /**
- * Simple in-memory rate limiter for API routes.
- * Note: In serverless environments (Vercel), each function invocation may
- * run in a separate container, making this less effective. For production,
- * consider using Vercel KV or Redis for distributed rate limiting.
+ * Distributed rate limiter using Upstash Redis.
+ *
+ * Why Upstash Redis:
+ * - Free tier: 10,000 commands/day, 256 MB storage
+ * - Native HTTP API — no persistent TCP connection (perfect for Vercel serverless)
+ * - Low latency from edge locations worldwide
+ *
+ * Falls back to in-memory if UPSTASH_REDIS_REST_URL is not set (dev only).
+ * In-memory rate limiting is INEFFECTIVE on Vercel serverless (different instances
+ * don't share memory), so UPSTASH_REDIS_REST_URL must be set in production.
  */
 
+import { Redis } from '@upstash/redis'
+
+// ─── Redis client (singleton per serverless function invocation) ───
+let redis: Redis | null = null
+function getRedis(): Redis | null {
+  if (redis) return redis
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (url && token) {
+    redis = new Redis({ url, token })
+  }
+  return redis
+}
+
+// ─── In-memory fallback (dev only — useless on serverless) ───
 interface RateLimitEntry {
   count: number
   resetTime: number
 }
-
-const store = new Map<string, RateLimitEntry>()
-
-// Cleanup old entries every 5 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of store.entries()) {
-    if (now > entry.resetTime) {
-      store.delete(key)
+const memoryStore = new Map<string, RateLimitEntry>()
+if (typeof globalThis !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  // Only run cleanup in dev
+  setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of memoryStore.entries()) {
+      if (now > entry.resetTime) memoryStore.delete(key)
     }
-  }
-}, 5 * 60 * 1000)
+  }, 5 * 60 * 1000)
+}
 
 export interface RateLimitOptions {
   /** Time window in milliseconds */
@@ -31,29 +50,61 @@ export interface RateLimitOptions {
 
 /**
  * Check if a request should be rate limited.
+ * Uses Upstash Redis INCR + EXPIRE for atomic distributed counting.
+ * Falls back to in-memory if Redis is not configured.
+ *
  * Returns { limited: true, retryAfter } if rate limited, or { limited: false } if allowed.
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   identifier: string,
   options: RateLimitOptions
-): { limited: false } | { limited: true; retryAfter: number } {
-  const now = Date.now()
-  const entry = store.get(identifier)
+): Promise<{ limited: false } | { limited: true; retryAfter: number }> {
+  const r = getRedis()
+  if (r) {
+    return checkRateLimitRedis(r, identifier, options)
+  }
+  return checkRateLimitMemory(identifier, options)
+}
 
-  if (!entry || now > entry.resetTime) {
-    // First request or window expired
-    store.set(identifier, {
-      count: 1,
-      resetTime: now + options.windowMs,
-    })
-    return { limited: false }
+async function checkRateLimitRedis(
+  r: Redis,
+  identifier: string,
+  options: RateLimitOptions
+): Promise<{ limited: false } | { limited: true; retryAfter: number }> {
+  const key = `rl:${identifier}`
+  const windowSec = Math.ceil(options.windowMs / 1000)
+
+  // Atomically increment and set expiry
+  const count = await r.incr(key)
+  if (count === 1) {
+    await r.expire(key, windowSec)
   }
 
-  if (entry.count >= options.maxRequests) {
-    const retryAfter = Math.ceil((entry.resetTime - now) / 1000)
+  if (count > options.maxRequests) {
+    const ttl = await r.ttl(key)
+    const retryAfter = ttl > 0 ? ttl : windowSec
     return { limited: true, retryAfter }
   }
 
+  return { limited: false }
+}
+
+function checkRateLimitMemory(
+  identifier: string,
+  options: RateLimitOptions
+): { limited: false } | { limited: true; retryAfter: number } {
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('[rate-limit] UPSTASH_REDIS_REST_URL not set — using in-memory rate limiting which is INEFFECTIVE on serverless. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in production.')
+  }
+  const now = Date.now()
+  const entry = memoryStore.get(identifier)
+  if (!entry || now > entry.resetTime) {
+    memoryStore.set(identifier, { count: 1, resetTime: now + options.windowMs })
+    return { limited: false }
+  }
+  if (entry.count >= options.maxRequests) {
+    return { limited: true, retryAfter: Math.ceil((entry.resetTime - now) / 1000) }
+  }
   entry.count++
   return { limited: false }
 }

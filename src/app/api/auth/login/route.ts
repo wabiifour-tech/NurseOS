@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const { email, password } = body
 
     // Rate limiting
-    const rateLimitResult = checkRateLimit(getRateLimitIdentifier(request), LOGIN_RATE_LIMIT)
+    const rateLimitResult = await checkRateLimit(getRateLimitIdentifier(request), LOGIN_RATE_LIMIT)
     if (rateLimitResult.limited) {
       return NextResponse.json(
         { error: `Too many login attempts. Please try again in ${rateLimitResult.retryAfter} seconds.` },
