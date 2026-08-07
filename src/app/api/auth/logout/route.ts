@@ -3,11 +3,13 @@ import { db } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth'
 
 // POST /api/auth/logout - Invalidate session and clear cookie
+// NOTE: This route intentionally does NOT use withAuth() because logout
+// must succeed even if the session is already invalid. The withAuth
+// middleware would return 401 and prevent cookie clearing.
 export async function POST(request: NextRequest) {
   try {
     const authUser = await getAuthenticatedUser(request)
     if (authUser) {
-      // Delete the session from the database
       const token = request.cookies.get('nurseos-token')?.value
         || request.headers.get('Authorization')?.substring(7)
 
@@ -18,26 +20,10 @@ export async function POST(request: NextRequest) {
           // Session might already be deleted, ignore
         })
       }
-
-      // Create audit log
-      await db.auditLog.create({
-        data: {
-          userId: authUser.id,
-          action: 'USER_LOGOUT',
-          resource: 'Session',
-          resourceId: token || 'unknown',
-          details: 'User logged out',
-        },
-      }).catch(() => {
-        // Don't fail logout if audit log fails
-      })
     }
 
-    const response = NextResponse.json(
-      { message: 'Logged out successfully' }
-    )
+    const response = NextResponse.json({ message: 'Logged out successfully' })
 
-    // Clear the HttpOnly cookie - use same attributes as when it was set
     response.cookies.set('nurseos-token', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -49,10 +35,7 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     console.error('Logout error:', error)
-    // Still clear the cookie even if DB operations fail
-    const response = NextResponse.json(
-      { message: 'Logged out' }
-    )
+    const response = NextResponse.json({ message: 'Logged out' })
 
     response.cookies.set('nurseos-token', '', {
       httpOnly: true,

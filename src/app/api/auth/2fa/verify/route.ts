@@ -1,6 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
 import crypto from 'crypto'
 
 // Generate TOTP code from secret (HMAC-SHA1 based)
@@ -44,7 +43,6 @@ function generateTOTP(secret: string, timeStep?: number): string {
 // Verify a TOTP code against the secret (check current and ±1 window)
 function verifyTOTP(secret: string, code: string): boolean {
   const currentStep = Math.floor(Date.now() / 1000 / 30)
-  // Check current, -1, and +1 time windows for clock drift tolerance
   for (let offset = -1; offset <= 1; offset++) {
     const generated = generateTOTP(secret, currentStep + offset)
     if (generated === code) return true
@@ -52,67 +50,53 @@ function verifyTOTP(secret: string, code: string): boolean {
   return false
 }
 
-// POST /api/auth/2fa/verify — Verify a TOTP code and enable 2FA
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
+export const POST = withAuth({
+  auditAction: 'auth.2fa.verify',
+  auditResource: 'user',
+  auditSeverity: 'HIGH',
+}, async (ctx) => {
+  const { user: authUser } = ctx
 
+  let body
   try {
-    let body
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-    }
-
-    const { code } = body
-    if (!code || typeof code !== 'string' || code.length !== 6) {
-      return NextResponse.json({ error: 'A valid 6-digit code is required' }, { status: 400 })
-    }
-
-    const user = await db.user.findUnique({
-      where: { id: authUser.id },
-      select: { id: true, twoFactorSecret: true, twoFactorEnabled: true },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    if (!user.twoFactorSecret) {
-      return NextResponse.json({ error: '2FA setup not initiated. Please set up 2FA first.' }, { status: 400 })
-    }
-
-    if (user.twoFactorEnabled) {
-      return NextResponse.json({ error: '2FA is already enabled' }, { status: 400 })
-    }
-
-    // Verify the code
-    const isValid = verifyTOTP(user.twoFactorSecret, code)
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid verification code. Please try again.' }, { status: 400 })
-    }
-
-    // Enable 2FA
-    await db.user.update({
-      where: { id: authUser.id },
-      data: { twoFactorEnabled: true },
-    })
-
-    // Create audit log
-    await db.auditLog.create({
-      data: {
-        userId: authUser.id,
-        action: '2FA_ENABLED',
-        resource: 'User',
-        resourceId: authUser.id,
-        details: 'Two-factor authentication was enabled',
-      },
-    })
-
-    return NextResponse.json({ message: '2FA enabled successfully' })
-  } catch (error) {
-    console.error('Error verifying 2FA:', error)
-    return NextResponse.json({ error: 'Failed to verify 2FA code' }, { status: 500 })
+    body = await ctx.request.json()
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
-}
+
+  const { code } = body
+  if (!code || typeof code !== 'string' || code.length !== 6) {
+    return Response.json({ error: 'A valid 6-digit code is required' }, { status: 400 })
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: authUser.id },
+    select: { id: true, twoFactorSecret: true, twoFactorEnabled: true },
+  })
+
+  if (!user) {
+    return Response.json({ error: 'User not found' }, { status: 404 })
+  }
+
+  if (!user.twoFactorSecret) {
+    return Response.json({ error: '2FA setup not initiated. Please set up 2FA first.' }, { status: 400 })
+  }
+
+  if (user.twoFactorEnabled) {
+    return Response.json({ error: '2FA is already enabled' }, { status: 400 })
+  }
+
+  // Verify the code
+  const isValid = verifyTOTP(user.twoFactorSecret, code)
+  if (!isValid) {
+    return Response.json({ error: 'Invalid verification code. Please try again.' }, { status: 400 })
+  }
+
+  // Enable 2FA
+  await db.user.update({
+    where: { id: authUser.id },
+    data: { twoFactorEnabled: true },
+  })
+
+  return Response.json({ message: '2FA enabled successfully' })
+})
