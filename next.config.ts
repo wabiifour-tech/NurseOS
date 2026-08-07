@@ -3,8 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   /* config options here */
+  // SECURITY: ignoreBuildErrors disabled as part of security hardening.
+  // Previously set to true, which masked TypeScript errors in production builds.
+  // Build-time type errors must now be fixed before deployment.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   reactStrictMode: false,
   async rewrites() {

@@ -100,6 +100,14 @@ export async function PATCH(request: NextRequest) {
           { status: 403 }
         )
       }
+      // Non-SUPER_ADMIN can only assign themselves to their own existing facility
+      // (or clear it). They cannot self-assign to a different facility.
+      if (authUser.role === 'ADMIN' && facilityId && authUser.facilityId && facilityId !== authUser.facilityId) {
+        return NextResponse.json(
+          { error: 'You can only manage your currently assigned facility. Contact your organization admin to change facilities.' },
+          { status: 403 }
+        )
+      }
       // Validate that the facility exists
       if (facilityId) {
         const facility = await db.facility.findUnique({

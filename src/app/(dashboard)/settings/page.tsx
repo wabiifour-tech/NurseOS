@@ -956,7 +956,8 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Facility Selector */}
+            {/* Facility Selector — only shown for SUPER_ADMIN, or users without a facility */}
+            {(user?.role === 'SUPER_ADMIN' || !user?.facilityId) && (
             <div className="space-y-3">
               <Label className="text-sm font-medium">Select Your Facility</Label>
               <div className="relative">
@@ -1043,6 +1044,7 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
+            )}
 
             {/* Save Facility Button */}
             {selectedFacilityId !== (user?.facilityId || '') && (
