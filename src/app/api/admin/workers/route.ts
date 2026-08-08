@@ -1,214 +1,190 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
+import { withAuth, denial } from '@/lib/middleware'
+import { ADMIN_PERMISSIONS } from '@/lib/permissions'
 
 // GET /api/admin/workers — List workers in the admin's facility
-export async function GET(req: NextRequest) {
-  try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-    if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
-    }
-    if (!authUser.facilityId) return noFacilityResponse()
+export const GET = withAuth({
+  permissions: [ADMIN_PERMISSIONS.STAFF_READ],
+  policies: ['facility_strict'],
+  auditAction: 'admin.workers.list',
+  auditResource: 'user',
+}, async (ctx) => {
+  const facilityId = ctx.facilityId!
 
-    const workers = await db.user.findMany({
-      where: {
-        OR: [
-          { facilityId: authUser.facilityId },
-          { nurseProfile: { currentFacilityId: authUser.facilityId } },
-          { adminProfile: { facilityId: authUser.facilityId } },
-        ],
-        status: 'ACTIVE',
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true,
-        phone: true,
-        avatarUrl: true,
-        createdAt: true,
-        nurseProfile: { select: { licenseNumber: true, specialization: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+  const workers = await db.user.findMany({
+    where: {
+      OR: [
+        { facilityId },
+        { nurseProfile: { currentFacilityId: facilityId } },
+        { adminProfile: { facilityId } },
+      ],
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      role: true,
+      phone: true,
+      avatarUrl: true,
+      createdAt: true,
+      nurseProfile: { select: { licenseNumber: true, specialization: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 
-    return NextResponse.json({ workers })
-  } catch (error) {
-    console.error('Error fetching workers:', error)
-    return NextResponse.json({ error: 'Failed to fetch workers' }, { status: 500 })
-  }
-}
+  return Response.json({ workers })
+})
 
 // PATCH /api/admin/workers — Manage a worker in the admin's facility
-// Actions: "remove" — removes the worker from the facility (sets facilityId to null)
-export async function PATCH(req: NextRequest) {
+// Actions: "remove" — removes the worker from the facility
+export const PATCH = withAuth({
+  permissions: [ADMIN_PERMISSIONS.STAFF_WRITE],
+  policies: ['facility_strict'],
+  auditAction: 'admin.workers.manage',
+  auditResource: 'user',
+  auditSeverity: 'HIGH',
+}, async (ctx) => {
+  const facilityId = ctx.facilityId!
+
+  let body
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-    if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
-    }
-    if (!authUser.facilityId) return noFacilityResponse()
+    body = await ctx.request.json()
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-    const { workerId, action } = await req.json()
+  const { workerId, action } = body
 
-    if (!workerId || !action) {
-      return NextResponse.json({ error: 'workerId and action required' }, { status: 400 })
-    }
+  if (!workerId || !action) {
+    return Response.json({ error: 'workerId and action required' }, { status: 400 })
+  }
 
-    // Verify worker belongs to this facility
-    const worker = await db.user.findFirst({
-      where: {
-        id: workerId,
-        OR: [
-          { facilityId: authUser.facilityId },
-          { nurseProfile: { currentFacilityId: authUser.facilityId } },
-          { adminProfile: { facilityId: authUser.facilityId } },
-        ],
-      },
+  // Verify worker belongs to this facility
+  const worker = await db.user.findFirst({
+    where: {
+      id: workerId,
+      OR: [
+        { facilityId },
+        { nurseProfile: { currentFacilityId: facilityId } },
+        { adminProfile: { facilityId } },
+      ],
+    },
+  })
+
+  if (!worker) {
+    return Response.json({ error: 'Worker not found in your facility' }, { status: 404 })
+  }
+
+  if (action === 'remove') {
+    // Remove worker from facility
+    await db.user.update({
+      where: { id: workerId },
+      data: { facilityId: null },
+    })
+    // Also update nurse profile if exists
+    await db.nurseProfile.updateMany({
+      where: { userId: workerId },
+      data: { currentFacilityId: null },
+    })
+    await db.adminProfile.updateMany({
+      where: { userId: workerId },
+      data: { facilityId: null },
     })
 
-    if (!worker) {
-      return NextResponse.json({ error: 'Worker not found in your facility' }, { status: 404 })
-    }
-
-    if (action === 'remove') {
-      // Remove worker from facility
-      await db.user.update({
-        where: { id: workerId },
-        data: { facilityId: null },
-      })
-      // Also update nurse profile if exists
-      await db.nurseProfile.updateMany({
-        where: { userId: workerId },
-        data: { currentFacilityId: null },
-      })
-      await db.adminProfile.updateMany({
-        where: { userId: workerId },
-        data: { facilityId: null },
-      })
-
-      return NextResponse.json({ message: 'Worker removed from facility' })
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
-  } catch (error) {
-    console.error('Error managing worker:', error)
-    return NextResponse.json({ error: 'Failed to manage worker' }, { status: 500 })
+    return Response.json({ message: 'Worker removed from facility' })
   }
-}
+
+  return Response.json({ error: 'Invalid action' }, { status: 400 })
+})
 
 // POST /api/admin/workers — Approve or reject a pending user (lecturer/nurse/etc.)
-// Body: { userId: string, action: 'approve' | 'reject' }
-export async function POST(req: NextRequest) {
+export const POST = withAuth({
+  permissions: [ADMIN_PERMISSIONS.STAFF_WRITE],
+  policies: ['facility_strict'],
+  auditAction: 'admin.workers.approve',
+  auditResource: 'user',
+  auditSeverity: 'HIGH',
+}, async (ctx) => {
+  const facilityId = ctx.facilityId!
+
+  let body
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-    if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
-    }
-    if (!authUser.facilityId) return noFacilityResponse()
+    body = await ctx.request.json()
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-    const { userId, action } = await req.json()
+  const { userId, action } = body
 
-    if (!userId || !action) {
-      return NextResponse.json({ error: 'userId and action required' }, { status: 400 })
-    }
+  if (!userId || !action) {
+    return Response.json({ error: 'userId and action required' }, { status: 400 })
+  }
 
-    if (!['approve', 'reject'].includes(action)) {
-      return NextResponse.json({ error: 'Invalid action. Must be "approve" or "reject".' }, { status: 400 })
-    }
+  if (!['approve', 'reject'].includes(action)) {
+    return Response.json({ error: 'Invalid action. Must be "approve" or "reject".' }, { status: 400 })
+  }
 
-    // Verify user belongs to this facility and is PENDING
-    const user = await db.user.findFirst({
-      where: {
-        id: userId,
-        facilityId: authUser.facilityId,
-        status: 'PENDING',
-      },
-      select: { id: true, firstName: true, lastName: true, email: true, academicRole: true, role: true },
+  // Verify user belongs to this facility and is PENDING
+  const user = await db.user.findFirst({
+    where: {
+      id: userId,
+      facilityId,
+      status: 'PENDING',
+    },
+    select: { id: true, firstName: true, lastName: true, email: true, academicRole: true, role: true },
+  })
+
+  if (!user) {
+    return Response.json({ error: 'Pending user not found in your facility' }, { status: 404 })
+  }
+
+  if (action === 'approve') {
+    await db.user.update({
+      where: { id: userId },
+      data: { status: 'ACTIVE' },
     })
 
-    if (!user) {
-      return NextResponse.json({ error: 'Pending user not found in your facility' }, { status: 404 })
-    }
+    // Notify the approved user
+    await db.notification.create({
+      data: {
+        userId,
+        type: 'ACCOUNT_APPROVED',
+        title: 'Your account has been approved!',
+        message: `Your ${user.academicRole === 'LECTURER' ? 'lecturer' : user.role.toLowerCase()} account at has been approved. You can now sign in to NurseOS.`,
+        data: JSON.stringify({ facilityId }),
+      },
+    })
 
-    if (action === 'approve') {
-      // Set status to ACTIVE
-      await db.user.update({
-        where: { id: userId },
-        data: { status: 'ACTIVE' },
-      })
+    return Response.json({ message: 'User approved successfully' })
+  } else {
+    // action === 'reject'
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        status: 'REJECTED',
+        facilityId: null,
+      },
+    })
 
-      // Create audit log
-      await db.auditLog.create({
-        data: {
-          userId: authUser.id,
-          action: 'USER_APPROVED',
-          resource: 'User',
-          resourceId: userId,
-          details: `Approved ${user.academicRole || user.role} ${user.firstName} ${user.lastName} (${user.email})`,
-        },
-      })
+    // Also remove from nurse profile
+    await db.nurseProfile.updateMany({
+      where: { userId },
+      data: { currentFacilityId: null },
+    })
 
-      // Notify the approved user
-      await db.notification.create({
-        data: {
-          userId: userId,
-          type: 'ACCOUNT_APPROVED',
-          title: 'Your account has been approved!',
-          message: `Your ${user.academicRole === 'LECTURER' ? 'lecturer' : user.role.toLowerCase()} account at has been approved. You can now sign in to NurseOS.`,
-          data: JSON.stringify({ facilityId: authUser.facilityId }),
-        },
-      })
+    // Notify the rejected user
+    await db.notification.create({
+      data: {
+        userId,
+        type: 'ACCOUNT_REJECTED',
+        title: 'Your account application was not approved',
+        message: `Your application to join was not approved. If you believe this is an error, please contact support.`,
+        data: JSON.stringify({ facilityId }),
+      },
+    })
 
-      return NextResponse.json({ message: 'User approved successfully' })
-    } else {
-      // action === 'reject'
-      // Set status to REJECTED and remove from facility
-      await db.user.update({
-        where: { id: userId },
-        data: {
-          status: 'REJECTED',
-          facilityId: null,
-        },
-      })
-
-      // Also remove from nurse profile
-      await db.nurseProfile.updateMany({
-        where: { userId },
-        data: { currentFacilityId: null },
-      })
-
-      // Create audit log
-      await db.auditLog.create({
-        data: {
-          userId: authUser.id,
-          action: 'USER_REJECTED',
-          resource: 'User',
-          resourceId: userId,
-          details: `Rejected ${user.academicRole || user.role} ${user.firstName} ${user.lastName} (${user.email})`,
-        },
-      })
-
-      // Notify the rejected user
-      await db.notification.create({
-        data: {
-          userId: userId,
-          type: 'ACCOUNT_REJECTED',
-          title: 'Your account application was not approved',
-          message: `Your application to join was not approved. If you believe this is an error, please contact support.`,
-          data: JSON.stringify({ facilityId: authUser.facilityId }),
-        },
-      })
-
-      return NextResponse.json({ message: 'User rejected successfully' })
-    }
-  } catch (error) {
-    console.error('Error approving/rejecting worker:', error)
-    return NextResponse.json({ error: 'Failed to process action' }, { status: 500 })
+    return Response.json({ message: 'User rejected successfully' })
   }
-}
+})

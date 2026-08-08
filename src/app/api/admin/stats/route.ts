@@ -1,43 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
+import { SYSTEM_PERMISSIONS } from '@/lib/permissions'
 
 // GET /api/admin/stats — App-wide statistics (SUPER_ADMIN only)
-export async function GET(req: NextRequest) {
-  try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
+export const GET = withAuth({
+  permissions: [SYSTEM_PERMISSIONS.FACILITY_CROSS_ACCESS],
+  auditAction: 'admin.stats.view',
+  auditResource: 'platform',
+}, async () => {
+  const [
+    totalUsers,
+    totalNurses,
+    totalPatients,
+    totalFacilities,
+    totalCourses,
+    totalMedicalRecords,
+  ] = await Promise.all([
+    db.user.count(),
+    db.nurseProfile.count(),
+    db.patientProfile.count(),
+    db.facility.count(),
+    db.course.count(),
+    db.medicalRecord.count(),
+  ])
 
-    if (authUser.role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Forbidden. Super Admin access required.' }, { status: 403 })
-    }
-
-    const [
-      totalUsers,
-      totalNurses,
-      totalPatients,
-      totalFacilities,
-      totalCourses,
-      totalMedicalRecords,
-    ] = await Promise.all([
-      db.user.count(),
-      db.nurseProfile.count(),
-      db.patientProfile.count(),
-      db.facility.count(),
-      db.course.count(),
-      db.medicalRecord.count(),
-    ])
-
-    return NextResponse.json({
-      totalUsers,
-      totalNurses,
-      totalPatients,
-      totalFacilities,
-      totalCourses,
-      totalMedicalRecords,
-    })
-  } catch (error) {
-    console.error('Error fetching admin stats:', error)
-    return NextResponse.json({ error: 'Failed to fetch admin stats' }, { status: 500 })
-  }
-}
+  return Response.json({
+    totalUsers,
+    totalNurses,
+    totalPatients,
+    totalFacilities,
+    totalCourses,
+    totalMedicalRecords,
+  })
+})
