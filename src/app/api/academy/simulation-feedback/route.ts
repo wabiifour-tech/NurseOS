@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // Fallback templates — used ONLY if AI is unavailable
 const FALLBACK_TEMPLATES: Record<string, { strengths: string[]; improvements: string[]; notes: string }> = {
@@ -57,14 +57,11 @@ Rules:
 - Include relevant evidence-based practice references when possible
 - Consider Nigerian healthcare context when applicable`
 
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -100,11 +97,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Build the user message with context
-    let userMessage = `Scenario Type: ${scenarioType}\nDifficulty: ${difficulty || 'Medium'}\n\n`
+    let userMessage = `Scenario Type: ${scenarioType}
+Difficulty: ${difficulty || 'Medium'}
+
+`
     if (scenarioContext) {
-      userMessage += `Clinical Scenario:\n${scenarioContext}\n\n`
+      userMessage += `Clinical Scenario:
+${scenarioContext}
+
+`
     }
-    userMessage += `Nurse's Response:\n${userResponse.trim()}`
+    userMessage += `Nurse's Response:
+${userResponse.trim()}`
 
     let feedback: {
       strengths: string[]
@@ -175,12 +179,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Save simulation attempt to database if nurse profile and simulation ID are available
-    if (authUser.nurseProfileId && simulationId) {
+    if (ctx.user.nurseProfileId && simulationId) {
       try {
         await db.simulationAttempt.create({
           data: {
             simulationId,
-            nurseId: authUser.nurseProfileId,
+            nurseId: ctx.user.nurseProfileId,
             completedAt: new Date(),
             score: feedback.score,
             maxScore: 100,
@@ -225,7 +229,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // Calculate a base score from response characteristics (used for fallback only)
 function calculateBaseScore(response: string, difficulty: string): number {

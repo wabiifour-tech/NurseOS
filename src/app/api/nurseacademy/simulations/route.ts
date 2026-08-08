@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseacademy/simulations - List simulations
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const type = searchParams.get('type') || ''
     const difficulty = searchParams.get('difficulty') || ''
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -49,4 +46,4 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching simulations:', error)
     return NextResponse.json({ error: 'Failed to fetch simulations' }, { status: 500 })
   }
-}
+})

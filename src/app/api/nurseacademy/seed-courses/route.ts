@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
+import { withAuth } from '@/lib/middleware/compose';
 
 interface CourseData {
   title: string;
@@ -24,18 +24,17 @@ interface CourseData {
 import part1Data from '@/data/courses_part1.json';
 import part2Data from '@/data/courses_part2.json';
 
-export async function POST(request: NextRequest) {
-  // 🔒 Require admin authentication for destructive operations
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-  if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
+// POST /api/nurseacademy/seed-courses - Seed courses (admin only)
+export const POST = withAuth({}, async (ctx) => {
+  // Preserve original role check: ADMIN or SUPER_ADMIN only
+  if (ctx.user.role !== 'ADMIN' && ctx.user.role !== 'SUPER_ADMIN') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       body = {};
     }
@@ -155,8 +154,9 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
+// GET /api/nurseacademy/seed-courses - Public stats endpoint (no auth required)
 export async function GET() {
   try {
     const courseCount = await db.course.count();

@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseacademy/modules/[moduleId]/content - Get module content for learning
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ moduleId: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+// IF-007: withAuth() does not forward Next.js { params }; extract from URL path
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { moduleId } = await params
+    const pathname = ctx.request.nextUrl.pathname
+    const segments = pathname.split('/')
+    const moduleId = segments[segments.length - 2] || ''
 
     const module = await db.courseModule.findUnique({
       where: { id: moduleId },
@@ -19,7 +16,7 @@ export async function GET(
         course: {
           include: {
             enrollments: {
-              where: { nurseId: authUser.nurseProfileId || undefined },
+              where: { nurseId: ctx.user.nurseProfileId || undefined },
               take: 1,
             },
           },
@@ -83,7 +80,33 @@ export async function GET(
       content.questions = questions
       content.passingScore = 70
     } else if (contentType === 'TEXT' || contentType === 'READING') {
-      content.readingContent = module.contentBody || `# ${module.title}\n\n${module.description}\n\nThis module covers key concepts related to ${module.course.category}. Please review the material carefully and take notes on the important points.\n\n## Key Learning Objectives\n\n- Understand the fundamental principles of ${module.title.toLowerCase()}\n- Apply knowledge to clinical scenarios\n- Evaluate best practices in ${module.course.category.toLowerCase()}\n\n## Overview\n\nThis module provides a comprehensive overview of ${module.title.toLowerCase()} within the context of ${module.course.title}. As you study this material, focus on understanding both the theoretical foundations and their practical applications in nursing care.\n\n## Core Concepts\n\nThe material in this section covers essential knowledge that every nurse should understand. Key areas include patient assessment, evidence-based interventions, and documentation standards.\n\n## Clinical Application\n\nConsider how the concepts in this module apply to your daily practice. Think about patient scenarios you have encountered and how this knowledge could improve outcomes.\n\n## Summary\n\nReview the key points covered in this module and ensure you can articulate the main concepts before proceeding to the next section.`
+      content.readingContent = module.contentBody || `# ${module.title}
+
+${module.description}
+
+This module covers key concepts related to ${module.course.category}. Please review the material carefully and take notes on the important points.
+
+## Key Learning Objectives
+
+- Understand the fundamental principles of ${module.title.toLowerCase()}
+- Apply knowledge to clinical scenarios
+- Evaluate best practices in ${module.course.category.toLowerCase()}
+
+## Overview
+
+This module provides a comprehensive overview of ${module.title.toLowerCase()} within the context of ${module.course.title}. As you study this material, focus on understanding both the theoretical foundations and their practical applications in nursing care.
+
+## Core Concepts
+
+The material in this section covers essential knowledge that every nurse should understand. Key areas include patient assessment, evidence-based interventions, and documentation standards.
+
+## Clinical Application
+
+Consider how the concepts in this module apply to your daily practice. Think about patient scenarios you have encountered and how this knowledge could improve outcomes.
+
+## Summary
+
+Review the key points covered in this module and ensure you can articulate the main concepts before proceeding to the next section.`
     }
 
     return NextResponse.json({ content })
@@ -91,19 +114,19 @@ export async function GET(
     console.error('Error fetching module content:', error)
     return NextResponse.json({ error: 'Failed to fetch module content' }, { status: 500 })
   }
-}
+})
 
 function generateDefaultQuizQuestions(
   moduleTitle: string,
   courseTitle: string,
   category: string
 ): Array<{
-  id: string
-  question: string
-  options: string[]
-  correctIndex: number
-  explanation: string
-}> {
+    id: string
+    question: string
+    options: string[]
+    correctIndex: number
+    explanation: string
+  }> {
   return [
     {
       id: 'q1',
@@ -115,7 +138,7 @@ function generateDefaultQuizQuestions(
         'Surgical technique and instrumentation'
       ],
       correctIndex: 0,
-      explanation: `This module focuses on understanding the core principles of ${moduleTitle.toLowerCase()} and how they apply clinically within ${courseTitle}.`
+      explanation: `This module focuses on understanding the core principles of ${moduleTitle.toLowerCase()} and how they apply clinically within ${courseTitle}.`,
     },
     {
       id: 'q2',
@@ -127,7 +150,7 @@ function generateDefaultQuizQuestions(
         'Deferring all decisions to senior staff'
       ],
       correctIndex: 1,
-      explanation: 'Evidence-based practice involves integrating the best available research with clinical expertise and patient values.'
+      explanation: 'Evidence-based practice involves integrating the best available research with clinical expertise and patient values.',
     },
     {
       id: 'q3',
@@ -139,7 +162,7 @@ function generateDefaultQuizQuestions(
         'Following orders without assessment'
       ],
       correctIndex: 1,
-      explanation: 'Patient safety and quality of care should always be the top priority when applying any nursing knowledge.'
+      explanation: 'Patient safety and quality of care should always be the top priority when applying any nursing knowledge.',
     },
     {
       id: 'q4',
@@ -151,7 +174,7 @@ function generateDefaultQuizQuestions(
         'It is only necessary for specialized nurses'
       ],
       correctIndex: 2,
-      explanation: 'Continuous professional development ensures nurses maintain competency and stay updated with evolving best practices, directly improving patient outcomes.'
+      explanation: 'Continuous professional development ensures nurses maintain competency and stay updated with evolving best practices, directly improving patient outcomes.',
     },
     {
       id: 'q5',
@@ -163,7 +186,7 @@ function generateDefaultQuizQuestions(
         'Attending all training sessions'
       ],
       correctIndex: 1,
-      explanation: 'True understanding is demonstrated by the ability to apply concepts effectively in real clinical scenarios.'
+      explanation: 'True understanding is demonstrated by the ability to apply concepts effectively in real clinical scenarios.',
     }
   ]
 }

@@ -1,18 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseacademy/courses/[id] - Get course detail
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
+// IF-007: withAuth() does not forward Next.js { params }; extract from URL path
+export const GET = withAuth({}, async (ctx) => {
+  const pathname = ctx.request.nextUrl.pathname
+  const id = pathname.split('/').filter(Boolean).pop() || ''
 
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
-    const { id } = await params
+    const nurseId = ctx.nurseProfileId
 
     const course = await db.course.findUnique({
       where: { id },
@@ -72,4 +69,4 @@ export async function GET(
     console.error('Error fetching course:', error)
     return NextResponse.json({ error: 'Failed to fetch course' }, { status: 500 })
   }
-}
+})

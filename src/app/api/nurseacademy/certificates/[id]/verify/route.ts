@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
 import { createHash } from 'crypto'
 
 // POST /api/nurseacademy/certificates/[id]/verify - Verify a certificate using SHA-256 hash

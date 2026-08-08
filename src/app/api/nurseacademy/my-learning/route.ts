@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseacademy/my-learning - Get user's enrolled courses
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = ctx.nurseProfileId
     if (!nurseId) {
       return NextResponse.json({
         enrollments: [],
@@ -87,4 +84,4 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching my learning:', error)
     return NextResponse.json({ error: 'Failed to fetch learning data' }, { status: 500 })
   }
-}
+})

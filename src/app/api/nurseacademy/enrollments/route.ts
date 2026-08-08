@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // POST /api/nurseacademy/enrollments - Enroll in a course
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = ctx.nurseProfileId
     if (!nurseId) {
       return NextResponse.json(
         { error: 'Only nurses can enroll in courses' },
@@ -18,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -82,15 +79,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // GET /api/nurseacademy/enrollments - List current user's enrollments
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = ctx.nurseProfileId
     if (!nurseId) {
       return NextResponse.json({ enrollments: [] })
     }
@@ -122,4 +116,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

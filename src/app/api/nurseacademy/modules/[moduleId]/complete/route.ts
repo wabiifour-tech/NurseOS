@@ -1,24 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // POST /api/nurseacademy/modules/[moduleId]/complete - Mark a module as completed and update progress
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ moduleId: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+// IF-007: withAuth() does not forward Next.js { params }; extract from URL path
+export const POST = withAuth({}, async (ctx) => {
   try {
-    const { moduleId } = await params
-    const nurseId = authUser.nurseProfileId
+    const pathname = ctx.request.nextUrl.pathname
+    const segments = pathname.split('/')
+    const moduleId = segments[segments.length - 2] || ''
+    const nurseId = ctx.user.nurseProfileId
 
     if (!nurseId) {
       return NextResponse.json({ error: 'No nurse profile found' }, { status: 404 })
     }
 
-    const body = await request.json().catch(() => ({}))
+    const body = await ctx.request.json().catch(() => ({}))
 
     // Find the module and verify enrollment
     const module = await db.courseModule.findUnique({
@@ -106,4 +103,4 @@ export async function POST(
     console.error('Error completing module:', error)
     return NextResponse.json({ error: 'Failed to complete module' }, { status: 500 })
   }
-}
+})

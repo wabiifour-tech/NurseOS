@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseacademy/courses - List courses with enhanced filtering, sorting, and pagination
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
+export const GET = withAuth({}, async (ctx) => {
+  const request = ctx.request
 
   try {
     const { searchParams } = new URL(request.url)
@@ -124,4 +123,4 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching courses:', error)
     return NextResponse.json({ error: 'Failed to fetch courses' }, { status: 500 })
   }
-}
+})
