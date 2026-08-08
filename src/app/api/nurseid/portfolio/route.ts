@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
+import { getNurseProfileId } from '@/lib/auth'
 
 // GET /api/nurseid/portfolio - List portfolio entries
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = await getNurseProfileId(ctx.user.id)
     if (!nurseId) {
       return NextResponse.json({ entries: [], message: 'No nurse profile found' })
     }
 
-    const targetNurseId = new URL(request.url).searchParams.get('nurseId') || nurseId
+    const targetNurseId = new URL(ctx.request.url).searchParams.get('nurseId') || nurseId
 
     // 🔒 Access control: other nurses can only see public portfolio entries
     const where: Record<string, unknown> = { nurseId: targetNurseId }
@@ -31,22 +29,19 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching portfolio:', error)
     return NextResponse.json({ error: 'Failed to fetch portfolio' }, { status: 500 })
   }
-}
+})
 
 // POST /api/nurseid/portfolio - Add a portfolio entry
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = await getNurseProfileId(ctx.user.id)
     if (!nurseId) {
       return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
     }
 
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -77,10 +72,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { message: 'Portfolio entry added successfully', entry },
-      { status: 201 }
+      { status: 201 },
     )
   } catch (error) {
     console.error('Error adding portfolio entry:', error)
     return NextResponse.json({ error: 'Failed to add portfolio entry' }, { status: 500 })
   }
-}
+})

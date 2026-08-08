@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
 
 // GET /api/nurseid/profile - Get nurse profile (auto-creates if missing)
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
     let nurseProfile = await db.nurseProfile.findUnique({
-      where: { userId: authUser.id },
+      where: { userId: ctx.user.id },
       include: {
         user: {
           select: {
@@ -29,7 +26,7 @@ export async function GET(request: NextRequest) {
     if (!nurseProfile) {
       nurseProfile = await db.nurseProfile.create({
         data: {
-          userId: authUser.id,
+          userId: ctx.user.id,
           licenseNumber: '',
           skills: '[]',
           languages: '["English"]',
@@ -55,23 +52,20 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching nurse profile:', error)
     return NextResponse.json({ error: 'Failed to fetch nurse profile' }, { status: 500 })
   }
-}
+})
 
 // PATCH /api/nurseid/profile - Update nurse profile
-export async function PATCH(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const PATCH = withAuth({}, async (ctx) => {
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
     const existingProfile = await db.nurseProfile.findUnique({
-      where: { userId: authUser.id },
+      where: { userId: ctx.user.id },
     })
 
     if (!existingProfile) {
@@ -93,7 +87,7 @@ export async function PATCH(request: NextRequest) {
     if (body.availableForConsult !== undefined) updateData.availableForConsult = body.availableForConsult
 
     const updatedProfile = await db.nurseProfile.update({
-      where: { userId: authUser.id },
+      where: { userId: ctx.user.id },
       data: updateData,
     })
 
@@ -105,4 +99,4 @@ export async function PATCH(request: NextRequest) {
     console.error('Error updating nurse profile:', error)
     return NextResponse.json({ error: 'Failed to update nurse profile' }, { status: 500 })
   }
-}
+})

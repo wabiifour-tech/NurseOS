@@ -1,17 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
 
 // GET /api/nurseid/profile/[nurseId] - Get a nurse's public profile
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ nurseId: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { nurseId } = await params
+    // Extract nurseId from URL path: /api/nurseid/profile/[nurseId]
+    const pathname = ctx.request.nextUrl.pathname
+    const nurseId = pathname.split('/').filter(Boolean).pop() || ''
 
     const nurseProfile = await db.nurseProfile.findUnique({
       where: { id: nurseId },
@@ -115,4 +111,4 @@ export async function GET(
     console.error('Error fetching public nurse profile:', error)
     return NextResponse.json({ error: 'Failed to fetch nurse profile' }, { status: 500 })
   }
-}
+})

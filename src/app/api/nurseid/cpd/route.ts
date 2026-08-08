@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
+import { getNurseProfileId } from '@/lib/auth'
 
 // GET /api/nurseid/cpd - List CPD records
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = await getNurseProfileId(ctx.user.id)
     if (!nurseId) {
       return NextResponse.json({ records: [], totalPoints: 0, totalRecords: 0, message: 'No nurse profile found' })
     }
 
-    const targetNurseId = new URL(request.url).searchParams.get('nurseId') || nurseId
+    const targetNurseId = new URL(ctx.request.url).searchParams.get('nurseId') || nurseId
 
     const records = await db.cPDRecord.findMany({
       where: { nurseId: targetNurseId },
@@ -27,22 +25,19 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching CPD records:', error)
     return NextResponse.json({ error: 'Failed to fetch CPD records' }, { status: 500 })
   }
-}
+})
 
 // POST /api/nurseid/cpd - Log a CPD activity
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = await getNurseProfileId(ctx.user.id)
     if (!nurseId) {
       return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
     }
 
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -76,4 +71,4 @@ export async function POST(request: NextRequest) {
     console.error('Error logging CPD activity:', error)
     return NextResponse.json({ error: 'Failed to log CPD activity' }, { status: 500 })
   }
-}
+})
