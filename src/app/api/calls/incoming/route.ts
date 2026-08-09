@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/calls/incoming
 // Poll for incoming video/voice calls where the current user is the consulting nurse
 // and there's a pending WebRTC offer (call is ringing)
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const nurseId = await getNurseProfileId(authUser.id)
+export const GET = withAuth({}, async (ctx) => {
+  const nurseId = ctx.nurseProfileId
   if (!nurseId) {
     return NextResponse.json({ incomingCalls: [] })
   }
@@ -66,4 +63,4 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching incoming calls:', error)
     return NextResponse.json({ error: 'Failed to fetch incoming calls' }, { status: 500 })
   }
-}
+})

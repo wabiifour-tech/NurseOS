@@ -1,13 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // POST /api/calls/initiate
 // Create a new video/voice call consultation and set it to ACTIVE
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   let body: {
     consultingNurseId: string
     callType: 'VIDEO' | 'PHONE'
@@ -15,7 +12,7 @@ export async function POST(request: NextRequest) {
     patientId?: string
   }
   try {
-    body = await request.json()
+    body = await ctx.request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -30,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Call type must be VIDEO or PHONE' }, { status: 400 })
   }
 
-  const nurseId = await getNurseProfileId(authUser.id)
+  const nurseId = ctx.nurseProfileId
   if (!nurseId) {
     return NextResponse.json({ error: 'Only nurses can initiate calls' }, { status: 403 })
   }
@@ -94,4 +91,4 @@ export async function POST(request: NextRequest) {
       consultingNurse: consultation.consultingNurse,
     },
   }, { status: 201 })
-}
+})
