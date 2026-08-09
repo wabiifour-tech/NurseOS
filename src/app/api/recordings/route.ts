@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 /**
  * POST /api/recordings — Save recording metadata (no video file uploaded for privacy/HIPAA)
@@ -9,13 +9,10 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 
 // ─── POST ───
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth({}, async (ctx) => {
   try {
-    const authResult = await getAuthenticatedUser(request)
-    if (!authResult) return unauthorizedResponse()
-
-    const userId = authResult.id
-    const body = await request.json()
+    const userId = ctx.user.id
+    const body = await ctx.request.json()
 
     const { title, description, duration, fileSize, format } = body
 
@@ -47,17 +44,14 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // ─── GET ───
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const authResult = await getAuthenticatedUser(request)
-    if (!authResult) return unauthorizedResponse()
-
-    const userId = authResult.id
-    const { searchParams } = new URL(request.url)
+    const userId = ctx.user.id
+    const { searchParams } = new URL(ctx.request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 100)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
 
@@ -94,4 +88,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

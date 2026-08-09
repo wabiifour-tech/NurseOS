@@ -1,21 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/notifications/count - Get unread notification count
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
     const unreadCount = await db.notification.count({
-      where: { userId: authUser.id, isRead: false },
+      where: { userId: ctx.user.id, isRead: false },
     })
 
     // Also count by type for badge breakdowns
     const unreadByType = await db.notification.groupBy({
       by: ['type'],
-      where: { userId: authUser.id, isRead: false },
+      where: { userId: ctx.user.id, isRead: false },
       _count: { type: true },
     })
 
@@ -32,4 +29,4 @@ export async function GET(request: NextRequest) {
     console.error('Error counting notifications:', error)
     return NextResponse.json({ error: 'Failed to count notifications' }, { status: 500 })
   }
-}
+})

@@ -1,21 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/notifications - List notifications for the current user
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const limit = parseInt(searchParams.get('limit') || '20')
     const page = parseInt(searchParams.get('page') || '1')
     const unreadOnly = searchParams.get('unread') === 'true'
     const type = searchParams.get('type') || ''
     const skip = (page - 1) * limit
 
-    const where: Record<string, unknown> = { userId: authUser.id }
+    const where: Record<string, unknown> = { userId: ctx.user.id }
     if (unreadOnly) where.isRead = false
     if (type) where.type = type
 
@@ -37,17 +34,14 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching notifications:', error)
     return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 })
   }
-}
+})
 
 // PATCH /api/notifications - Mark notifications as read
-export async function PATCH(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const PATCH = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -55,7 +49,7 @@ export async function PATCH(request: NextRequest) {
     // Support marking a single notification or all as read
     if (body.markAllRead) {
       const result = await db.notification.updateMany({
-        where: { userId: authUser.id, isRead: false },
+        where: { userId: ctx.user.id, isRead: false },
         data: { isRead: true, readAt: new Date() },
       })
       return NextResponse.json({ message: `${result.count} notifications marked as read`, count: result.count })
@@ -74,7 +68,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
     }
 
-    if (notification.userId !== authUser.id) {
+    if (notification.userId !== ctx.user.id) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
@@ -88,15 +82,12 @@ export async function PATCH(request: NextRequest) {
     console.error('Error updating notification:', error)
     return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 })
   }
-}
+})
 
 // DELETE /api/notifications - Dismiss/delete a notification
-export async function DELETE(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const DELETE = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const notificationId = searchParams.get('id')
 
     if (!notificationId) {
@@ -112,7 +103,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
     }
 
-    if (notification.userId !== authUser.id) {
+    if (notification.userId !== ctx.user.id) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
@@ -125,4 +116,4 @@ export async function DELETE(request: NextRequest) {
     console.error('Error deleting notification:', error)
     return NextResponse.json({ error: 'Failed to delete notification' }, { status: 500 })
   }
-}
+})

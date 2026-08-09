@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 import { generateThreadKey, createNotification } from '@/lib/notify'
 
 // GET /api/messages - List conversations (threads) for the current user
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const view = searchParams.get('view') || 'conversations' // 'conversations' or 'thread'
     const threadKey = searchParams.get('threadKey') || ''
     const afterId = searchParams.get('afterId') || ''
@@ -38,8 +35,8 @@ export async function GET(request: NextRequest) {
     const latestMessages = await db.directMessage.findMany({
       where: {
         OR: [
-          { senderId: authUser.id },
-          { recipientId: authUser.id },
+          { senderId: ctx.user.id },
+          { recipientId: ctx.user.id },
         ],
       },
       include: {
@@ -57,7 +54,7 @@ export async function GET(request: NextRequest) {
     for (const msg of latestMessages) {
       if (!seenThreads.has(msg.threadKey)) {
         seenThreads.add(msg.threadKey)
-        const otherUser = msg.senderId === authUser.id ? msg.recipient : msg.sender
+        const otherUser = msg.senderId === ctx.user.id ? msg.recipient : msg.sender
         conversations.push({
           threadKey: msg.threadKey,
           otherUser,
@@ -78,7 +75,7 @@ export async function GET(request: NextRequest) {
     const unreadByThread = await db.directMessage.groupBy({
       by: ['threadKey'],
       where: {
-        recipientId: authUser.id,
+        recipientId: ctx.user.id,
         isRead: false,
       },
       _count: { id: true },
@@ -95,17 +92,14 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching messages:', error)
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 })
   }
-}
+})
 
 // POST /api/messages - Send a direct message
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -121,7 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prevent sending message to self
-    if (recipientId === authUser.id) {
+    if (recipientId === ctx.user.id) {
       return NextResponse.json({ error: 'Cannot send message to yourself' }, { status: 400 })
     }
 
@@ -135,12 +129,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Recipient not found or inactive' }, { status: 404 })
     }
 
-    const threadKey = generateThreadKey(authUser.id, recipientId)
+    const threadKey = generateThreadKey(ctx.user.id, recipientId)
 
     const message = await db.directMessage.create({
       data: {
         threadKey,
-        senderId: authUser.id,
+        senderId: ctx.user.id,
         recipientId,
         content: content.trim(),
       },
@@ -151,7 +145,6 @@ export async function POST(request: NextRequest) {
     })
 
     // Create notification for the recipient
-    // authUser doesn't have firstName/lastName, so use the sender data from the created message
     const senderName = `${message.sender.firstName || ''} ${message.sender.lastName || ''}`.trim() || 'A user'
     await createNotification({
       userId: recipientId,
@@ -161,7 +154,7 @@ export async function POST(request: NextRequest) {
       data: JSON.stringify({
         threadKey,
         messageId: message.id,
-        senderId: authUser.id,
+        senderId: ctx.user.id,
         action: 'NEW_DM',
       }),
     })
@@ -171,17 +164,14 @@ export async function POST(request: NextRequest) {
     console.error('Error sending message:', error)
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
   }
-}
+})
 
 // PATCH /api/messages - Mark messages as read in a thread
-export async function PATCH(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const PATCH = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -197,7 +187,7 @@ export async function PATCH(request: NextRequest) {
       const result = await db.directMessage.updateMany({
         where: {
           threadKey,
-          recipientId: authUser.id,
+          recipientId: ctx.user.id,
           isRead: false,
         },
         data: {
@@ -214,4 +204,4 @@ export async function PATCH(request: NextRequest) {
     console.error('Error updating messages:', error)
     return NextResponse.json({ error: 'Failed to update messages' }, { status: 500 })
   }
-}
+})
