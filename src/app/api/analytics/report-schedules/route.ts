@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/analytics/report-schedules — Load report schedules from server
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
     const schedules = await db.reportSchedule.findMany({
-      where: { userId: authUser.id },
+      where: { userId: ctx.user.id },
       select: {
         id: true,
         templateId: true,
@@ -26,17 +23,14 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching report schedules:', error)
     return NextResponse.json({ error: 'Failed to fetch report schedules' }, { status: 500 })
   }
-}
+})
 
 // POST /api/analytics/report-schedules — Create or update a report schedule
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -54,10 +48,10 @@ export async function POST(request: NextRequest) {
 
     const schedule = await db.reportSchedule.upsert({
       where: {
-        userId_templateId: { userId: authUser.id, templateId },
+        userId_templateId: { userId: ctx.user.id, templateId },
       },
       create: {
-        userId: authUser.id,
+        userId: ctx.user.id,
         templateId,
         enabled: enabled ?? true,
         frequency: frequency ?? 'Monthly',
@@ -75,17 +69,14 @@ export async function POST(request: NextRequest) {
     console.error('Error saving report schedule:', error)
     return NextResponse.json({ error: 'Failed to save report schedule' }, { status: 500 })
   }
-}
+})
 
 // DELETE /api/analytics/report-schedules — Delete a report schedule
-export async function DELETE(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const DELETE = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -97,7 +88,7 @@ export async function DELETE(request: NextRequest) {
 
     await db.reportSchedule.deleteMany({
       where: {
-        userId: authUser.id,
+        userId: ctx.user.id,
         templateId,
       },
     })
@@ -107,4 +98,4 @@ export async function DELETE(request: NextRequest) {
     console.error('Error deleting report schedule:', error)
     return NextResponse.json({ error: 'Failed to delete report schedule' }, { status: 500 })
   }
-}
+})
