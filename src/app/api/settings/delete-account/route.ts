@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // POST /api/settings/delete-account — Soft-delete user account
 //
@@ -14,14 +14,11 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
 //   1. If a password is provided, try bcrypt.compare against the stored hash
 //   2. If bcrypt fails AND a "DELETE" confirmation is provided, treat as OAuth user and accept
 //   3. Otherwise, reject
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -30,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch user with passwordHash
     const user = await db.user.findUnique({
-      where: { id: authUser.id },
+      where: { id: ctx.user.id },
       select: { id: true, email: true, passwordHash: true },
     })
 
@@ -64,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Soft-delete: mark as deleted, anonymize PII, set status to DELETED
     const anonymousId = `deleted-${user.id.slice(0, 8)}-${Date.now().toString(36)}`
     await db.user.update({
-      where: { id: authUser.id },
+      where: { id: ctx.user.id },
       data: {
         status: 'DELETED',
         deletedAt: new Date(),
@@ -80,16 +77,16 @@ export async function POST(request: NextRequest) {
 
     // Delete all active sessions for this user
     await db.session.deleteMany({
-      where: { userId: authUser.id },
+      where: { userId: ctx.user.id },
     })
 
     // Create audit log (before email is anonymized — the userId still works)
     await db.auditLog.create({
       data: {
-        userId: authUser.id,
+        userId: ctx.user.id,
         action: 'ACCOUNT_DELETED',
         resource: 'User',
-        resourceId: authUser.id,
+        resourceId: ctx.user.id,
         details: `User account was soft-deleted and PII anonymized. Auth method: ${passwordValid ? 'password' : 'OAuth (Google) + DELETE confirmation'}.`,
       },
     })
@@ -109,4 +106,4 @@ export async function POST(request: NextRequest) {
     console.error('Error deleting account:', error)
     return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 })
   }
-}
+})

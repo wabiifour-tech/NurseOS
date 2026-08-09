@@ -1,16 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/settings/export — Export all user data as JSON
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
     // Gather user profile
     const user = await db.user.findUnique({
-      where: { id: authUser.id },
+      where: { id: ctx.user.id },
       select: {
         id: true,
         email: true,
@@ -102,7 +99,7 @@ export async function GET(request: NextRequest) {
       // Nursing Notes (if nurse has facility)
       let vitals: unknown[] = []
       let nursingNotes: unknown[] = []
-      if (authUser.facilityId) {
+      if (ctx.user.facilityId) {
         vitals = await db.vitalSign.findMany({
           where: { recordedByNurseId: nurseId },
           select: {
@@ -168,7 +165,7 @@ export async function GET(request: NextRequest) {
 
     // Notification preferences
     const notifPrefs = await db.notificationPreference.findMany({
-      where: { userId: authUser.id },
+      where: { userId: ctx.user.id },
       select: { key: true, enabled: true },
     })
     exportData.notificationPreferences = notifPrefs
@@ -186,4 +183,4 @@ export async function GET(request: NextRequest) {
     console.error('Error exporting data:', error)
     return NextResponse.json({ error: 'Failed to export data' }, { status: 500 })
   }
-}
+})

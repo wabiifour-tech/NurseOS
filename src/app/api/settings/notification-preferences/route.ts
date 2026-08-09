@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/settings/notification-preferences — Load notification preferences from server
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
     const prefs = await db.notificationPreference.findMany({
-      where: { userId: authUser.id },
+      where: { userId: ctx.user.id },
       select: { key: true, enabled: true },
     })
 
@@ -24,17 +21,14 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching notification preferences:', error)
     return NextResponse.json({ error: 'Failed to fetch notification preferences' }, { status: 500 })
   }
-}
+})
 
 // PUT /api/settings/notification-preferences — Save notification preferences to server
-export async function PUT(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const PUT = withAuth({}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -48,10 +42,10 @@ export async function PUT(request: NextRequest) {
     const operations = Object.entries(preferences).map(([key, enabled]) =>
       db.notificationPreference.upsert({
         where: {
-          userId_key: { userId: authUser.id, key },
+          userId_key: { userId: ctx.user.id, key },
         },
         create: {
-          userId: authUser.id,
+          userId: ctx.user.id,
           key,
           enabled,
         },
@@ -68,4 +62,4 @@ export async function PUT(request: NextRequest) {
     console.error('Error saving notification preferences:', error)
     return NextResponse.json({ error: 'Failed to save notification preferences' }, { status: 500 })
   }
-}
+})
