@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
+import { SYSTEM_PERMISSIONS } from '@/lib/permissions'
 
 // GET /api/superadmin/facilities — List facilities with verification status
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  if (authUser.role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Only Super Admins can access this endpoint' }, { status: 403 })
-  }
-
+export const GET = withAuth({
+  permissions: [SYSTEM_PERMISSIONS.FACILITY_CROSS_ACCESS],
+  auditAction: 'superadmin.facilities.list',
+  auditResource: 'facility',
+}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const status = searchParams.get('status') // 'pending', 'verified', 'rejected', or 'all'
     const search = searchParams.get('search')
 
@@ -116,21 +114,18 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching facilities for super admin:', error)
     return NextResponse.json({ error: 'Failed to fetch facilities' }, { status: 500 })
   }
-}
+})
 
 // PATCH /api/superadmin/facilities — Approve or reject a facility application
-export async function PATCH(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  if (authUser.role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Only Super Admins can approve facilities' }, { status: 403 })
-  }
-
+export const PATCH = withAuth({
+  permissions: [SYSTEM_PERMISSIONS.FACILITY_CROSS_ACCESS],
+  auditAction: 'superadmin.facilities.manage',
+  auditResource: 'facility',
+}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -194,7 +189,7 @@ export async function PATCH(request: NextRequest) {
       // 4. Create audit log
       await db.auditLog.create({
         data: {
-          userId: authUser.id,
+          userId: ctx.user.id,
           action: 'FACILITY_APPROVED',
           resource: 'Facility',
           resourceId: facilityId,
@@ -251,7 +246,7 @@ export async function PATCH(request: NextRequest) {
       // 4. Create audit log
       await db.auditLog.create({
         data: {
-          userId: authUser.id,
+          userId: ctx.user.id,
           action: 'FACILITY_REJECTED',
           resource: 'Facility',
           resourceId: facilityId,
@@ -282,4 +277,4 @@ export async function PATCH(request: NextRequest) {
     console.error('Error managing facility:', error)
     return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
   }
-}
+})

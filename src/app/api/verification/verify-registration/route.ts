@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
+import { SYSTEM_PERMISSIONS } from '@/lib/permissions'
 
 /**
  * POST /api/verification/verify-registration
@@ -17,18 +18,15 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
  * 3. Suspicious pattern detection — Does the facility name look fake?
  * 4. Contextual analysis — Does the registration type match the facility type?
  */
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  if (authUser.role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Only Super Admins can verify registration numbers' }, { status: 403 })
-  }
-
+export const POST = withAuth({
+  permissions: [SYSTEM_PERMISSIONS.FACILITY_CROSS_ACCESS],
+  auditAction: 'verification.verify-registration',
+  auditResource: 'verification',
+}, async (ctx) => {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -75,7 +73,7 @@ export async function POST(request: NextRequest) {
     console.error('Verification error:', error)
     return NextResponse.json({ error: 'Failed to verify registration number' }, { status: 500 })
   }
-}
+})
 
 /**
  * Core verification logic for Nigerian facility and professional registration numbers.

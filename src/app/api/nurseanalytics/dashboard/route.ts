@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
+import { CLINICAL_PERMISSIONS } from '@/lib/permissions'
+import { requireFacility } from '@/lib/auth'
 
 // GET /api/nurseanalytics/dashboard - Return dashboard analytics data scoped to the user's facility
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({
+  permissions: [CLINICAL_PERMISSIONS.SURVEILLANCE_READ],
+  auditAction: 'nurseanalytics.dashboard',
+  auditResource: 'analytics',
+}, async (ctx) => {
   try {
-    // 🔒 FACILITY ISOLATION: SUPER_ADMIN can see all data, others need facility assignment
-    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
-    const facilityId = requireFacility(authUser)
+    // FACILITY ISOLATION: SUPER_ADMIN can see all data, others need facility assignment
+    const isSuperAdmin = ctx.user.role === 'SUPER_ADMIN'
+    const facilityId = requireFacility(ctx.user)
     if (facilityId instanceof Response) return facilityId
 
     // Build facility-scoped where clauses — SUPER_ADMIN sees all, others scoped to facility
@@ -326,4 +329,4 @@ export async function GET(request: NextRequest) {
       { status: 503 }
     )
   }
-}
+})

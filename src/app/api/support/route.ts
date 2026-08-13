@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
+import { ADMIN_PERMISSIONS } from '@/lib/permissions'
 
+// POST: Submit a support request (public — no authentication required)
+// This is intentionally public so unauthenticated users can contact support.
 export async function POST(request: NextRequest) {
   try {
     let body;
@@ -86,18 +89,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET: Retrieve support requests (admin only)
-export async function GET(request: NextRequest) {
+// GET: Retrieve support requests (ADMIN and SUPER_ADMIN only)
+export const GET = withAuth({
+  permissions: [ADMIN_PERMISSIONS.FACILITY_READ],
+  auditAction: 'support.list',
+  auditResource: 'support',
+}, async (ctx) => {
   try {
-    const authUser = await getAuthenticatedUser(request)
-    if (!authUser) return unauthorizedResponse()
-
-    // Only ADMIN and SUPER_ADMIN can view support tickets
-    if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Access denied. Admin role required.' }, { status: 403 })
-    }
-
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
 
     const supportNotifications = await db.notification.findMany({
@@ -128,4 +127,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
