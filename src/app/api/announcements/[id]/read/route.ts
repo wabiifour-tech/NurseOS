@@ -1,18 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
 
 // POST /api/announcements/[id]/read - Mark an announcement as read
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
+export const POST = withAuth({
+  auditAction: 'announcements.read',
+  auditResource: 'announcement',
+}, async (ctx) => {
+  // Extract [id] from pathname (IF-007: MiddlewareContext has no params)
+  // Path: /api/announcements/[id]/read → segments: [api, announcements, <id>, read]
+  const segments = ctx.request.nextUrl.pathname.split('/').filter(Boolean)
+  const announcementId = segments[segments.length - 2] // second-to-last = [id]
 
   try {
-    const { id: announcementId } = await params
-
     const announcement = await db.announcement.findUnique({
       where: { id: announcementId },
     })
@@ -26,13 +26,13 @@ export async function POST(
       where: {
         announcementId_userId: {
           announcementId,
-          userId: authUser.id,
+          userId: ctx.user.id,
         },
       },
       update: { readAt: new Date() },
       create: {
         announcementId,
-        userId: authUser.id,
+        userId: ctx.user.id,
         readAt: new Date(),
       },
     })
@@ -42,4 +42,4 @@ export async function POST(
     console.error('Error marking announcement as read:', error)
     return NextResponse.json({ error: 'Failed to mark as read' }, { status: 500 })
   }
-}
+})

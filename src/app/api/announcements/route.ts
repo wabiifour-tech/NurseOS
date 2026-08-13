@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
 import { createNotification, notifyFacilityUsers } from '@/lib/notify'
 
 // GET /api/announcements - List announcements for the current user
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({
+  auditAction: 'announcements.list',
+  auditResource: 'announcement',
+}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const limit = parseInt(searchParams.get('limit') || '20')
     const page = parseInt(searchParams.get('page') || '1')
     const category = searchParams.get('category') || ''
@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
     const whereConditions: Record<string, unknown>[] = []
 
     // Facility-scoped announcements
-    if (authUser.facilityId) {
-      whereConditions.push({ facilityId: authUser.facilityId })
+    if (ctx.user.facilityId) {
+      whereConditions.push({ facilityId: ctx.user.facilityId })
     }
 
     // System-wide announcements (SUPER_ADMIN created, facilityId is null)
@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
     }
 
     // If admin, also show announcements they authored
-    if (authUser.role === 'ADMIN' || authUser.role === 'SUPER_ADMIN') {
-      whereConditions.push({ authorId: authUser.id })
+    if (ctx.user.role === 'ADMIN' || ctx.user.role === 'SUPER_ADMIN') {
+      whereConditions.push({ authorId: ctx.user.id })
     }
 
     // NOTE: Do NOT filter by isGlobal — it excludes facility-specific announcements.
@@ -49,25 +49,25 @@ export async function GET(request: NextRequest) {
     // ─── Target-scope filtering (academic module) ───
     // Each user only sees announcements targeted at them:
     //   - ALL: everyone sees it
-    //   - LEVEL: only students/lecturers whose studentLevel matches targetLevel (or lecturers, who see all level-specific)
+    //   - LEVEL: only students/lecturers whose studentLevel matches targetLevel (or lecturers, who see all levels)
     //   - LECTURERS: only users with academicRole='LECTURER' (or admins)
     //   - STUDENTS: only users with academicRole='STUDENT' (or admins)
     // Admins see everything in their facility.
-    const isAdmin = authUser.role === 'ADMIN' || authUser.role === 'SUPER_ADMIN'
+    const isAdmin = ctx.user.role === 'ADMIN' || ctx.user.role === 'SUPER_ADMIN'
     if (!isAdmin) {
       const scopeConditions: Record<string, unknown>[] = [{ targetScope: 'ALL' }]
-      if (authUser.academicRole === 'LECTURER') {
+      if (ctx.user.academicRole === 'LECTURER') {
         // Lecturers see LEVEL announcements (any level — they manage all levels), LECTURERS, and ALL
         scopeConditions.push({ targetScope: 'LECTURERS' })
         scopeConditions.push({ targetScope: 'LEVEL' })
-      } else if (authUser.academicRole === 'STUDENT') {
+      } else if (ctx.user.academicRole === 'STUDENT') {
         // Students see STUDENTS, ALL, and LEVEL where targetLevel === their level
         scopeConditions.push({ targetScope: 'STUDENTS' })
-        if (authUser.studentLevel) {
+        if (ctx.user.studentLevel) {
           scopeConditions.push({
             AND: [
               { targetScope: 'LEVEL' },
-              { targetLevel: authUser.studentLevel },
+              { targetLevel: ctx.user.studentLevel },
             ],
           })
         }
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
             select: { id: true, name: true },
           },
           reads: {
-            where: { userId: authUser.id },
+            where: { userId: ctx.user.id },
             select: { id: true, readAt: true },
           },
           _count: {
@@ -141,17 +141,17 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching announcements:', error)
     return NextResponse.json({ error: 'Failed to fetch announcements' }, { status: 500 })
   }
-}
+})
 
 // POST /api/announcements - Create an announcement (admin OR lecturer for academic institutions)
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({
+  auditAction: 'announcements.create',
+  auditResource: 'announcement',
+}, async (ctx) => {
   // Admins (facility or institution) AND lecturers can create announcements.
   // Lecturers are restricted to their own institution + academic scopes (LEVEL/LECTURERS/STUDENTS).
-  const isAdmin = authUser.role === 'ADMIN' || authUser.role === 'SUPER_ADMIN'
-  const isLecturer = authUser.academicRole === 'LECTURER'
+  const isAdmin = ctx.user.role === 'ADMIN' || ctx.user.role === 'SUPER_ADMIN'
+  const isLecturer = ctx.user.academicRole === 'LECTURER'
   if (!isAdmin && !isLecturer) {
     return NextResponse.json({ error: 'Only administrators or lecturers can create announcements' }, { status: 403 })
   }
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
   try {
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -172,13 +172,13 @@ export async function POST(request: NextRequest) {
 
     // Only SUPER_ADMIN can create system-wide announcements (facilityId = null)
     let targetFacilityId = facilityId || null
-    if (!targetFacilityId && (authUser.role === 'ADMIN' || isLecturer)) {
+    if (!targetFacilityId && (ctx.user.role === 'ADMIN' || isLecturer)) {
       // Regular admin / lecturer must target their own facility
-      targetFacilityId = authUser.facilityId
+      targetFacilityId = ctx.user.facilityId
     }
 
     // ADMIN / LECTURER can only post to their own facility
-    if ((authUser.role === 'ADMIN' || isLecturer) && targetFacilityId && targetFacilityId !== authUser.facilityId) {
+    if ((ctx.user.role === 'ADMIN' || isLecturer) && targetFacilityId && targetFacilityId !== ctx.user.facilityId) {
       return NextResponse.json({ error: 'You can only create announcements for your own facility' }, { status: 403 })
     }
 
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
 
     const announcement = await db.announcement.create({
       data: {
-        authorId: authUser.id,
+        authorId: ctx.user.id,
         facilityId: targetFacilityId,
         title: title.trim(),
         message: content.trim(),
@@ -367,4 +367,4 @@ export async function POST(request: NextRequest) {
     console.error('Error creating announcement:', error)
     return NextResponse.json({ error: 'Failed to create announcement' }, { status: 500 })
   }
-}
+})

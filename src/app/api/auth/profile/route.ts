@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware'
 
 // GET /api/auth/profile — Load full profile including NurseProfile data
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({
+  auditAction: 'auth.profile.read',
+  auditResource: 'user',
+}, async (ctx) => {
   try {
     const user = await db.user.findUnique({
-      where: { id: authUser.id },
+      where: { id: ctx.user.id },
       include: {
         nurseProfile: {
           select: {
@@ -38,23 +38,23 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-export async function PATCH(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const PATCH = withAuth({
+  auditAction: 'auth.profile.update',
+  auditResource: 'user',
+}, async (ctx) => {
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     const { firstName, lastName, phone, bio, facilityId, compactMode, avatarUrl } = body
 
     // Use the authenticated user's ID from the session, not from the request body
-    const userId = authUser.id
+    const userId = ctx.user.id
 
     // Find the user
     const user = await db.user.findUnique({
@@ -94,7 +94,7 @@ export async function PATCH(request: NextRequest) {
     // 🔒 FACILITY ISOLATION: Handle facility assignment update
     // Only SUPER_ADMIN and ADMIN can change facility assignments
     if (facilityId !== undefined) {
-      if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
+      if (ctx.user.role !== 'SUPER_ADMIN' && ctx.user.role !== 'ADMIN') {
         return NextResponse.json(
           { error: 'Only administrators can change facility assignments. Please contact your admin.' },
           { status: 403 }
@@ -102,7 +102,7 @@ export async function PATCH(request: NextRequest) {
       }
       // Non-SUPER_ADMIN can only assign themselves to their own existing facility
       // (or clear it). They cannot self-assign to a different facility.
-      if (authUser.role === 'ADMIN' && facilityId && authUser.facilityId && facilityId !== authUser.facilityId) {
+      if (ctx.user.role === 'ADMIN' && facilityId && ctx.user.facilityId && facilityId !== ctx.user.facilityId) {
         return NextResponse.json(
           { error: 'You can only manage your currently assigned facility. Contact your organization admin to change facilities.' },
           { status: 403 }
@@ -158,7 +158,7 @@ export async function PATCH(request: NextRequest) {
     })
 
     // Get the updated facility info for the response
-    let updatedFacilityId = facilityId !== undefined ? facilityId : authUser.facilityId
+    let updatedFacilityId = facilityId !== undefined ? facilityId : ctx.user.facilityId
     let facilityName: string | null = null
     if (updatedFacilityId) {
       const facility = await db.facility.findUnique({
@@ -184,4 +184,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
