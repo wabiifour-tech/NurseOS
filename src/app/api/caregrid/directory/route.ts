@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/caregrid/directory - Nurse directory
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const search = searchParams.get('search') || ''
     const specialty = searchParams.get('specialty') || ''
     const facilityId = searchParams.get('facilityId') || ''
@@ -95,4 +92,4 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching nurse directory:', error)
     return NextResponse.json({ error: 'Failed to fetch nurse directory' }, { status: 500 })
   }
-}
+})

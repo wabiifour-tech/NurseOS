@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/caregrid/facilities - List facilities with search/filter
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const search = searchParams.get('search') || ''
     const type = searchParams.get('type') || ''
     const state = searchParams.get('state') || ''
@@ -93,15 +90,12 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // POST /api/caregrid/facilities - Add a new facility (admin only)
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 Only admins can create facilities
-  if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
+  if (ctx.role !== 'ADMIN' && ctx.role !== 'SUPER_ADMIN') {
     return NextResponse.json(
       { error: 'Only facility administrators can create new facilities.' },
       { status: 403 }
@@ -111,7 +105,7 @@ export async function POST(request: NextRequest) {
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -178,4 +172,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
