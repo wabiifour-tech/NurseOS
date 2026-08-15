@@ -3,16 +3,13 @@
  * Get email sending statistics. Only SUPER_ADMIN.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { withAuth } from '@/lib/middleware/compose'
 import { getEmailStats } from '@/lib/email'
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth({}, async ({ user: ctx }) => {
   try {
-    const authUser = await getAuthenticatedUser(request)
-    if (!authUser) return unauthorizedResponse()
-
-    if (authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Super Admin access required' }, { status: 403 })
     }
 
@@ -26,4 +23,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

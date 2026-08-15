@@ -14,19 +14,16 @@
  * }
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { withAuth } from '@/lib/middleware/compose'
 import { db } from '@/lib/db'
 import { sendBulkEmails, EMAIL_CONFIG, type EmailTemplateId } from '@/lib/email'
 import { CustomEmail } from '@/emails/custom'
 import { AnnouncementEmail } from '@/emails/announcement'
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(request)
-    if (!authUser) return unauthorizedResponse()
-
-    if (authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'Only Super Admins can broadcast emails' },
         { status: 403 }
@@ -74,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     const sender = await db.user.findUnique({
-      where: { id: authUser.id },
+      where: { id: ctx.id },
       select: { firstName: true, lastName: true, role: true },
     })
     const senderName = sender ? `${sender.firstName} ${sender.lastName}` : 'NurseOS'
@@ -116,7 +113,7 @@ export async function POST(request: NextRequest) {
       subject,
       templateId: templateId as EmailTemplateId,
       reactFactory,
-      senderId: authUser.id,
+      senderId: ctx.id,
       metadata: { message, ctaUrl, ctaLabel, isBroadcast: true },
     })
 
@@ -134,4 +131,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

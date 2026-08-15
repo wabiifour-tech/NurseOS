@@ -1,14 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { requireFacility } from '@/lib/auth'
 
 // GET /api/analytics/report-data - Return real report metrics from the database
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const facilityId = requireFacility(authUser)
+    const facilityId = requireFacility(ctx)
     if (facilityId instanceof Response) return facilityId
 
     const { searchParams } = new URL(request.url)
@@ -317,4 +315,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

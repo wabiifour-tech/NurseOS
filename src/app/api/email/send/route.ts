@@ -12,8 +12,8 @@
  * }
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { withAuth } from '@/lib/middleware/compose'
 import { db } from '@/lib/db'
 import { sendEmail, EMAIL_CONFIG, type EmailTemplateId } from '@/lib/email'
 import { CustomEmail } from '@/emails/custom'
@@ -23,13 +23,10 @@ import { FacilityApprovalEmail } from '@/emails/facility-approval'
 import { SubscriptionEmail } from '@/emails/subscription'
 import { AnnouncementEmail } from '@/emails/announcement'
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(request)
-    if (!authUser) return unauthorizedResponse()
-
     // Only SUPER_ADMIN can send emails
-    if (authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'Only Super Admins can send emails' },
         { status: 403 }
@@ -65,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Get sender info
     const sender = await db.user.findUnique({
-      where: { id: authUser.id },
+      where: { id: ctx.id },
       select: { firstName: true, lastName: true, role: true },
     })
 
@@ -173,7 +170,7 @@ export async function POST(request: NextRequest) {
       subject,
       templateId: templateId as EmailTemplateId,
       react,
-      senderId: authUser.id,
+      senderId: ctx.id,
       recipientId: recipient.id,
       metadata: { message, ctaUrl, ctaLabel },
     })
@@ -193,4 +190,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

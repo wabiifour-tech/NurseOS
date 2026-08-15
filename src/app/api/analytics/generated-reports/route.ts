@@ -1,20 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { requireFacility } from '@/lib/auth'
 
 // GET /api/analytics/generated-reports — List generated reports for the current user
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const facilityId = requireFacility(authUser)
+    const facilityId = requireFacility(ctx)
     if (facilityId instanceof Response) return facilityId
 
     const { searchParams } = new URL(request.url)
     const templateId = searchParams.get('templateId') || ''
 
-    const where: Record<string, unknown> = { userId: authUser.id }
+    const where: Record<string, unknown> = { userId: ctx.id }
     if (templateId) where.templateId = templateId
 
     const reports = await db.generatedReport.findMany({
@@ -36,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Also get the lastGenerated timestamp per template
     const lastGeneratedPerTemplate = await db.generatedReport.groupBy({
       by: ['templateId'],
-      where: { userId: authUser.id },
+      where: { userId: ctx.id },
       _max: { generatedAt: true },
     })
 
@@ -52,15 +50,12 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching generated reports:', error)
     return NextResponse.json({ error: 'Failed to fetch generated reports' }, { status: 500 })
   }
-}
+})
 
 // POST /api/analytics/generated-reports — Save a generated report
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const facilityId = requireFacility(authUser)
+    const facilityId = requireFacility(ctx)
     if (facilityId instanceof Response) return facilityId
 
     let body
@@ -88,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     const report = await db.generatedReport.create({
       data: {
-        userId: authUser.id,
+        userId: ctx.id,
         facilityId,
         templateId,
         title,
@@ -104,13 +99,10 @@ export async function POST(request: NextRequest) {
     console.error('Error saving generated report:', error)
     return NextResponse.json({ error: 'Failed to save generated report' }, { status: 500 })
   }
-}
+})
 
 // DELETE /api/analytics/generated-reports — Delete a generated report
-export async function DELETE(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const DELETE = withAuth({}, async ({ user: ctx, request }) => {
   try {
     let body
     try {
@@ -125,7 +117,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await db.generatedReport.deleteMany({
-      where: { id: reportId, userId: authUser.id },
+      where: { id: reportId, userId: ctx.id },
     })
 
     return NextResponse.json({ message: 'Report deleted successfully' })
@@ -133,4 +125,4 @@ export async function DELETE(request: NextRequest) {
     console.error('Error deleting generated report:', error)
     return NextResponse.json({ error: 'Failed to delete generated report' }, { status: 500 })
   }
-}
+})

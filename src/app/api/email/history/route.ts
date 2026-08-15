@@ -10,17 +10,14 @@
  *   search?: string (search by subject, recipient email)
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { withAuth } from '@/lib/middleware/compose'
 import { db } from '@/lib/db'
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(request)
-    if (!authUser) return unauthorizedResponse()
-
     // Only admins can view email history
-    if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
+    if (ctx.role !== 'SUPER_ADMIN' && ctx.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
@@ -37,8 +34,8 @@ export async function GET(request: NextRequest) {
     let where: any = {}
 
     // Non-SUPER_ADMIN admins can only see emails they sent
-    if (authUser.role !== 'SUPER_ADMIN') {
-      where.senderId = authUser.id
+    if (ctx.role !== 'SUPER_ADMIN') {
+      where.senderId = ctx.id
     }
 
     if (status) where.status = status
@@ -84,4 +81,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
