@@ -15,16 +15,13 @@
  * Auth: LECTURER (must be the uploader of the material), or ADMIN/SUPER_ADMIN.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth({}, async (ctx) => {
   try {
-    const authUser = await getAuthenticatedUser(request)
-    if (!authUser) return unauthorizedResponse()
-
-    if (authUser.academicRole !== 'LECTURER' && authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.academicRole !== 'LECTURER' && ctx.role !== 'ADMIN' && ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'Only lecturers or institution admins can share materials' },
         { status: 403 }
@@ -33,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     let body: any
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -63,11 +60,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Only the uploader lecturer, institution admin at same facility, or super admin can share
-    const isUploader = material.uploaderId === authUser.id
+    const isUploader = material.uploaderId === ctx.id
     const isSameFacilityAdmin =
-      (authUser.role === 'ADMIN' || authUser.role === 'SUPER_ADMIN') &&
-      material.facilityId === authUser.facilityId
-    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+      (ctx.role === 'ADMIN' || ctx.role === 'SUPER_ADMIN') &&
+      material.facilityId === ctx.facilityId
+    const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
 
     if (!isUploader && !isSameFacilityAdmin && !isSuperAdmin) {
       return NextResponse.json(
@@ -104,7 +101,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (recipient.id === authUser.id) {
+    if (recipient.id === ctx.id) {
       return NextResponse.json({ error: 'You cannot share a material with yourself.' }, { status: 400 })
     }
 
@@ -112,7 +109,7 @@ export async function POST(request: NextRequest) {
     const existing = await db.sharedMaterial.findFirst({
       where: {
         materialId,
-        senderId: authUser.id,
+        senderId: ctx.id,
         recipientId: recipient.id,
         status: { in: ['PENDING', 'ACCEPTED'] },
       },
@@ -127,7 +124,7 @@ export async function POST(request: NextRequest) {
     const share = await db.sharedMaterial.create({
       data: {
         materialId,
-        senderId: authUser.id,
+        senderId: ctx.id,
         recipientId: recipient.id,
         recipientEmail: recipient.email,
         message: message ? String(message).slice(0, 1000) : null,
@@ -139,7 +136,7 @@ export async function POST(request: NextRequest) {
     // Notify the recipient
     try {
       const sender = await db.user.findUnique({
-        where: { id: authUser.id },
+        where: { id: ctx.id },
         select: { firstName: true, lastName: true, facility: { select: { name: true } } },
       })
       await db.notification.create({
@@ -168,4 +165,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

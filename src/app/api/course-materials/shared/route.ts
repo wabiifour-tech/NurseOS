@@ -10,31 +10,28 @@
  * Auth: LECTURER, ADMIN, SUPER_ADMIN
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const authUser = await getAuthenticatedUser(request)
-    if (!authUser) return unauthorizedResponse()
-
-    if (authUser.academicRole !== 'LECTURER' && authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.academicRole !== 'LECTURER' && ctx.role !== 'ADMIN' && ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'Only lecturers or institution admins can view shared materials' },
         { status: 403 }
       )
     }
 
-    const url = new URL(request.url)
+    const url = new URL(ctx.request.url)
     const direction = url.searchParams.get('direction') || 'received'
     const statusFilter = url.searchParams.get('status')  // PENDING, ACCEPTED, REJECTED
 
     const where: any = {}
     if (direction === 'sent') {
-      where.senderId = authUser.id
+      where.senderId = ctx.id
     } else {
-      where.recipientId = authUser.id
+      where.recipientId = ctx.id
     }
     if (statusFilter && ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'].includes(statusFilter)) {
       where.status = statusFilter
@@ -99,4 +96,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
