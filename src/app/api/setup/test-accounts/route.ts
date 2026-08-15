@@ -5,20 +5,19 @@
  * Blocked by middleware in ALL environments. Defense-in-depth: requires ADMIN auth.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db, isDatabaseConnected } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth({}, async (ctx) => {
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-  if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
+  // Defense-in-depth: require admin auth
+  if (ctx.role !== 'SUPER_ADMIN' && ctx.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
@@ -195,4 +194,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
