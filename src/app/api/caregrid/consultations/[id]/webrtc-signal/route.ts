@@ -1,20 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { getNurseProfileId } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/caregrid/consultations/[id]/webrtc-signal
 // Poll for signaling data (offer, answer, ICE candidates)
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const { id: consultationId } = await params
+export const GET = withAuth({}, async (ctx) => {
+  const consultationId = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2, -1)[0]
 
   // Verify the user is part of this consultation
-  const nurseId = await getNurseProfileId(authUser.id)
+  const nurseId = await getNurseProfileId(ctx.id)
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
     select: {
@@ -61,21 +56,15 @@ export async function GET(
     status: consultation.status,
     endedAt: consultation.endedAt,
   })
-}
+})
 
 // POST /api/caregrid/consultations/[id]/webrtc-signal
 // Send signaling data (offer, answer, ICE candidate)
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const { id: consultationId } = await params
+export const POST = withAuth({}, async (ctx) => {
+  const consultationId = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2, -1)[0]
 
   // Verify the user is part of this consultation
-  const nurseId = await getNurseProfileId(authUser.id)
+  const nurseId = await getNurseProfileId(ctx.id)
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
     select: {
@@ -96,7 +85,7 @@ export async function POST(
 
   let body: { type: string; sdp?: string; candidate?: string }
   try {
-    body = await request.json()
+    body = await ctx.request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -184,4 +173,4 @@ export async function POST(
   }
 
   return NextResponse.json({ success: true })
-}
+})

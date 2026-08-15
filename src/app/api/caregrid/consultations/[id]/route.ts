@@ -1,26 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { getNurseProfileId } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // PATCH /api/caregrid/consultations/[id] - Update a consultation (notes, status, etc.)
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const { id: consultationId } = await params
+export const PATCH = withAuth({}, async (ctx) => {
+  const consultationId = ctx.request.nextUrl.pathname.split('/').filter(Boolean).pop()!
 
   let body: Record<string, unknown>
   try {
-    body = await request.json()
+    body = await ctx.request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
   // Verify the consultation exists and the user is authorized
-  const nurseId = await getNurseProfileId(authUser.id)
+  const nurseId = await getNurseProfileId(ctx.id)
   const existing = await db.consultation.findUnique({
     where: { id: consultationId },
   })
@@ -91,4 +86,4 @@ export async function PATCH(
   })
 
   return NextResponse.json({ consultation: updated })
-}
+})

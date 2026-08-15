@@ -1,19 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { getNurseProfileId } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/caregrid/consultations/[id]/messages
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const { id: consultationId } = await params
+export const GET = withAuth({}, async (ctx) => {
+  const consultationId = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2, -1)[0]
 
   // Verify the user is part of this consultation
-  const nurseId = await getNurseProfileId(authUser.id)
+  const nurseId = await getNurseProfileId(ctx.id)
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
     select: { requestingNurseId: true, consultingNurseId: true },
@@ -27,7 +22,7 @@ export async function GET(
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
 
-  const { searchParams } = new URL(request.url)
+  const { searchParams } = new URL(ctx.request.url)
   const afterId = searchParams.get('afterId') || ''
 
   // Build where clause — cursor-based pagination by ID
@@ -48,20 +43,14 @@ export async function GET(
   })
 
   return NextResponse.json({ messages })
-}
+})
 
 // POST /api/caregrid/consultations/[id]/messages
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const { id: consultationId } = await params
+export const POST = withAuth({}, async (ctx) => {
+  const consultationId = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2, -1)[0]
 
   // Verify the user is part of this consultation
-  const nurseId = await getNurseProfileId(authUser.id)
+  const nurseId = await getNurseProfileId(ctx.id)
   const consultation = await db.consultation.findUnique({
     where: { id: consultationId },
     select: { requestingNurseId: true, consultingNurseId: true, status: true },
@@ -77,7 +66,7 @@ export async function POST(
 
   let body: { content: string }
   try {
-    body = await request.json()
+    body = await ctx.request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -100,4 +89,4 @@ export async function POST(
   })
 
   return NextResponse.json({ message }, { status: 201 })
-}
+})
