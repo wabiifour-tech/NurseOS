@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse } from '@/lib/auth'
+import { getNurseProfileId } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/caregrid/knowledge/[articleId]/comments - List comments for an article
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ articleId: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { articleId } = await params
+    // IF-007: extract [articleId] from pathname
+    // Path: /api/caregrid/knowledge/{articleId}/comments
+    const articleId = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2, -1)[0]
 
     const comments = await db.articleComment.findMany({
       where: { articleId },
@@ -43,27 +40,23 @@ export async function GET(
     console.error('Error fetching comments:', error)
     return NextResponse.json({ error: 'Failed to fetch comments' }, { status: 500 })
   }
-}
+})
 
 // POST /api/caregrid/knowledge/[articleId]/comments - Add a comment
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ articleId: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = await getNurseProfileId(ctx.id)
     if (!nurseId) {
       return NextResponse.json({ error: 'No nurse profile found' }, { status: 404 })
     }
 
-    const { articleId } = await params
+    // IF-007: extract [articleId] from pathname
+    // Path: /api/caregrid/knowledge/{articleId}/comments
+    const articleId = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2, -1)[0]
 
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -120,4 +113,4 @@ export async function POST(
     console.error('Error creating comment:', error)
     return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 })
   }
-}
+})
