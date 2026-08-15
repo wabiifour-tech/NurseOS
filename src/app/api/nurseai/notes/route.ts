@@ -1,14 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { getNurseProfileId, requireFacility } from '@/lib/auth'
 
 // GET /api/nurseai/notes - List nursing notes scoped to nurse's facility
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const recordId = searchParams.get('recordId') || ''
     const nurseId = searchParams.get('nurseId') || ''
     const patientId = searchParams.get('patientId') || ''
@@ -17,8 +15,8 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view notes
-    const facilityIdResult = requireFacility(authUser)
-    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    const facilityIdResult = requireFacility(ctx)
+    const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
     if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
     const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
@@ -98,23 +96,20 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // POST /api/nurseai/notes - Create a nursing note
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -126,7 +121,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    if (!authUser.nurseProfileId && !isSuperAdmin) {
+    if (!ctx.nurseProfileId && !isSuperAdmin) {
       return NextResponse.json(
         { error: 'Only nurses can create notes' },
         { status: 403 }
@@ -174,9 +169,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve nurseId — SUPER_ADMIN may not have a NurseProfile, try to find one
-    let resolvedNurseId = authUser.nurseProfileId
+    let resolvedNurseId = ctx.nurseProfileId
     if (!resolvedNurseId && isSuperAdmin) {
-      resolvedNurseId = await getNurseProfileId(authUser.id)
+      resolvedNurseId = await getNurseProfileId(ctx.id)
     }
     if (!resolvedNurseId) {
       return NextResponse.json(
@@ -235,4 +230,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
