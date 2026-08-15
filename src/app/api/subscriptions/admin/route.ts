@@ -1,18 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/subscriptions/admin — List all subscriptions (admin only)
-export async function GET(req: NextRequest) {
+export const GET = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-
-    if (authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Forbidden. Super Admin access required.' }, { status: 403 })
     }
 
-    const { searchParams } = new URL(req.url)
+    const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const plan = searchParams.get('plan')
 
@@ -52,19 +49,16 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching admin subscriptions:', error)
     return NextResponse.json({ error: 'Failed to fetch subscriptions' }, { status: 500 })
   }
-}
+})
 
 // PATCH /api/subscriptions/admin — Verify/Update a subscription (admin only)
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-
-    if (authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Forbidden. Super Admin access required.' }, { status: 403 })
     }
 
-    const body = await req.json()
+    const body = await request.json()
     const { subscriptionId, action, plan, status, notes, amountPaid } = body
 
     if (!subscriptionId) {
@@ -76,7 +70,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
     }
 
-    const updateData: any = { verifiedBy: authUser.id, verifiedAt: new Date() }
+    const updateData: any = { verifiedBy: ctx.id, verifiedAt: new Date() }
 
     if (action === 'verify') {
       updateData.status = 'ACTIVE'
@@ -118,4 +112,4 @@ export async function PATCH(req: NextRequest) {
     console.error('Error updating subscription:', error)
     return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 })
   }
-}
+})

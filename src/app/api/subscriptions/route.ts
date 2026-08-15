@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 import { PLAN_LIMITS, isLimitExceeded, type PlanType } from '@/lib/plan-limits'
 
 // GET /api/subscriptions — Get current user's facility subscription and plan limits
-export async function GET(req: NextRequest) {
+export const GET = withAuth({}, async ({ user: ctx }) => {
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-
     // Resolve facilityId from the auth context (which already checks User.facilityId,
     // NurseProfile.currentFacilityId, and AdminProfile.facilityId)
-    const facilityId = authUser.facilityId
+    const facilityId = ctx.facilityId
 
     if (!facilityId) {
       // No facility assigned — return FREE plan with zero usage
@@ -43,7 +40,7 @@ export async function GET(req: NextRequest) {
     if (!subscription) {
       subscription = await db.subscription.create({
         data: {
-          userId: authUser.id,
+          userId: ctx.id,
           facilityId,
           plan: 'FREE',
           status: 'ACTIVE',
@@ -92,4 +89,4 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching subscription:', error)
     return NextResponse.json({ error: 'Failed to fetch subscription' }, { status: 500 })
   }
-}
+})

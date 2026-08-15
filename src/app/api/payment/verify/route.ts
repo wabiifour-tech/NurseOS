@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 import { PLAN_PRICES, type PlanType } from '@/lib/plan-limits'
 
 // GET /api/payment/verify?reference=xxx — Verify a Paystack transaction
-export async function GET(req: NextRequest) {
+export const GET = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-
-    const { searchParams } = new URL(req.url)
+    const { searchParams } = new URL(request.url)
     const reference = searchParams.get('reference')
 
     if (!reference) {
@@ -79,7 +76,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const facilityId = authUser.facilityId
+    const facilityId = ctx.facilityId
     if (!facilityId) {
       return NextResponse.json(
         { error: 'No facility associated with your account. Please join a facility first.' },
@@ -95,7 +92,7 @@ export async function GET(req: NextRequest) {
     const subscription = await db.subscription.upsert({
       where: { facilityId },
       create: {
-        userId: authUser.id,
+        userId: ctx.id,
         facilityId,
         plan,
         status: 'ACTIVE',
@@ -138,4 +135,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

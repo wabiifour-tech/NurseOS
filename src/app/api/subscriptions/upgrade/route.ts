@@ -1,24 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, noFacilityResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { noFacilityResponse } from '@/lib/auth'
 
 // POST /api/subscriptions/upgrade — Request a plan upgrade (ADMIN only)
-export async function POST(req: NextRequest) {
+export const POST = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-
     // Only ADMIN or SUPER_ADMIN can upgrade a facility's subscription
-    if (authUser.role !== 'ADMIN' && authUser.role !== 'SUPER_ADMIN') {
+    if (ctx.role !== 'ADMIN' && ctx.role !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'Forbidden. Only facility admins can upgrade the subscription.' },
         { status: 403 }
       )
     }
 
-    if (!authUser.facilityId) return noFacilityResponse()
+    if (!ctx.facilityId) return noFacilityResponse()
 
-    const body = await req.json()
+    const body = await request.json()
     const { plan, paymentMethod, paymentReference, amountPaid } = body
 
     if (!plan || !['STARTER', 'PRO', 'ENTERPRISE'].includes(plan)) {
@@ -28,7 +26,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const facilityId = authUser.facilityId
+    const facilityId = ctx.facilityId
 
     // Check if facility already has an active subscription on the requested plan
     const existing = await db.subscription.findUnique({ where: { facilityId } })
@@ -48,7 +46,7 @@ export async function POST(req: NextRequest) {
     const subscription = await db.subscription.upsert({
       where: { facilityId },
       create: {
-        userId: authUser.id,
+        userId: ctx.id,
         facilityId,
         plan,
         status: 'TRIALING',
@@ -90,4 +88,4 @@ export async function POST(req: NextRequest) {
     console.error('Error upgrading subscription:', error)
     return NextResponse.json({ error: 'Failed to process upgrade request' }, { status: 500 })
   }
-}
+})

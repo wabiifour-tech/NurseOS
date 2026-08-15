@@ -1,13 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { withAuth } from '@/lib/middleware/compose'
 import { PLAN_PRICES, type PlanType } from '@/lib/plan-limits'
 
 // POST /api/payment/initialize — Initialize a Paystack transaction
-export async function POST(req: NextRequest) {
+export const POST = withAuth({}, async ({ user: ctx, request }) => {
   try {
-    const authUser = await getAuthenticatedUser(req)
-    if (!authUser) return unauthorizedResponse()
-
     const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY
 
     if (!PAYSTACK_SECRET_KEY) {
@@ -17,7 +14,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const body = await req.json()
+    const body = await request.json()
     const { plan } = body as { plan: PlanType }
 
     if (!plan || !['STARTER', 'PRO'].includes(plan)) {
@@ -47,13 +44,13 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        email: authUser.email,
+        email: ctx.email,
         amount: amountInKobo,
         currency: 'NGN',
         callback_url: `${callbackUrl}?reference={reference}`,
         metadata: {
-          userId: authUser.id,
-          facilityId: authUser.facilityId || '',
+          userId: ctx.id,
+          facilityId: ctx.facilityId || '',
           plan,
           custom_fields: [
             {
@@ -64,7 +61,7 @@ export async function POST(req: NextRequest) {
             {
               display_name: 'User ID',
               variable_name: 'user_id',
-              value: authUser.id,
+              value: ctx.id,
             },
           ],
         },
@@ -93,4 +90,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
