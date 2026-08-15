@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { getNurseProfileId, requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/caregrid/referrals - List referrals
 // Shows referrals FROM and TO the nurse's facility (cross-facility visibility for referrals is intentional)
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const status = searchParams.get('status') || ''
     const direction = searchParams.get('direction') || '' // 'outgoing', 'incoming', or '' (both)
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -19,7 +17,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {}
 
     // 🔒 FACILITY ISOLATION: Require facility assignment to view referrals
-    const facilityId = requireFacility(authUser)
+    const facilityId = requireFacility(ctx)
     if (facilityId instanceof Response) return facilityId
 
     // Show referrals where the nurse's facility is either the source or the destination
@@ -68,27 +66,24 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching referrals:', error)
     return NextResponse.json({ error: 'Failed to fetch referrals' }, { status: 500 })
   }
-}
+})
 
 // POST /api/caregrid/referrals - Create a referral
 // Cross-facility: referral FROM nurse's facility TO another facility
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility to create referrals
-  const facilityId = requireFacility(authUser)
+  const facilityId = requireFacility(ctx)
   if (facilityId instanceof Response) return facilityId
 
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = await getNurseProfileId(ctx.id)
     if (!nurseId) {
       return NextResponse.json({ error: 'No nurse profile found for this user' }, { status: 404 })
     }
 
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -161,4 +156,4 @@ export async function POST(request: NextRequest) {
     console.error('Error creating referral:', error)
     return NextResponse.json({ error: 'Failed to create referral' }, { status: 500 })
   }
-}
+})
