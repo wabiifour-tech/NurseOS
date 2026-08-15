@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { getNurseProfileId, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
 
 // System prompts for different note types
 const SYSTEM_PROMPTS: Record<string, string> = {
@@ -45,20 +46,17 @@ Given a nurse's free-text input, extract and structure the data into flow sheet 
 Format your response as valid JSON with keys: vitals (object), intakeOutput (object), assessments (array), interventions (array), confidenceScore (0-1).`,
 }
 
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility assignment to use AI charting
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -171,7 +169,7 @@ export async function POST(request: NextRequest) {
 
     // Save the AI interaction to the database if recordId is provided
     // SUPER_ADMIN without nurseProfileId: skip AI interaction logging
-    const effectiveNurseId = authUser.nurseProfileId || (isSuperAdmin ? await getNurseProfileId(authUser.id) : null)
+    const effectiveNurseId = ctx.nurseProfileId || (isSuperAdmin ? await getNurseProfileId(ctx.id) : null)
     if (effectiveNurseId && recordId) {
       try {
         // 🔒 FACILITY ISOLATION: Verify the medical record belongs to the nurse's facility
@@ -234,4 +232,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
