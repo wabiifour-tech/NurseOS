@@ -1,20 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
 
 // GET /api/nurseai/patients/[id]/visits - List visit records for a patient
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const facilityId = requireFacility(authUser)
+export const GET = withAuth({}, async (ctx) => {
+  const facilityId = requireFacility(ctx)
   if (facilityId instanceof Response) return facilityId
 
   try {
-    const { id } = await params
+    const id = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2,-1)[0]!
 
     // Verify patient exists and belongs to facility
     const patient = await db.patientProfile.findUnique({
@@ -49,21 +44,15 @@ export async function GET(
     console.error('Error fetching visit records:', error)
     return NextResponse.json({ error: 'Failed to fetch visit records' }, { status: 500 })
   }
-}
+})
 
 // POST /api/nurseai/patients/[id]/visits - Create a new visit record
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const facilityId = requireFacility(authUser)
+export const POST = withAuth({}, async (ctx) => {
+  const facilityId = requireFacility(ctx)
   if (facilityId instanceof Response) return facilityId
 
   try {
-    const { id } = await params
+    const id = ctx.request.nextUrl.pathname.split('/').filter(Boolean).slice(-2,-1)[0]!
 
     // Verify patient exists and belongs to facility
     const patient = await db.patientProfile.findUnique({
@@ -80,7 +69,7 @@ export async function POST(
 
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -114,4 +103,4 @@ export async function POST(
     console.error('Error creating visit record:', error)
     return NextResponse.json({ error: 'Failed to create visit record' }, { status: 500 })
   }
-}
+})
