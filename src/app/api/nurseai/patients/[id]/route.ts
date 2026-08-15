@@ -1,24 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
 
 // GET /api/nurseai/patients/[id] - Get a single patient by ID
 // 🔒 FACILITY ISOLATION: Nurses can only view patients in their own facility
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility assignment to view patient data
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
-    const { id } = await params
+    const id = ctx.request.nextUrl.pathname.split('/').filter(Boolean).pop()!
 
     const patient = await db.patientProfile.findUnique({
       where: { id },
@@ -101,4 +96,4 @@ export async function GET(
       { status: 500 }
     )
   }
-}
+})
