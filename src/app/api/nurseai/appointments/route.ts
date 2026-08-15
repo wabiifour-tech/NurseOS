@@ -1,14 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseai/appointments - List appointments scoped to nurse's facility
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const patientId = searchParams.get('patientId') || ''
     const status = searchParams.get('status') || ''
     const date = searchParams.get('date') || ''
@@ -17,8 +15,8 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view appointments
-    const facilityIdResult = requireFacility(authUser)
-    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    const facilityIdResult = requireFacility(ctx)
+    const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
     if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
     const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
@@ -69,23 +67,20 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching appointments:', error)
     return NextResponse.json({ error: 'Failed to fetch appointments' }, { status: 500 })
   }
-}
+})
 
 // POST /api/nurseai/appointments - Schedule an appointment
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -124,7 +119,7 @@ export async function POST(request: NextRequest) {
         status,
         reason: body.reason || null,
         notes: body.notes || null,
-        nurseId: body.nurseId || authUser.nurseProfileId || null,
+        nurseId: body.nurseId || ctx.nurseProfileId || null,
       },
       include: {
         patient: {
@@ -145,4 +140,4 @@ export async function POST(request: NextRequest) {
     console.error('Error scheduling appointment:', error)
     return NextResponse.json({ error: 'Failed to schedule appointment' }, { status: 500 })
   }
-}
+})

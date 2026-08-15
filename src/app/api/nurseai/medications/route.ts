@@ -1,14 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseai/medications - List medication orders scoped to nurse's facility
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const patientId = searchParams.get('patientId') || ''
     const status = searchParams.get('status') || ''
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -16,8 +14,8 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view medications
-    const facilityIdResult = requireFacility(authUser)
-    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    const facilityIdResult = requireFacility(ctx)
+    const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
     if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
     const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
@@ -62,23 +60,20 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching medications:', error)
     return NextResponse.json({ error: 'Failed to fetch medications' }, { status: 500 })
   }
-}
+})
 
 // POST /api/nurseai/medications - Create a medication order
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -153,4 +148,4 @@ export async function POST(request: NextRequest) {
     console.error('Error creating medication order:', error)
     return NextResponse.json({ error: 'Failed to create medication order' }, { status: 500 })
   }
-}
+})

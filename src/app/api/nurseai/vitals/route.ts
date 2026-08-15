@@ -1,22 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 // GET /api/nurseai/vitals - List vitals scoped to nurse's facility
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const patientId = searchParams.get('patientId') || ''
     const limit = parseInt(searchParams.get('limit') || '50')
     const page = parseInt(searchParams.get('page') || '1')
     const skip = (page - 1) * limit
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view vitals
-    const facilityIdResult = requireFacility(authUser)
-    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    const facilityIdResult = requireFacility(ctx)
+    const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
     if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
     const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
@@ -84,23 +82,20 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // POST /api/nurseai/vitals - Record new vital signs
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -179,7 +174,7 @@ export async function POST(request: NextRequest) {
       data: {
         patientId: body.patientId,
         recordId: body.recordId || null,
-        recordedByNurseId: authUser.nurseProfileId || null,
+        recordedByNurseId: ctx.nurseProfileId || null,
         temperature: body.temperature || null,
         heartRate: body.heartRate || null,
         respiratoryRate: body.respiratoryRate || null,
@@ -221,4 +216,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

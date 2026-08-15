@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, unauthorizedResponse, requireFacility } from '@/lib/auth'
+import { requireFacility } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
 
 const VALID_ENCOUNTER_TYPES = [
   'ADMISSION',
@@ -17,12 +18,9 @@ const VALID_ENCOUNTER_TYPES = [
 const VALID_STATUSES = ['ACTIVE', 'DISCHARGED', 'PENDING', 'CLOSED', 'CRITICAL']
 
 // GET /api/nurseai/records - List medical records scoped to nurse's facility
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const GET = withAuth({}, async (ctx) => {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const page = Math.max(1, Number(searchParams.get('page')) || 1)
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 50))
     const status = searchParams.get('status')
@@ -30,8 +28,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
 
     // 🔒 FACILITY ISOLATION: Require a facility assignment to view records
-    const facilityIdResult = requireFacility(authUser)
-    const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+    const facilityIdResult = requireFacility(ctx)
+    const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
     if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
     const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
@@ -132,23 +130,20 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // POST /api/nurseai/records - Create medical record scoped to nurse's facility
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
+export const POST = withAuth({}, async (ctx) => {
   // 🔒 FACILITY ISOLATION: Require a facility assignment
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
     let body;
     try {
-      body = await request.json();
+      body = await ctx.request.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -265,4 +260,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
