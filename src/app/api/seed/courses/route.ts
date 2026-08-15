@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
+import { withAuth } from '@/lib/middleware/compose';
 import crypto from 'crypto';
 
 const COURSES = [
@@ -171,11 +171,9 @@ const COURSES = [
   },
 ];
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth({}, async (ctx) => {
   // Defense-in-depth: require admin auth (also blocked by middleware)
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-  if (authUser.role !== 'SUPER_ADMIN' && authUser.role !== 'ADMIN') {
+  if (ctx.role !== 'SUPER_ADMIN' && ctx.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
@@ -255,12 +253,9 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+})
 
-export async function GET(request: NextRequest) {
-  // Defense-in-depth: require auth (also blocked by middleware)
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
+export const GET = withAuth({}, async (ctx) => {
 
   try {
     const seededSlugs = COURSES.map((c) => c.slug);
@@ -284,4 +279,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+})
