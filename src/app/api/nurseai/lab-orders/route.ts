@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthenticatedUser, getNurseProfileId, unauthorizedResponse, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
+import { withAuth } from '@/lib/middleware/compose'
+import { getNurseProfileId, requireFacility, crossFacilityDeniedResponse } from '@/lib/auth'
 
 // GET /api/nurseai/lab-orders - List lab orders
-export async function GET(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+export const GET = withAuth({}, async (ctx) => {
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(ctx.request.url)
     const status = searchParams.get('status') || ''
     const limit = parseInt(searchParams.get('limit') || '50')
 
@@ -77,20 +75,17 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching lab orders:', error)
     return NextResponse.json({ error: 'Failed to fetch lab orders' }, { status: 500 })
   }
-}
+})
 
 // POST /api/nurseai/lab-orders - Create a new lab order
-export async function POST(request: NextRequest) {
-  const authUser = await getAuthenticatedUser(request)
-  if (!authUser) return unauthorizedResponse()
-
-  const facilityIdResult = requireFacility(authUser)
-  const isSuperAdmin = authUser.role === 'SUPER_ADMIN'
+export const POST = withAuth({}, async (ctx) => {
+  const facilityIdResult = requireFacility(ctx)
+  const isSuperAdmin = ctx.role === 'SUPER_ADMIN'
   if (facilityIdResult instanceof Response && !isSuperAdmin) return facilityIdResult
   const facilityId = facilityIdResult instanceof Response ? null : facilityIdResult
 
   try {
-    const nurseId = await getNurseProfileId(authUser.id)
+    const nurseId = await getNurseProfileId(ctx.id)
     // SUPER_ADMIN may not have a nurse profile — skip the requirement
     if (!nurseId && !isSuperAdmin) {
       return NextResponse.json({ error: 'No nurse profile found' }, { status: 404 })
@@ -98,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     let body
     try {
-      body = await request.json()
+      body = await ctx.request.json()
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
@@ -150,7 +145,7 @@ export async function POST(request: NextRequest) {
       data: {
         patientId: body.patientId,
         recordId,
-        orderedBy: body.orderedBy || `${authUser.id}`,
+        orderedBy: body.orderedBy || `${ctx.id}`,
         testName: body.testName,
         testCategory: body.testCategory,
         specimenType: body.specimenType || null,
@@ -165,4 +160,4 @@ export async function POST(request: NextRequest) {
     console.error('Error creating lab order:', error)
     return NextResponse.json({ error: 'Failed to create lab order' }, { status: 500 })
   }
-}
+})
