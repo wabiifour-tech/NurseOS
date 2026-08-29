@@ -104,16 +104,16 @@ const registerContent = readFile('src/app/api/auth/register/route.ts')
 
 const f2_tests = [
   [
-    'Rate limiter is database-backed (uses db.auditLog)',
-    () => rateLimitContent.includes('db.auditLog')
+    'Rate limiter does NOT use db.auditLog (requires userId FK unavailable pre-auth)',
+    () => !rateLimitContent.includes('db.auditLog')
   ],
   [
-    'Rate limiter retains in-memory as fast path',
-    () => rateLimitContent.includes('In-Memory Layer') && rateLimitContent.includes('store.set')
+    'Rate limiter uses in-memory sliding window',
+    () => rateLimitContent.includes('const store = new Map') && rateLimitContent.includes('store.set')
   ],
   [
-    'Rate limiter has cleanup mechanism',
-    () => rateLimitContent.includes('cleanup') || rateLimitContent.includes('deleteMany')
+    'Rate limiter has cleanup mechanism (setInterval)',
+    () => rateLimitContent.includes('setInterval') && rateLimitContent.includes('store.delete')
   ],
   [
     'checkRateLimit is async',
