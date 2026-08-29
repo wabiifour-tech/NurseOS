@@ -190,7 +190,7 @@ export const POST = withAuth({}, async (ctx) => {
   } catch (error: any) {
     console.error('[Test Accounts] Error:', error)
     return NextResponse.json(
-      { error: 'Failed to create test accounts', details: error.message },
+      { error: 'Failed to create test accounts' },
       { status: 500 }
     )
   }

@@ -85,7 +85,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Comments GET error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch comments', details: error.message },
+      { error: 'Failed to fetch comments' },
       { status: 500 }
     )
   }
@@ -208,7 +208,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Comments POST error:', error)
     return NextResponse.json(
-      { error: 'Failed to create comment', details: error.message },
+      { error: 'Failed to create comment' },
       { status: 500 }
     )
   }

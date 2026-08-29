@@ -171,7 +171,7 @@ export async function PATCH(
   } catch (error: any) {
     console.error('Shared PATCH error:', error)
     return NextResponse.json(
-      { error: 'Failed to update share', details: error.message },
+      { error: 'Failed to update share' },
       { status: 500 }
     )
   }

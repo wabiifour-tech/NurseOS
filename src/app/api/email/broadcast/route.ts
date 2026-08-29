@@ -127,7 +127,7 @@ export const POST = withAuth({}, async ({ user: ctx, request }) => {
   } catch (error: any) {
     console.error('Email broadcast error:', error)
     return NextResponse.json(
-      { error: 'Failed to broadcast email', details: error.message },
+      { error: 'Failed to broadcast email' },
       { status: 500 }
     )
   }

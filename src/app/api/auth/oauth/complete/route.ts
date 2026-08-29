@@ -488,6 +488,6 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       )
     }
-    return NextResponse.json({ error: 'Failed to complete registration', details: errMsg.substring(0, 200) }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to complete registration' }, { status: 500 })
   }
 }

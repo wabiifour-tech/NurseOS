@@ -22,24 +22,26 @@ import {
 // ─── Role Type ────────────────────────────────────────────────────────────────
 
 /** All valid roles in the system — matches DB User.role values */
-export type Role = 'NURSE' | 'DOCTOR' | 'ADMIN' | 'SUPER_ADMIN'
+export type Role = 'PATIENT' | 'NURSE' | 'DOCTOR' | 'ADMIN' | 'SUPER_ADMIN'
 
 // ─── Role Hierarchy ───────────────────────────────────────────────────────────
 
 /**
  * Inheritance chain: each role inherits from the one to its right.
- * NURSE < DOCTOR < ADMIN < SUPER_ADMIN
+ * PATIENT < NURSE < DOCTOR < ADMIN < SUPER_ADMIN
+ * PATIENT has no inherited permissions (leaf node).
  */
 export const ROLE_HIERARCHY: readonly Role[] = [
   'SUPER_ADMIN',
   'ADMIN',
   'DOCTOR',
   'NURSE',
+  'PATIENT',
 ] as const
 
 /**
  * Get the parent role in the inheritance chain.
- * Returns null for NURSE (leaf node).
+ * Returns null for PATIENT (leaf node).
  */
 export function getParentRole(role: Role): Role | null {
   const idx = ROLE_HIERARCHY.indexOf(role)
@@ -54,6 +56,8 @@ export function getParentRole(role: Role): Role | null {
  * The full permission set for a role = its own permissions + all inherited permissions.
  */
 const ROLE_BASE_PERMISSIONS: Record<Role, readonly Permission[]> = {
+  PATIENT: [],
+
   NURSE: [
     // Clinical: read-only + write for own documentation
     CLINICAL_PERMISSIONS.PATIENT_READ,

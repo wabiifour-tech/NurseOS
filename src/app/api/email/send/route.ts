@@ -186,7 +186,7 @@ export const POST = withAuth({}, async ({ user: ctx, request }) => {
   } catch (error: any) {
     console.error('Email send error:', error)
     return NextResponse.json(
-      { error: 'Failed to send email', details: error.message },
+      { error: 'Failed to send email' },
       { status: 500 }
     )
   }

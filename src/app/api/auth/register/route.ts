@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
     }
     const { email, password, firstName, lastName, middleName, role, phone, countryCode, facilityId, newFacility, studentLevel, adminType } = body
 
-    // Rate limiting
-    const rateLimitResult = checkRateLimit(getRateLimitIdentifier(request), AUTH_RATE_LIMIT)
+    // Rate limiting (IP-based)
+    const rateLimitResult = await checkRateLimit(getRateLimitIdentifier(request), AUTH_RATE_LIMIT)
     if (rateLimitResult.limited) {
       return NextResponse.json(
         { error: `Too many registration attempts. Please try again in ${rateLimitResult.retryAfter} seconds.` },

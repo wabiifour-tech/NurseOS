@@ -161,7 +161,7 @@ export const POST = withAuth({}, async (ctx) => {
   } catch (error: any) {
     console.error('Share POST error:', error)
     return NextResponse.json(
-      { error: 'Failed to share material', details: error.message },
+      { error: 'Failed to share material' },
       { status: 500 }
     )
   }

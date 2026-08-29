@@ -324,7 +324,7 @@ export const GET = withAuth({
     return NextResponse.json(
       {
         error: 'Failed to fetch analytics data. Please try again later.',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: 'Error occurred while processing your request',
       },
       { status: 503 }
     )

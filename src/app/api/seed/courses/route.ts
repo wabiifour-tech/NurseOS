@@ -249,7 +249,7 @@ export const POST = withAuth({}, async (ctx) => {
   } catch (error: any) {
     console.error('Course seed error:', error);
     return NextResponse.json(
-      { error: 'Failed to seed courses', details: error.message },
+      { error: 'Failed to seed courses' },
       { status: 500 }
     );
   }
@@ -275,7 +275,7 @@ export const GET = withAuth({}, async (ctx) => {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to check course seed status', details: error.message },
+      { error: 'Failed to check course seed status' },
       { status: 500 }
     );
   }

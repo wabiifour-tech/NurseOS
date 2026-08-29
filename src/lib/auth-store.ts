@@ -22,6 +22,9 @@ interface User {
 
 interface AuthState {
   user: User | null;
+  // NOTE: token is NOT persisted to localStorage.
+  // Browser auth uses the HttpOnly cookie (nurseos-token) set by the server.
+  // This token field exists only for in-memory use (e.g., logout Bearer header fallback).
   token: string | null;
   isAuthenticated: boolean;
   isSuperAdmin: boolean;
@@ -40,14 +43,9 @@ export const useAuthStore = create<AuthState>()(
       isSuperAdmin: false,
       isLoggingOut: false,
       login: (user: User, token?: string) => {
-        if (!token) {
-          console.error('Auth login called without a token — this should not happen');
-          return;
-        }
-        set({ user, token: token, isAuthenticated: true, isSuperAdmin: user.role === 'SUPER_ADMIN', isLoggingOut: false });
-        // NOTE: We do NOT set the cookie here. The server sets the HttpOnly cookie
-        // via the Set-Cookie response header on /api/auth/login and /api/auth/register.
-        // This avoids a race condition between client-side and server-side cookie setting.
+        // Store token in memory only (NOT persisted to localStorage).
+        // Browser auth relies on the HttpOnly cookie set by the server.
+        set({ user, token: token || null, isAuthenticated: true, isSuperAdmin: user.role === 'SUPER_ADMIN', isLoggingOut: false });
       },
       logout: async () => {
         const { token } = get();
@@ -62,15 +60,21 @@ export const useAuthStore = create<AuthState>()(
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                Authorization: `Bearer ${token}`,
               },
+            });
+          } else {
+            // No in-memory token (page was refreshed) — cookie-only logout
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
             });
           }
         } catch (error) {
           console.error('Logout API call failed:', error);
           // Continue with client-side cleanup even if API call fails
         } finally {
-          // Clear client-side state
+          // Clear client-side state (token was already in-memory only)
           set({ user: null, token: null, isAuthenticated: false, isSuperAdmin: false, isLoggingOut: false });
 
           // Also try to clear the cookie client-side as a fallback
@@ -89,6 +93,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "nurseos-auth",
+      // Only persist user profile data, NOT the session token.
+      // The token is stored in the HttpOnly cookie and kept in memory only.
+      // This prevents XSS from extracting the session token from localStorage.
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+        isSuperAdmin: state.isSuperAdmin,
+      }),
     }
   )
 );

@@ -140,7 +140,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Track POST error:', error)
     return NextResponse.json(
-      { error: 'Failed to track event', details: error.message },
+      { error: 'Failed to track event' },
       { status: 500 }
     )
   }

@@ -92,7 +92,7 @@ export const GET = withAuth({}, async (ctx) => {
   } catch (error: any) {
     console.error('Shared materials GET error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch shared materials', details: error.message },
+      { error: 'Failed to fetch shared materials' },
       { status: 500 }
     )
   }

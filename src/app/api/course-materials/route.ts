@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Course materials GET error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch materials', details: error.message },
+      { error: 'Failed to fetch materials' },
       { status: 500 }
     )
   }
@@ -353,7 +353,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Course materials POST error:', error)
     return NextResponse.json(
-      { error: 'Failed to upload material', details: error.message },
+      { error: 'Failed to upload material' },
       { status: 500 }
     )
   }

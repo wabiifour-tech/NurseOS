@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
+import { checkRateLimit, getRateLimitIdentifier, AUTH_RATE_LIMIT } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting (IP-based, token-based to prevent reset token brute-force)
+    const rateLimitResult = await checkRateLimit(getRateLimitIdentifier(request), AUTH_RATE_LIMIT)
+    if (rateLimitResult.limited) {
+      return NextResponse.json(
+        { error: `Too many requests. Please try again in ${rateLimitResult.retryAfter} seconds.` },
+        { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+      )
+    }
+
     let body;
     try {
       body = await request.json();

@@ -115,8 +115,14 @@ export function withAuth(
       return unauthorizedResponse()
     }
 
-    // Resolve role (default to NURSE if unknown — defense in depth)
-    const role: Role = isValidRole(authUser.role) ? authUser.role : 'NURSE'
+    // Resolve role — reject unknown/invalid roles (no silent escalation)
+    if (!isValidRole(authUser.role)) {
+      return Response.json(
+        { error: 'Unauthorized. Your account role is not recognized.', code: 'AUTHENTICATION_REQUIRED' },
+        { status: 401 },
+      )
+    }
+    const role: Role = authUser.role
     const permissions = getRolePermissions(role)
 
     // Detect HTTP method for per-method config

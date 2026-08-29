@@ -23,7 +23,7 @@ export const POST = withAuth({}, async (ctx) => {
   } catch (error: any) {
     console.error('Seed error:', error)
     return NextResponse.json(
-      { error: 'Seed failed', details: error?.message?.substring(0, 200) },
+      { error: 'Seed failed' },
       { status: 500 }
     )
   }

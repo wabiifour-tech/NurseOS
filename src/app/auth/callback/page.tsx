@@ -59,7 +59,8 @@ function processOAuthSession(sessionData: {
           return
         }
 
-        // Normal flow: store session and redirect
+        // Normal flow: store user state (without token) and redirect
+        // Token is in the HttpOnly cookie — no need to store it in localStorage
         console.warn(`[AUTH-TIMELINE][req=${debugId}] CALLBACK_WRITING_LOCALSTORAGE T+${Math.round(performance.now() - cbT0)}ms userId=${data.user.id} tokenLen=${data.token.length}`)
         localStorage.setItem("nurseos-auth", JSON.stringify({
           state: {
@@ -78,7 +79,8 @@ function processOAuthSession(sessionData: {
               facilityType: data.user.facilityType || null,
               nurseProfileId: data.user.nurseProfileId || null,
             },
-            token: data.token,
+            // NOTE: token is NOT stored here.
+            // The server already set the HttpOnly cookie — that's the browser's auth mechanism.
             isAuthenticated: true,
             isSuperAdmin: data.user.role === "SUPER_ADMIN",
             isLoggingOut: false,

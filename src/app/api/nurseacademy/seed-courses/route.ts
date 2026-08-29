@@ -150,7 +150,7 @@ export const POST = withAuth({}, async (ctx) => {
   } catch (error: any) {
     console.error('Course import error:', error);
     return NextResponse.json(
-      { error: 'Failed to import courses', details: error.message },
+      { error: 'Failed to import courses' },
       { status: 500 }
     );
   }
@@ -177,7 +177,7 @@ export async function GET() {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch course stats', details: error.message },
+      { error: 'Failed to fetch course stats' },
       { status: 500 }
     );
   }

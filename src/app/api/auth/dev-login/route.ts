@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Dev login error:', error)
     return NextResponse.json(
-      { error: 'Failed to log in', details: error.message },
+      { error: 'Failed to log in' },
       { status: 500 }
     )
   }

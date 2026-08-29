@@ -67,7 +67,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Course material GET error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch material', details: error.message },
+      { error: 'Failed to fetch material' },
       { status: 500 }
     )
   }
@@ -123,7 +123,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Course material DELETE error:', error)
     return NextResponse.json(
-      { error: 'Failed to delete material', details: error.message },
+      { error: 'Failed to delete material' },
       { status: 500 }
     )
   }

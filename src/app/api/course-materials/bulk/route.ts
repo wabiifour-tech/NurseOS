@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Bulk upload POST error:', error)
     return NextResponse.json(
-      { error: 'Failed to bulk upload materials', details: error.message },
+      { error: 'Failed to bulk upload materials' },
       { status: 500 }
     )
   }

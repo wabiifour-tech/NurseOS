@@ -21,7 +21,7 @@ export async function GET() {
     await db.user.findFirst({ take: 1 })
     tablesExist = true
   } catch (error: any) {
-    schemaError = error?.message?.substring(0, 200) || 'Table does not exist'
+    schemaError = 'Schema has not been pushed yet. Run /api/setup.'
     tablesExist = false
   }
 
