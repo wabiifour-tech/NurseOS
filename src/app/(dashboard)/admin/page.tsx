@@ -946,6 +946,18 @@ function InstitutionAdminDashboard({
   const [studentSearch, setStudentSearch] = React.useState('')
   const [lecturerSearch, setLecturerSearch] = React.useState('')
   const [levelFilter, setLevelFilter] = React.useState<string>('all')
+  const [pendingUsers, setPendingUsers] = React.useState<any[]>([])
+
+  // Fetch general pending users on mount
+  React.useEffect(() => {
+    if (!token) return
+    fetch('/api/admin/pending-users', {
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setPendingUsers(d.pendingUsers || []) })
+      .catch(() => {})
+  }, [token])
 
   const getHeaders = () => ({
     'Content-Type': 'application/json',
@@ -996,6 +1008,39 @@ function InstitutionAdminDashboard({
     } finally {
       setRejectingId(null)
     }
+  }
+
+  // General pending user approve/reject (non-lecturer users)
+  async function handleApproveUser(userId: string) {
+    setApprovingId(userId)
+    try {
+      const res = await fetch('/api/admin/pending-users', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ userId, action: 'approve' }),
+      })
+      const result = await res.json()
+      if (!res.ok) { toast.error(result.error || 'Failed to approve user'); return }
+      toast.success('User approved')
+      setPendingUsers((prev) => prev.filter((u: any) => u.id !== userId))
+      await onRefresh()
+    } catch { toast.error('Failed to approve user') } finally { setApprovingId(null) }
+  }
+
+  async function handleRejectUser(userId: string) {
+    setRejectingId(userId)
+    try {
+      const res = await fetch('/api/admin/pending-users', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ userId, action: 'reject' }),
+      })
+      const result = await res.json()
+      if (!res.ok) { toast.error(result.error || 'Failed to reject user'); return }
+      toast.success('User rejected')
+      setPendingUsers((prev) => prev.filter((u: any) => u.id !== userId))
+      await onRefresh()
+    } catch { toast.error('Failed to reject user') } finally { setRejectingId(null) }
   }
 
   // Filter students by search + level

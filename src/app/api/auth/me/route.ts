@@ -16,7 +16,7 @@ export const GET = withAuth({
   auditAction: 'auth.me',
   auditResource: 'session',
 }, async (ctx) => {
-  const { user: authUser, request } = ctx
+  const { user: authUser } = ctx
 
   const user = await db.user.findUnique({
     where: { id: authUser.id },

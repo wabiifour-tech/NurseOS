@@ -80,6 +80,22 @@ export const PATCH = withAuth({
     )
   }
 
+  // Look up the facility name for notification messages
+  const facilityName = pendingUser.facilityId
+    ? (await db.facility.findUnique({ where: { id: pendingUser.facilityId }, select: { name: true } }))?.name || 'your facility'
+    : 'your facility'
+
+  // Find and dismiss the admin's USER_APPROVAL notification for this user
+  const adminNotification = await db.notification.findFirst({
+    where: {
+      userId: authUser.id,
+      type: 'USER_APPROVAL',
+      isRead: false,
+      message: { contains: pendingUser.email },
+    },
+    select: { id: true },
+  })
+
   if (action === 'approve') {
     await db.user.update({
       where: { id: userId },
@@ -92,17 +108,48 @@ export const PATCH = withAuth({
         userId,
         type: 'ACCOUNT_APPROVED',
         title: 'Your account has been approved!',
-        message: `Welcome to NurseOS! The admin has approved your access. You can now sign in and start using the platform.`,
+        message: `Welcome to NurseOS! Your access to ${facilityName} has been approved. You can now sign in and start using the platform.`,
+        data: JSON.stringify({ facilityId: pendingUser.facilityId }),
       },
     })
 
+    // Dismiss the admin's USER_APPROVAL notification for this user
+    if (adminNotification) {
+      await db.notification.delete({ where: { id: adminNotification.id } })
+    }
+
     return Response.json({ message: 'User approved successfully' })
   } else if (action === 'reject') {
-    // Soft-delete the user by marking as rejected
+    // Set status to REJECTED and clear facility assignment
     await db.user.update({
       where: { id: userId },
-      data: { status: 'DELETED', deletedAt: new Date() },
+      data: {
+        status: 'REJECTED',
+        facilityId: null,
+      },
     })
+
+    // Also clear nurseProfile facility reference if it exists
+    await db.nurseProfile.updateMany({
+      where: { userId },
+      data: { currentFacilityId: null },
+    })
+
+    // Notify the rejected user
+    await db.notification.create({
+      data: {
+        userId,
+        type: 'ACCOUNT_REJECTED',
+        title: 'Your account application was not approved',
+        message: `Your application to join ${facilityName} was not approved. If you believe this is an error, please contact your institution admin or support.`,
+        data: JSON.stringify({ facilityId: pendingUser.facilityId }),
+      },
+    })
+
+    // Dismiss the admin's USER_APPROVAL notification for this user
+    if (adminNotification) {
+      await db.notification.delete({ where: { id: adminNotification.id } })
+    }
 
     return Response.json({ message: 'User rejected' })
   }

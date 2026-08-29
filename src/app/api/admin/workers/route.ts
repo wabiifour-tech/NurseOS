@@ -107,6 +107,7 @@ export const POST = withAuth({
   auditResource: 'user',
   auditSeverity: 'HIGH',
 }, async (ctx) => {
+  const { user: authUser } = ctx
   const facilityId = ctx.facilityId!
 
   let body
@@ -140,6 +141,23 @@ export const POST = withAuth({
     return Response.json({ error: 'Pending user not found in your facility' }, { status: 404 })
   }
 
+  // Look up the facility name for notification messages
+  const facilityName = (await db.facility.findUnique({
+    where: { id: facilityId },
+    select: { name: true },
+  }))?.name || 'your facility'
+
+  // Find and dismiss the admin's USER_APPROVAL notification for this user
+  const adminNotification = await db.notification.findFirst({
+    where: {
+      userId: authUser.id,
+      type: 'USER_APPROVAL',
+      isRead: false,
+      message: { contains: user.email },
+    },
+    select: { id: true },
+  })
+
   if (action === 'approve') {
     await db.user.update({
       where: { id: userId },
@@ -152,10 +170,15 @@ export const POST = withAuth({
         userId,
         type: 'ACCOUNT_APPROVED',
         title: 'Your account has been approved!',
-        message: `Your ${user.academicRole === 'LECTURER' ? 'lecturer' : user.role.toLowerCase()} account at has been approved. You can now sign in to NurseOS.`,
+        message: `Your ${user.academicRole === 'LECTURER' ? 'lecturer' : user.role.toLowerCase()} account at ${facilityName} has been approved. You can now sign in to NurseOS.`,
         data: JSON.stringify({ facilityId }),
       },
     })
+
+    // Dismiss the admin's USER_APPROVAL notification for this user
+    if (adminNotification) {
+      await db.notification.delete({ where: { id: adminNotification.id } })
+    }
 
     return Response.json({ message: 'User approved successfully' })
   } else {
@@ -180,10 +203,15 @@ export const POST = withAuth({
         userId,
         type: 'ACCOUNT_REJECTED',
         title: 'Your account application was not approved',
-        message: `Your application to join was not approved. If you believe this is an error, please contact support.`,
+        message: `Your application to join ${facilityName} was not approved. If you believe this is an error, please contact your institution admin or support.`,
         data: JSON.stringify({ facilityId }),
       },
     })
+
+    // Dismiss the admin's USER_APPROVAL notification for this user
+    if (adminNotification) {
+      await db.notification.delete({ where: { id: adminNotification.id } })
+    }
 
     return Response.json({ message: 'User rejected successfully' })
   }

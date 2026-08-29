@@ -480,13 +480,14 @@ export default function DashboardLayout({
   const mountTimeRef = React.useRef<number>(performance.now())
 
   // [AUTH-TIMELINE] Read correlation ID from sessionStorage (set by /auth/callback during OAuth).
-  // Falls back to 'direct' for non-OAuth navigation (password login, page refresh).
+  // Use 'missing' when absent so logs explicitly show correlation was lost
+  // (e.g. new tab, page refresh, header stripped by proxy) rather than silently masking it.
   const debugId = React.useMemo(() => {
     try {
       const id = sessionStorage.getItem('nurseos-auth-debug-id')
       if (id) { sessionStorage.removeItem('nurseos-auth-debug-id'); return id }
     } catch {}
-    return 'direct'
+    return 'missing'
   }, [])
 
   // Prevent search engines from indexing any dashboard pages

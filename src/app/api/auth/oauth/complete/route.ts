@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { randomBytes, randomUUID } from 'crypto'
+import { shouldAttemptBootstrap, bootstrapSuperAdmin } from '@/lib/super-admin-bootstrap'
 import bcrypt from 'bcryptjs'
 
 function generateLicenseSuffix(): string {
@@ -424,9 +425,17 @@ export async function POST(request: NextRequest) {
         facilityType = f?.type || null
       }
 
-      // Normalize role for the client (SUPER_ADMIN recovery is done by the auth helper on subsequent requests;
-      // here we just send back what the client needs to know).
-      const clientRole = isAdmin ? 'ADMIN' : isStudent ? 'STUDENT' : effectiveRole
+      // ── Super Admin Bootstrap (first-time registration) ──
+      // If no Super Admin exists and this email matches FOUNDER_EMAIL,
+      // upgrade the user immediately. They'll see SUPER_ADMIN on first login.
+      let clientRole = isAdmin ? 'ADMIN' : isStudent ? 'STUDENT' : effectiveRole
+      if (isAdmin && shouldAttemptBootstrap(normalizedEmail)) {
+        const saResult = await bootstrapSuperAdmin(result.user.id)
+        if (saResult.bootstrapped) {
+          clientRole = 'SUPER_ADMIN'
+          console.log('[oauth/complete] Super Admin bootstrapped on first registration')
+        }
+      }
 
       const response = NextResponse.json({
         status: 'ACTIVE',
