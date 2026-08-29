@@ -1,8 +1,7 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+// @ts-check
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: "standalone",
-  /* config options here */
   // NOTE: ignoreBuildErrors is temporarily set to true because the codebase has
   // 119+ pre-existing TypeScript errors (e.g., auth/callback/page.tsx template
   // literal parsing). These errors block Vercel deployment when set to false.
@@ -25,4 +24,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
