@@ -74,7 +74,7 @@ export const PATCH = withAuth({
 
   // Verify the admin has authority over this user's facility
   if (!ctx.isSuperAdmin && pendingUser.facilityId !== ctx.facilityId) {
-    return denial('FACILITY_MISMATCH',
+    return denial('INSUFFICIENT_PERMISSIONS',
       'You can only manage users in your facility',
       403,
     )

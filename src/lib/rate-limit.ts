@@ -1,16 +1,17 @@
 /**
- * Rate limiter for API routes — database-backed for serverless compatibility.
+ * Rate limiter for API routes.
  *
- * Uses a two-layer approach:
- *   1. In-memory Map for fast same-instance checks
- *   2. Database (AuditLog) for cross-instance enforcement in serverless deployments
+ * Uses an in-memory sliding-window counter per identifier (typically IP).
+ * Effective within a single serverless instance (handles burst attacks).
  *
- * If the database is unavailable, falls back to in-memory only.
+ * NOTE: For true cross-instance distributed rate limiting in production,
+ * a dedicated store (Vercel KV, Upstash Redis, or a RateLimitLog table)
+ * should be added. The AuditLog model requires a userId foreign key and
+ * cannot be used for pre-authentication rate limiting.
+ *
+ * The key F2 fix is that rate limiting is now ENFORCED on login,
+ * forgot-password, and reset-password endpoints (previously missing entirely).
  */
-
-import { db } from '@/lib/db'
-
-// ─── In-Memory Layer (fast path for same-instance requests) ─────────────────────
 
 interface RateLimitEntry {
   count: number
@@ -19,7 +20,7 @@ interface RateLimitEntry {
 
 const store = new Map<string, RateLimitEntry>()
 
-// Cleanup old entries every 5 minutes
+// Cleanup old entries every 5 minutes to prevent memory leaks
 setInterval(() => {
   const now = Date.now()
   for (const [key, entry] of store.entries()) {
@@ -37,7 +38,7 @@ export interface RateLimitOptions {
 }
 
 /**
- * Get client identifier from request (IP-based, no user-agent to avoid accidental blocking)
+ * Get client identifier from request (IP-based).
  */
 export function getRateLimitIdentifier(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for')
@@ -54,92 +55,8 @@ export function getEndpointRateLimitIdentifier(request: Request, endpoint: strin
   return `${endpoint}:${ip}`
 }
 
-// ─── Database Layer (cross-instance enforcement) ───────────────────────────────
-
-/**
- * Check rate limit against the database (AuditLog table).
- * Counts recent RATE_LIMIT_EVENT entries for the given key.
- * Returns true if rate limited.
- */
-async function checkDatabaseRateLimit(
-  key: string,
-  options: RateLimitOptions,
-): Promise<{ limited: true; retryAfter: number } | null> {
-  try {
-    const windowStart = new Date(Date.now() - options.windowMs)
-
-    const count = await db.auditLog.count({
-      where: {
-        action: 'RATE_LIMIT_EVENT',
-        resource: key,
-        createdAt: { gte: windowStart },
-      },
-    })
-
-    if (count >= options.maxRequests) {
-      // Find the oldest entry in the window to calculate retryAfter
-      const oldest = await db.auditLog.findFirst({
-        where: {
-          action: 'RATE_LIMIT_EVENT',
-          resource: key,
-          createdAt: { gte: windowStart },
-        },
-        orderBy: { createdAt: 'asc' },
-        select: { createdAt: true },
-      })
-
-      const retryAfter = oldest
-        ? Math.ceil((oldest.createdAt.getTime() + options.windowMs - Date.now()) / 1000)
-        : 60
-
-      return { limited: true, retryAfter: Math.max(1, retryAfter) }
-    }
-
-    // Record this request in the database
-    await db.auditLog.create({
-      data: {
-        action: 'RATE_LIMIT_EVENT',
-        resource: key,
-        details: 'Rate limit counter increment',
-      },
-    })
-
-    return null // Not limited
-  } catch {
-    // Database unavailable — fall back to in-memory only
-    return null
-  }
-}
-
-/**
- * Clean up old rate limit entries from the database.
- * Called periodically to prevent unlimited growth.
- * Entries older than 1 hour are deleted.
- */
-async function cleanupDatabaseRateLimits(): Promise<void> {
-  try {
-    const cutoff = new Date(Date.now() - 60 * 60 * 1000) // 1 hour ago
-    await db.auditLog.deleteMany({
-      where: {
-        action: 'RATE_LIMIT_EVENT',
-        createdAt: { lt: cutoff },
-      },
-    })
-  } catch {
-    // Non-critical — ignore cleanup failures
-  }
-}
-
-// Run cleanup every 10 minutes
-setInterval(() => {
-  cleanupDatabaseRateLimits().catch(() => {})
-}, 10 * 60 * 1000)
-
-// ─── Main Rate Limit Check ────────────────────────────────────────────────────
-
 /**
  * Check if a request should be rate limited.
- * Uses in-memory check first (fast), then database check (cross-instance).
  *
  * Returns { limited: true, retryAfter } if rate limited,
  * or { limited: false } if allowed.
@@ -149,37 +66,23 @@ export async function checkRateLimit(
   options: RateLimitOptions,
 ): Promise<{ limited: false } | { limited: true; retryAfter: number }> {
   const now = Date.now()
-
-  // Layer 1: In-memory check (fast path)
   const entry = store.get(identifier)
 
   if (!entry || now > entry.resetTime) {
-    // First request or window expired — set up in-memory counter
+    // First request or window expired — start new window
     store.set(identifier, {
       count: 1,
       resetTime: now + options.windowMs,
     })
-  } else if (entry.count >= options.maxRequests) {
-    // In-memory limit hit — calculate retryAfter
+    return { limited: false }
+  }
+
+  if (entry.count >= options.maxRequests) {
     const retryAfter = Math.ceil((entry.resetTime - now) / 1000)
-    // Still check database for consistency, but return immediately
     return { limited: true, retryAfter }
-  } else {
-    entry.count++
   }
 
-  // Layer 2: Database check (cross-instance enforcement)
-  // This catches requests that span multiple serverless instances
-  const dbResult = await checkDatabaseRateLimit(identifier, options)
-  if (dbResult && dbResult.limited) {
-    // Sync in-memory state with database
-    store.set(identifier, {
-      count: options.maxRequests,
-      resetTime: now + dbResult.retryAfter * 1000,
-    })
-    return dbResult
-  }
-
+  entry.count++
   return { limited: false }
 }
 
