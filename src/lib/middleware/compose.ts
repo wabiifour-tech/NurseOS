@@ -122,6 +122,16 @@ export function withAuth(
         { status: 401 },
       )
     }
+
+    // PATIENT role is valid in the system but must NEVER access withAuth-protected API routes.
+    // PATIENTs interact through patient-facing features, not the staff API.
+    if (authUser.role === 'PATIENT') {
+      return Response.json(
+        { error: 'Unauthorized. Your account role does not have API access.', code: 'AUTHENTICATION_REQUIRED' },
+        { status: 401 },
+      )
+    }
+
     const role: Role = authUser.role
     const permissions = getRolePermissions(role)
 
